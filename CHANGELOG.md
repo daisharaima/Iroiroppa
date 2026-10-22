@@ -7,6 +7,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.1] — 2026-10-23
+
 ### Fixed
 
 - **Installing while Iroiroppa is open** no longer fails with "Iroiroppa cannot
