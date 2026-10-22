@@ -9,21 +9,23 @@ smartphone"). No plugins, no scripts inside CSP, no file patching.
 
 ## Features
 
-- **Colour picking** — gamut maps, sliders and colour history in **OKLCH**
-  (the default), **OKHSV**, **HSV**, **HSL**, or **CIELAB**; switching model keeps
-  the same colour because each is a view of one canonical value. Sliders mark
-  out-of-gamut regions with a hard edge, slices rotate or flip, every channel value
-  is editable, and a module's settings can be copied onto another.
-- **Two-way sync** — changes in CSP appear here (~10 Hz while they happen, ~3 Hz
-  idle); dragging the picker updates Clip Studio Paint live.
-- **Profiles and proofing** — choose the document profile from the Session picker
-  or Settings, with a distinct **Browse for ICC profile…** action. Proofing keeps
-  the recorded value and its appearance distinct; RGB and LUT-based **CMYK**
-  profiles both prove, and a CMYK proof never rewrites what CSP recorded.
-- **Know what you are holding** — a colour card with the swatch, the HEX (copy,
-  paste or type one), the L/C/H and sRGB values, and how far the current colour is
-  from the last one you stored. With a proof profile active it says which numbers
-  are the *stored* ones and which are what you see on screen.
+- **Pick colours visually** — choose colours on maps and sliders in OKLCH and other models, then send them straight to Clip Studio Paint.
+- **Two-way sync** — colours changed in Clip Studio Paint appear here, and changes here update Clip Studio Paint live.
+- **Colour-profile preview** — see how a colour will look in the document's colour profile, including CMYK, without changing what Clip Studio Paint records.
+- **A clear colour readout** — see the current colour's hex code and channel values at a glance.
+- **A modular palette** — build the panel from small modules: show, hide, duplicate, resize and arrange them, or pop one out into its own window.
+
+## Modules
+
+Each module does one job and can be shown, hidden, duplicated or resized independently.
+
+- **Session** — connection status, the document's colour profile and the Settings button.
+- **CSP Color** — Clip Studio Paint's foreground, background and transparent colour slots.
+- **Color Slices** — click a colour map to choose a colour.
+- **Slider** — fine-tune lightness, chroma and hue with sliders.
+- **Color History** — recently picked colours you can reuse.
+- **Color Stat** — the current colour's hex code and channel values.
+- **CSP Shortcuts** — search and run Clip Studio Paint's own commands.
 
 ## Install
 
