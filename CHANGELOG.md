@@ -7,6 +7,12 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Installing while Iroiroppa is open** no longer fails with "Iroiroppa cannot
+  be closed". The installer closes the running app — including a copy started
+  from another folder, such as the portable build — before replacing files.
+
 ## [1.2.0] — 2026-10-22
 
 ### Highlights

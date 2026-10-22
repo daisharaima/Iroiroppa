@@ -30,7 +30,8 @@ Each module does one job and can be shown, hidden, duplicated or resized indepen
 ## Install
 
 Grab the installer or the portable build from
-[Releases](https://github.com/daisharaima/Iroiroppa/releases). The builds are
+[Releases](https://github.com/daisharaima/Iroiroppa/releases). The installer
+closes a running copy of Iroiroppa before it replaces files. The builds are
 unsigned, so Windows SmartScreen may warn on first run ("More info" → "Run
 anyway"). Requires Windows 10/11 (64-bit) and Clip Studio Paint with Companion
 Mode (tested on CSP 5.0.4).
