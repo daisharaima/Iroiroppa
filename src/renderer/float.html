@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self' module:; style-src 'self' 'unsafe-inline'; img-src 'self' data: theme: module:; font-src 'self' data: theme: module:;" />
+  <title>Iroiroppa</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="float.css" />
+</head>
+<body class="float-window">
+  <div id="app">
+    <header id="float-grip" class="titlebar" title="Drag to move this window">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <input id="palette-name" class="brand-text brand-input" value="" spellcheck="false" maxlength="60" aria-label="Palette name" readonly />
+      </div>
+      <div class="title-actions">
+        <!-- The ⋯ that opens the settings of the module in this window, shown only while the window
+             holds exactly one module (which mounts headless, so it has no ⋯ of its own). -->
+        <button id="float-module-settings" class="icon-btn hidden" type="button" title="Module settings" aria-label="Module settings">
+          <svg viewBox="0 0 20 20"><circle cx="4.4" cy="10" r="1.15" fill="currentColor" stroke="none"/><circle cx="10" cy="10" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.6" cy="10" r="1.15" fill="currentColor" stroke="none"/></svg>
+        </button>
+        <button id="btn-unsnap" class="icon-btn hidden" type="button" title="Unsnap" aria-label="Unsnap" data-i18n-title="app.menu.unsnap" data-i18n-aria-label="app.menu.unsnap">
+          <svg viewBox="0 0 20 20"><path d="M7.2 12.8 4.6 15.4a3 3 0 0 1-4.2-4.2l2.6-2.6"/><path d="M12.8 7.2l2.6-2.6a3 3 0 0 1 4.2 4.2l-2.6 2.6"/><path d="M7.4 12.6l5.2-5.2"/><path d="M3 3l14 14"/></svg>
+        </button>
+        <button id="btn-menu" class="icon-btn" type="button" title="Palette menu" aria-label="Palette menu">
+          <svg viewBox="0 0 20 20"><path d="M3.5 5.5h13"/><path d="M3.5 10h13"/><path d="M3.5 14.5h13"/></svg>
+        </button>
+        <button id="float-collapse" class="icon-btn" type="button" title="Collapse" aria-label="Collapse">
+          <svg class="float-eye-open" viewBox="0 0 20 20" aria-hidden="true"><path d="M1.8 10S4.8 4.8 10 4.8 18.2 10 18.2 10 15.2 15.2 10 15.2 1.8 10 1.8 10Z"/><circle cx="10" cy="10" r="2.6"/></svg>
+          <svg class="float-eye-closed" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10S5.5 5 10 5c1.4 0 2.6.4 3.7 1"/><path d="M13.6 13.7C12.6 14.5 11.4 15 10 15c-4.5 0-7.5-5-7.5-5a16 16 0 0 1 2.4-2.6"/><path d="M3.5 3.5l13 13"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="palette-menu" class="palette-menu hidden">
+      <button id="menu-rename" class="menu-item" type="button">Rename…</button>
+      <button id="menu-lock" class="menu-item" type="button">Lock layout</button>
+      <button id="menu-delete" class="menu-item danger" type="button">Delete palette…</button>
+    </div>
+    <main id="board"></main>
+  </div>
+
+  <script src="../shared/color.js"></script>
+  <script src="../shared/i18n.js"></script>
+<script src="../shared/lut.js"></script>
+<script src="../shared/proof.js"></script>
+<script src="../shared/color-models.js"></script>
+<script src="../shared/slider-gamut.js"></script>
+<script src="../shared/slice-view.js"></script>
+<script src="../shared/shortcut-match.js"></script>
+  <script src="../shared/token-model.js"></script>
+  <script src="../shared/token-schema.js"></script>
+  <script src="../shared/peer-events.js"></script>
+  <script src="../shared/module-manifest.js"></script>
+  <script src="kernel/color-store.js"></script>
+  <script src="kernel/command-bus.js"></script>
+  <script src="kernel/module-host.js"></script>
+  <script src="kernel/editable-fields.js"></script>
+  <script src="../shared/theme-tokens.js"></script>
+<script src="kernel/themes.js"></script>
+  <script src="../shared/layout-model.js"></script>
+  <script src="../shared/layout-codec.js"></script>
+  <script src="kernel/layout.js"></script>
+  <script src="kernel/overlay-menu.js"></script>
+  <script src="kernel/i18n.js"></script>
+  <script src="kernel/state-client.js"></script>
+  <script src="kernel/peers.js"></script>
+  <script src="kernel/token-client.js"></script>
+  <script src="vendor/culori/culori.umd.js"></script>
+  <script src="kernel/color-interop.js"></script>
+  <script src="kernel/state-adapters.js"></script>
+  <script src="float.js"></script>
+</body>
+</html>

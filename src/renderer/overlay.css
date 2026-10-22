@@ -1,0 +1,83 @@
+/* The drag chip: a module's name following the pointer while it is dragged. It
+   lives in its own transparent, click-through window so it can leave the window
+   the drag started in. */
+body.overlay-window { background: transparent; overflow: hidden; }
+
+#overlay-chip {
+  position: absolute;
+  top: 0; left: 0;
+  max-width: 250px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: var(--font-size); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+body.overlay-window.float-hint #overlay-chip { background: var(--online); }
+
+
+/* The palette menu. It lives in this window, not in the palette, because a renderer cannot paint
+   outside its own window: main moves and resizes this surface to exactly the menu, so the menu can
+   sit anywhere on screen (over the desktop, over another palette) and only its own clicks are taken. */
+#overlay-menu {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 4px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 26px var(--shadow);
+  font-size: var(--font-size);
+  /* The profile list can be longer than the 10-row window; this is what lets the
+     rest scroll. The rows themselves must not shrink: a column flexbox shrinks
+     its children by default, which squashed every line of a long menu. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+#overlay-menu::-webkit-scrollbar { width: 8px; }
+#overlay-menu::-webkit-scrollbar-track { background: transparent; }
+#overlay-menu::-webkit-scrollbar-thumb {
+  border-radius: 4px;
+  background: var(--line);
+  border: 2px solid var(--card);
+}
+#overlay-menu.hidden { display: none; }
+
+.overlay-menu-item {
+  position: relative;
+  display: block; width: 100%;
+  flex: 0 0 auto;
+  min-height: 22px; line-height: 1.35;
+  padding: 4px 8px 4px 20px; border: 0; border-radius: 5px;
+  background: transparent; color: var(--text);
+  font: inherit; text-align: left; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer;
+}
+.overlay-menu-item::before {
+  content: ''; position: absolute; left: 5px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--accent); font-weight: 700;
+}
+.overlay-menu-item.checked::before { content: '\2713'; }
+.overlay-menu-item:hover:not(:disabled) { background: var(--hover); }
+.overlay-menu-item:disabled { color: var(--text-dim); cursor: default; }
+.overlay-menu-item.danger { color: var(--error); }
+html[dir="rtl"] .overlay-menu-item { text-align: right; padding: 4px 20px 4px 8px; }
+html[dir="rtl"] .overlay-menu-item::before { left: auto; right: 5px; }
+/* A menu command (Browse), not a radio-like profile row. */
+.overlay-menu-item.action {
+  display: flex; align-items: center; gap: 6px;
+  padding-left: 8px; margin: 1px 0 2px;
+  color: var(--accent); background: var(--bar-2);
+  border: 1px solid var(--line);
+}
+.overlay-menu-item.action::before { content: none; }
+.overlay-menu-item.action:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-weak); }
+.overlay-menu-icon { display: inline-flex; width: 14px; height: 14px; flex: 0 0 auto; }
+.overlay-menu-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.overlay-menu-sep { flex: 0 0 auto; height: 1px; margin: 2px 4px; background: var(--line); }

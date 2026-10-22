@@ -1,0 +1,6 @@
+{
+  "name": "Hello Module",
+  "group": "utility",
+  "autoHeight": true,
+  "instanceable": true
+}

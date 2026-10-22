@@ -1,0 +1,32 @@
+Iroiroppa — third-party notices
+
+Copyright (C) 2026 Iroiroppa contributors.
+
+This project is free software under the GNU General Public License, version 3 or
+later (see LICENSE). It builds on the following work:
+
+* chocolatkey/clipremote (MIT) — reference implementation of the Clip Studio
+  Paint "Companion Mode" wire protocol. The framing, authentication crypto and
+  QR payload decoding here are an independent implementation informed by it.
+  https://github.com/chocolatkey/clipremote
+
+* LumaPaletteCSP by andyubird (GPL-3.0) — an OKLCH picker for Clip Studio Paint
+  that does this first; its PROTOCOL.md was consulted as documentation of the
+  protocol's observed behaviour, and it is the main inspiration for this project.
+  Iroiroppa is licensed GPL-3.0-or-later, compatible with that work.
+  https://github.com/andyubird/LumaPaletteCSP
+
+* jsQR (Apache-2.0) — QR decoding.
+  https://github.com/cozmo/jsQR
+
+* OKLab / OKLCH — Björn Ottosson.
+  https://bottosson.github.io/posts/oklab/
+
+* PaintPalette by echo-tree (Bilibili) — this app borrows heavily from it.
+
+* Kroma by 秫稻_ (Bilibili) — likewise a major reference for this app.
+
+* Electron and electron-builder (MIT) — the desktop shell and packaging.
+
+Clip Studio Paint is a trademark of CELSYS, Inc. This project is unofficial and
+is not affiliated with, or endorsed by, CELSYS.

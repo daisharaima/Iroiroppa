@@ -1,0 +1,7 @@
+# Keep line endings consistent across Windows checkouts.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.icc binary
+*.icm binary

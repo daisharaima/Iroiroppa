@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self' module:; style-src 'self' 'unsafe-inline'; img-src 'self' data: theme: module:; font-src 'self' data: theme: module:;" />
+  <title>Iroiroppa</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="titlebar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <input id="palette-name" class="brand-text brand-input" value="Palette 1" spellcheck="false" maxlength="60" aria-label="Palette name" readonly />
+      </div>
+      <div class="title-actions">
+        <button id="btn-unsnap" class="icon-btn hidden" type="button" title="Unsnap" aria-label="Unsnap" data-i18n-title="app.menu.unsnap" data-i18n-aria-label="app.menu.unsnap">
+          <svg viewBox="0 0 20 20"><path d="M7.2 12.8 4.6 15.4a3 3 0 0 1-4.2-4.2l2.6-2.6"/><path d="M12.8 7.2l2.6-2.6a3 3 0 0 1 4.2 4.2l-2.6 2.6"/><path d="M7.4 12.6l5.2-5.2"/><path d="M3 3l14 14"/></svg>
+        </button>
+        <button id="btn-menu" class="icon-btn" type="button" title="Palette menu" aria-label="Palette menu" data-i18n-title="app.titlebar.paletteMenu" data-i18n-aria-label="app.titlebar.paletteMenu">
+          <svg viewBox="0 0 20 20"><path d="M3.5 5.5h13"/><path d="M3.5 10h13"/><path d="M3.5 14.5h13"/></svg>
+        </button>
+        <button id="btn-collapse" class="icon-btn" title="Collapse" aria-label="Collapse" data-i18n-title="app.titlebar.collapse" data-i18n-aria-label="app.titlebar.collapse">
+          <svg id="icon-eye-open" viewBox="0 0 20 20"><path d="M1.8 10S4.8 4.8 10 4.8 18.2 10 18.2 10 15.2 15.2 10 15.2 1.8 10 1.8 10Z"/><circle cx="10" cy="10" r="2.6"/></svg>
+          <svg id="icon-eye-closed" class="hidden" viewBox="0 0 20 20"><path d="M2.5 10S5.5 5 10 5c1.4 0 2.6.4 3.7 1"/><path d="M13.6 13.7C12.6 14.5 11.4 15 10 15c-4.5 0-7.5-5-7.5-5a16 16 0 0 1 2.4-2.6"/><path d="M3.5 3.5l13 13"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- The palette's own menu: the only way to rename it, join-free it or delete it. Clicking
+         the name used to start an edit, which never worked reliably in a titlebar (a drag
+         surface) and never in a float at all (no text focus). -->
+    <div id="palette-menu" class="palette-menu hidden">
+      <button id="menu-rename" class="menu-item" type="button" data-i18n="app.menu.rename">Rename…</button>
+      <button id="menu-lock" class="menu-item" type="button" data-i18n="app.menu.lock">Lock layout</button>
+      <button id="menu-settings" class="menu-item" type="button" data-i18n="app.menu.settings">Settings&hellip;</button>
+      <button id="menu-delete" class="menu-item danger" type="button" data-i18n="app.menu.delete">Delete palette…</button>
+    </div>
+
+    <!-- Selector modules are mounted here by the kernel (kernel/module-host.js).
+         Phase 0 uses a single fixed column; the board/layout phases add more. -->
+    <main id="board"></main>
+
+    <div id="resize-grip" class="resize-grip" title="Drag to resize"></div>
+  </div>
+
+  <script src="../shared/color.js"></script>
+  <script src="../shared/i18n.js"></script>
+  <script src="../shared/lut.js"></script>
+  <script src="../shared/proof.js"></script>
+<script src="../shared/color-models.js"></script>
+<script src="../shared/slider-gamut.js"></script>
+<script src="../shared/slice-view.js"></script>
+<script src="../shared/shortcut-match.js"></script>
+  <script src="../shared/module-manifest.js"></script>
+  <script src="../shared/capabilities.js"></script>
+  <script src="../shared/token-model.js"></script>
+  <script src="../shared/token-schema.js"></script>
+  <script src="../shared/peer-events.js"></script>
+  <script src="../shared/layout-model.js"></script>
+  <script src="../shared/layout-codec.js"></script>
+  <script src="kernel/color-store.js"></script>
+  <script src="kernel/command-bus.js"></script>
+  <script src="kernel/capabilities.js"></script>
+  <script src="kernel/i18n.js"></script>
+  <script src="kernel/capture.js"></script>
+  <script src="kernel/module-host.js"></script>
+  <script src="kernel/editable-fields.js"></script>
+  <script src="kernel/layout.js"></script>
+  <script src="kernel/overlay-menu.js"></script>
+  <script src="../shared/theme-tokens.js"></script>
+<script src="kernel/themes.js"></script>
+  <script src="kernel/state-client.js"></script>
+  <script src="kernel/peers.js"></script>
+  <script src="kernel/token-client.js"></script>
+  <script src="vendor/culori/culori.umd.js"></script>
+  <script src="kernel/color-interop.js"></script>
+  <script src="kernel/state-adapters.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

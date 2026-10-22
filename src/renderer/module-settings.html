@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self' module:; style-src 'self' 'unsafe-inline'; img-src 'self' data: theme: module:; font-src 'self' data: theme: module:;" />
+  <title>Iroiroppa</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="settings.css" />
+  <link rel="stylesheet" href="module-settings.css" />
+</head>
+<body class="module-settings-window">
+  <div id="app">
+    <header id="titlebar">
+      <span id="ms-title" class="ms-title">Module</span>
+      <button id="ms-close" class="icon-btn" type="button" title="Close" aria-label="Close">
+        <svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>
+      </button>
+    </header>
+    <div id="ms-root" class="ms-body"></div>
+  </div>
+
+  <script src="../shared/color.js"></script>
+<script src="../shared/color-models.js"></script>
+<script src="../shared/slider-gamut.js"></script>
+<script src="../shared/slice-view.js"></script>
+<script src="../shared/shortcut-match.js"></script>
+  <script src="../shared/i18n.js"></script>
+<script src="../shared/lut.js"></script>
+<script src="../shared/proof.js"></script>
+  <script src="../shared/module-manifest.js"></script>
+  <script src="../shared/theme-tokens.js"></script>
+<script src="kernel/themes.js"></script>
+  <script src="kernel/settings-transfer.js"></script>
+  <script src="kernel/i18n.js"></script>
+<script src="module-settings.js"></script>
+</body>
+</html>

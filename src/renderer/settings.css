@@ -1,0 +1,404 @@
+/* Floating settings window: a flat panel with segmented tabs and label/control rows. */
+body.settings-window { background: var(--bg); }
+body.settings-window #app {
+  border: none;
+  border-radius: 0;
+  background: var(--bg);
+  height: auto;
+  min-height: 100%;
+}
+body.settings-window #titlebar {
+  height: 30px;
+  padding: 0 6px 0 10px;
+  justify-content: space-between;
+  gap: 4px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  /* This window is a normal, activatable window, so its header is a real OS
+     drag region (the palette's own title bar is dragged by hand instead). */
+  -webkit-app-region: drag;
+}
+body.settings-window #titlebar .icon-btn { -webkit-app-region: no-drag; }
+.settings-title { font-size: calc(var(--font-size) + 2px); font-weight: 600; color: var(--text); }
+
+#settings-body {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 10px 12px;
+  gap: 0;
+}
+
+/* --- segmented control (tabs and the theme picker) ------------------------ */
+
+:root { --seg-track: #eceef3; --seg-active: #ffffff; }
+
+.seg {
+  display: flex; gap: 2px;
+  background: var(--seg-track);
+  border-radius: 8px; padding: 2px;
+  flex: 0 0 auto;
+  margin-bottom: 4px;
+}
+.seg-btn {
+  flex: 1 1 0;
+  border: none; background: transparent; color: var(--text-dim);
+  padding: 5px 8px; border-radius: 6px;
+  font-size: calc(var(--font-size) + 1px); cursor: pointer; white-space: nowrap;
+}
+.seg-btn:hover { color: var(--text); }
+.seg-btn.active {
+  background: var(--seg-active); color: var(--text); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+/* The instance list under the module title: a circle (shown/hidden) and a name
+   (selects it), with a ＋ row to add one from the default. */
+.instance-list { display: flex; flex-direction: column; gap: 2px; margin: 0 0 10px; }
+.instance-row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; }
+.instance-row.selected { background: var(--accent); color: var(--accent-text); }
+.instance-dot {
+  flex: 0 0 auto; width: 12px; height: 12px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--line); cursor: pointer;
+}
+.instance-dot.on {
+  background: var(--online); border-color: var(--online);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--online) 22%, transparent);
+}
+.instance-name {
+  flex: 1 1 auto; min-width: 0; border: none; background: transparent; color: inherit;
+  font: inherit; text-align: left; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.instance-add {
+  align-self: flex-start; margin-top: 2px; width: 24px; height: 24px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--text);
+  font-size: calc(var(--font-size) + 2px); line-height: 1; cursor: pointer;
+}
+.instance-add:hover { background: var(--hover); color: var(--accent); }
+.instance-add:disabled { opacity: 0.5; cursor: default; }
+
+/* The section heading in the module list (Core / Color Picker / Utility). */
+.module-group-title {
+  padding: 6px 8px 2px; font-size: calc(var(--font-size) - 0.5px);
+  text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim);
+  position: sticky; top: 0; background: var(--card);
+}
+
+/* --- sections and rows ---------------------------------------------------- */
+
+.tab-panel { display: flex; flex-direction: column; }
+.tab-panel.hidden { display: none; }
+
+.section-title {
+  font-size: calc(var(--font-size) + 1px); font-weight: 700; color: var(--text);
+  margin: 12px 0 2px; padding-bottom: 5px;
+  border-bottom: 1px solid var(--line);
+}
+.tab-panel > .section-title:first-child { margin-top: 4px; }
+
+.row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 34px; padding: 3px 0;
+}
+.row-label { font-size: calc(var(--font-size) + 1px); color: var(--text); }
+.row-control {
+  display: flex; align-items: center; gap: 8px;
+  flex: 1 1 auto; min-width: 0; justify-content: flex-end;
+}
+.row-control .rng { flex: 0 1 auto; width: 130px; }
+.row-control .scale-rng { width: 88px; }
+.spinner { display: flex; flex-direction: column; gap: 1px; flex: 0 0 auto; }
+.spin-btn {
+  width: 18px; height: 12px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: 3px;
+  background: var(--bg-3); color: var(--text-dim);
+  font-size: calc(var(--font-size) - 4px); line-height: 1; cursor: pointer;
+}
+.spin-btn:hover { background: var(--hover); color: var(--text); }
+.scale-input {
+  width: 40px; text-align: right; padding: 3px 4px;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--input-bg); color: var(--text);
+  font-family: var(--mono); font-size: calc(var(--font-size) + 0.5px);
+}
+.scale-input:focus { outline: 1px solid var(--accent); }
+.scale-suffix { font-size: var(--font-size); color: var(--text-dim); }
+
+/* --- theme picker --------------------------------------------------------- */
+
+.select {
+  flex: 0 1 auto; min-width: 0; max-width: 170px;
+  padding: 4px 6px; border-radius: 6px;
+  border: 1px solid var(--line); background: var(--input-bg); color: var(--text);
+  font-size: calc(var(--font-size) + 1px); cursor: pointer;
+}
+.select:focus { outline: 1px solid var(--accent); }
+.accent-trigger {
+  flex: 0 0 auto;
+  width: 30px; height: 24px; padding: 0;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--accent); cursor: pointer;
+}
+.accent-trigger:hover { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.btn.tiny { padding: 3px 7px; font-size: var(--font-size); }
+
+/* --- accent picker popup -------------------------------------------------- */
+
+.accent-backdrop {
+  position: absolute; inset: 0; z-index: 19;
+  background: color-mix(in srgb, var(--text) 16%, transparent);
+}
+.accent-popup {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  z-index: 20; width: 232px;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: 0 12px 30px var(--shadow);
+}
+.accent-popup-head { font-size: calc(var(--font-size) + 1px); font-weight: 700; color: var(--text); }
+.accent-sv {
+  position: relative; height: 96px; border-radius: 6px;
+  border: 1px solid var(--line);
+  cursor: crosshair; touch-action: none; overflow: hidden;
+  background: #ff0000;
+}
+.accent-sv::before { content: ''; position: absolute; inset: 0; background: linear-gradient(to right, #fff, transparent); }
+.accent-sv::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, #000, transparent); }
+.accent-thumb {
+  position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  border-radius: 50%; border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.accent-hue {
+  height: 10px;
+  background: linear-gradient(90deg,
+    hsl(0 100% 50%), hsl(60 100% 50%), hsl(120 100% 50%), hsl(180 100% 50%),
+    hsl(240 100% 50%), hsl(300 100% 50%), hsl(360 100% 50%));
+}
+.accent-row { display: flex; align-items: center; gap: 7px; }
+.accent-preview {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+}
+.accent-hex {
+  flex: 1 1 auto; min-width: 0; text-transform: uppercase;
+  font-family: var(--mono); letter-spacing: 0.02em;
+}
+.accent-actions { display: flex; justify-content: flex-end; gap: 6px; }
+
+/* --- toggle switch -------------------------------------------------------- */
+
+.tgl { position: relative; flex: 0 0 auto; width: 38px; height: 22px; cursor: pointer; }
+.tgl input { position: absolute; opacity: 0; width: 0; height: 0; }
+.tgl-track {
+  position: absolute; inset: 0; border-radius: 11px;
+  background: var(--line);
+  transition: background 0.15s;
+}
+.tgl-track::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+/* --- modules tab: a list on the left, the selected module's settings right -- */
+
+.modules-split {
+  display: flex;
+  /* Twice the old 330 px: the preview plus the instance strip and settings need the room.
+     No `max-height: 100vh` here: the window auto-fits its content, so a viewport-relative
+     cap is measured against the *old* (small) window and the split can never grow. */
+  height: 660px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.module-list {
+  /* Grow only as far as the longest module name needs, capped at half the split
+     so the settings pane keeps the majority when the window is narrow. Zero
+     shrink so the flex line never squeezes the names into ellipses. */
+  flex: 0 0 auto;
+  width: max-content;
+  min-width: 0;
+  max-width: 50%;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 4px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--card);
+  border-right: 1px solid var(--line);
+}
+.module-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 8px;
+  border: none; border-radius: 6px;
+  background: transparent; color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.module-row:hover { background: var(--hover); }
+.module-row.selected { background: var(--accent); color: var(--accent-text); }
+/* The on/off light: a presence **indicator**, not a switch (module-wide enable was
+   the bug). Hiding/showing is per instance in the detail pane. */
+.module-light {
+  flex: 0 0 auto;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--line);
+  cursor: default;
+}
+.module-light.on {
+  background: var(--online);
+  border-color: var(--online);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--online) 22%, transparent);
+}
+/* A dim light needs a visible ring on the highlighted row. */
+.module-row.selected .module-light {
+  border-color: color-mix(in srgb, var(--accent-text) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-text) 25%, transparent);
+}
+.module-row.selected .module-light.on { background: var(--online); border-color: var(--online); }
+.module-name {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: calc(var(--font-size) + 1px);
+}
+.module-detail {
+  flex: 1 1 0; min-width: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  /* The settings column must never show a horizontal scrollbar; the window's
+     minimum width (set from the longest module name) keeps the content fitted. */
+  overflow-x: hidden;
+}
+.module-detail-title { font-size: calc(var(--font-size) + 2px); font-weight: 600; margin-bottom: 8px; }
+.module-detail-body { display: flex; flex-direction: column; gap: 6px; }
+.module-detail-empty { font-size: calc(var(--font-size) + 1px); color: var(--text-dim); }
+
+/* --- the Trash (Settings → Modules) --------------------------------------- */
+/* Hidden behind the bin button under the module list: settings files whose instance was deleted
+   (or whose module no longer exists). Startup sweeps the ones older than 30 days. */
+.trash-bar { display: flex; justify-content: flex-end; padding: 3px 6px 0; border-top: 1px solid var(--line); }
+.trash-panel { padding: 6px; border-top: 1px solid var(--line); }
+.trash-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; font-size: calc(var(--font-size) + 1px); color: var(--text-dim); }
+.trash-list { display: flex; flex-direction: column; gap: 4px; }
+.trash-item { display: flex; flex-direction: column; gap: 3px; }
+.trash-row { display: flex; align-items: center; gap: 8px; font-size: calc(var(--font-size) + 0.5px); color: var(--text-dim); }
+.trash-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trash-preview {
+  margin: 0; padding: 4px 6px; max-height: 160px; overflow: auto;
+  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
+  font-family: var(--mono); font-size: calc(var(--font-size) - 1px); color: var(--text);
+  white-space: pre-wrap; word-break: break-word;
+}
+/* A live, pointer-inert render of the module so it is not guesswork to turn one
+   off. It is the real module inside a sized, dashed frame; clicks fall through. */
+.module-preview {
+  height: 160px;
+  margin: 2px 0 10px;
+  display: flex; flex-direction: column;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  pointer-events: none;
+}
+.module-preview .module { flex: 1 1 auto; min-height: 0; }
+
+/* --- profile list --------------------------------------------------------- */
+
+#set-profile-default {
+  margin: 0;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+}
+.settings-profile-list {
+  max-height: 168px;
+  border: 1px solid var(--line);
+  border-radius: 0 0 6px 6px;
+}
+
+.tgl input:checked + .tgl-track { background: var(--accent); }
+.tgl input:checked + .tgl-track::after { transform: translateX(16px); }
+
+.info {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; margin-left: 4px;
+  border: 1px solid var(--text-faint); border-radius: 50%;
+  color: var(--text-faint);
+  font-size: calc(var(--font-size) - 2px); font-style: italic; font-weight: 700; line-height: 1;
+  cursor: help;
+}
+.info:hover { color: var(--text); border-color: var(--text); }
+
+/* --- connection block ----------------------------------------------------- */
+
+.conn-row { margin-top: 8px; }
+.btn-row { margin-top: 6px; }
+.pair-row { margin-top: 6px; }
+
+/* --- version -------------------------------------------------------------- */
+
+.settings-version { font-size: calc(var(--font-size) - 0.5px); color: var(--text-faint); }
+.foot-right { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+/* "A newer release is available" — only shown when the check found one. */
+.settings-update {
+  border: none; background: none; padding: 0;
+  color: var(--accent); font: inherit; font-size: var(--font-size); font-weight: 600;
+  text-decoration: underline; cursor: pointer;
+}
+.settings-update:hover { filter: brightness(1.15); }
+/* A manual re-check; the notice above only appears when one is available. */
+.settings-check {
+  border: none; background: none; padding: 0;
+  color: var(--text-dim); font: inherit; font-size: var(--font-size); cursor: pointer;
+}
+.settings-check:hover { color: var(--text); }
+.settings-check:disabled { opacity: 0.6; cursor: default; }
+
+/* --- the Layout tab: each palette with its modules, and export/import ------ */
+
+.section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.row-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+
+.palette-list { display: flex; flex-direction: column; gap: 4px; }
+.palette-item { border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; }
+.palette-row { min-height: 30px; gap: 6px; }
+.palette-expand { flex: 0 0 auto; width: 22px; }
+.palette-name { flex: 1 1 auto; min-width: 0; }
+.palette-count { flex: 0 0 auto; color: var(--text-dim); font-size: var(--font-size); }
+.layout-icon { flex: 0 0 auto; min-width: 24px; }
+.layout-icon.danger:hover { color: var(--error); }
+.layout-icon.armed { color: var(--error); border-color: var(--error); }
+.palette-members {
+  display: flex; flex-direction: column; gap: 1px;
+  margin: 4px 0 2px 10px; padding-left: 8px; border-left: 2px solid var(--line);
+}
+.palette-member { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.palette-member-name {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--font-size); color: var(--text);
+}
+.palette-member .layout-icon { opacity: 0.75; }
+.palette-member:hover .layout-icon { opacity: 1; }
+
+/* The Module Size slider (Settings → Modules): the module's locked height:width. */
+.module-size-row { gap: 8px; }
+.module-size-range { flex: 1 1 auto; min-width: 80px; }
+
+/* The summon-hotkey capture field: read-only, so it captures keys instead of text. */
+.hotkey-input { width: 128px; text-align: center; cursor: pointer; }
+.hotkey-input.invalid { border-color: var(--error); }
+
+/* Per-module command shortcuts (Settings → General). */
+.command-list { display: flex; flex-direction: column; gap: 4px; }
+.command-empty { font-size: var(--font-size); color: var(--text-dim); padding: 2px 0; }
+
+/* Copy / paste a module's settings in Settings → Modules (kernel/settings-transfer.js). */
+.ms-transfer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 8px; }
+.ms-transfer-actions { display: flex; gap: 4px; align-items: center; }
+.ms-menu { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.ms-note { width: 100%; font-size: var(--font-size); color: var(--text-dim); }

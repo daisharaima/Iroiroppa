@@ -1,0 +1,24 @@
+/* Blender Dark: the paint half of the theme lives in blender-dark.json; this file
+   is the expressive layer that rounds anything the --radius token does not reach.
+   Blender's UI uses ~4 px corners, so controls that keep their own fine radii get
+   pulled in line here. Density and text size come from the structural tokens
+   (--space / --font-size) in the JSON, not from layout properties here — a theme
+   CSS may only paint (see docs/THEMES.md, "The CSS budget"). */
+
+/* Blender's ~4 px corners on the controls, matching the card radius token. */
+/* Blender's ~4 px corners on the card and its controls. */
+.module { border-radius: 4px; }
+.module-head { border-radius: 4px 4px 0 0; }
+.pop-action,
+.pop-select,
+.text-input,
+.brand-input,
+.slot,
+.swatch,
+.history-chip,
+.rng,
+.btn,
+.icon-btn,
+.mini-btn {
+  border-radius: 4px;
+}

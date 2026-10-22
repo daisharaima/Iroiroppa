@@ -1,0 +1,41 @@
+/* A float is a pane of its own: a small board that can hold columns of modules, so
+   modules can be dragged between it and the palette. Its header and its cards use the
+   palette's own rules (.titlebar, .brand, .brand-input, .icon-btn, .module*), so every
+   window looks the same — the old "a lone module is a bare card with no chrome" mode is
+   gone (docs/LAYOUT.md). Only what is genuinely float-specific lives here. */
+body.float-window #app {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+}
+
+/* The header is this window's OS drag region; a module header drags a module instead,
+   and the titlebar buttons opt out with `.icon-btn`/`.title-actions` (style.css). */
+/* The header is the window's drag region, but the move is *our* drag session — float.js starts
+   it on pointerdown, main moves the whole snap group and hides the windows — so there is
+   deliberately no `-webkit-app-region: drag` here (docs/LAYOUT.md, "Snap zones"). */
+#float-grip { -webkit-app-region: no-drag; }
+
+/* A float holding a single module keeps its palette shell: the window shows its own header, so
+   dragging it behaves exactly like dragging a palette (live move, name chip, nothing hides), and the
+   module inside mounts *headless* — which is what keeps a lone module from showing a header inside a
+   header. (This replaced the "a lone module is a bare card" rule, whose whole point was to make a
+   one-module window look like the card; the user asked for the container back instead.) */
+body.float-single #board { background: transparent; }
+
+/* While a palette is dragged over another one, nothing hides: the overlay draws the name
+   chip and the drop indicator above every window, so the old `visibility: hidden` dance
+   (which is what made windows seem to vanish) is gone. The rule is kept as a no-op hook in
+   case a future drag needs to dim one thing. */
+
+.float-fallback { padding: 12px; font-size: calc(var(--font-size) + 1px); color: var(--text-dim); }
+
+/* --- collapse ---------------------------------------------------------------
+   Collapsing hides the board and keeps the header, so a collapsed window still reads
+   as a palette and can always be restored. */
+body.float-collapsed #board { display: none; }
+body.float-collapsed #app { background: transparent; border-color: transparent; }
+.float-eye-closed { display: none; }
+body.float-collapsed .float-eye-open { display: none; }
+body.float-collapsed .float-eye-closed { display: block; }

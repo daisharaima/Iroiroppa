@@ -1,0 +1,15 @@
+node_modules/
+dist/
+out/
+build/icon.png
+*.log
+settings.json
+session.json
+*.bak.json
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+_private/
+/blueprint/
+.cortexkit/
+.dsh-vision-toolkit/

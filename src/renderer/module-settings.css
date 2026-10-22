@@ -1,0 +1,44 @@
+/* The module settings popout: a small always-on-top window that is not limited
+   by the palette's size. It closes when it loses focus. */
+body.module-settings-window { background: transparent; }
+body.module-settings-window #app {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--bg);
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+body.module-settings-window #titlebar {
+  height: 26px;
+  padding: 0 4px 0 10px;
+  justify-content: space-between;
+  gap: 0;
+  background: var(--bar);
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
+}
+#ms-close { -webkit-app-region: no-drag; }
+.ms-title {
+  font-size: var(--font-size); font-weight: 700; letter-spacing: 0.02em;
+  color: var(--text);
+}
+.ms-body {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px;
+}
+.ms-actions { display: flex; flex-direction: column; gap: 6px; }
+.ms-icon-actions { display: flex; flex-direction: row; align-items: center; gap: 4px; }
+.ms-icon-actions .icon-btn.danger:hover { color: var(--error); }
+.ms-icon-actions .icon-btn.armed { color: var(--error); background: var(--hover); }
+.ms-sep { height: 1px; background: var(--line); }
+.ms-empty { font-size: calc(var(--font-size) + 0.5px); color: var(--text-dim); }
+
+/* Copy / paste a module's settings (kernel/settings-transfer.js). */
+.ms-transfer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 8px; }
+.ms-menu { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.ms-note { width: 100%; font-size: var(--font-size); color: var(--text-dim); }
+.ms-transfer-actions { display: flex; gap: 4px; align-items: center; }
+.ms-icon-actions { flex-wrap: nowrap; }
+.ms-icon-sep { flex: 0 0 auto; width: 1px; height: 18px; margin: 0 4px; background: var(--line); }
+.ms-icon-actions .icon-btn { flex: 0 0 auto; }

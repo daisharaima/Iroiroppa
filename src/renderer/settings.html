@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self' module:; style-src 'self' 'unsafe-inline'; img-src 'self' data: theme: module:; font-src 'self' data: theme: module:;" />
+  <title>Iroiroppa Settings</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="settings.css" />
+</head>
+<body class="settings-window">
+  <div id="app">
+    <header id="titlebar">
+      <span class="settings-title" data-i18n="settings.title">Settings</span>
+      <button id="settings-close" class="icon-btn" title="Close" aria-label="Close">
+        <svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>
+      </button>
+    </header>
+
+    <div id="settings-body" class="sheet-body">
+      <div class="seg" role="tablist">
+        <button class="seg-btn" data-tab="general" role="tab" data-i18n="settings.tab.general">General</button>
+        <button class="seg-btn" data-tab="appearance" role="tab" data-i18n="settings.tab.appearance">Appearance</button>
+        <button class="seg-btn" data-tab="modules" role="tab" data-i18n="settings.tab.modules">Modules</button>
+        <button class="seg-btn" data-tab="layout" role="tab" data-i18n="settings.tab.layout">Layout</button>
+      </div>
+
+      <div id="tab-layout" class="tab-panel hidden">
+        <div class="section-title section-title-row">
+          <span>Palettes</span>
+          <button id="btn-import-palette" class="btn tiny" type="button">Import&hellip;</button>
+        </div>
+        <div id="palette-list" class="palette-list"></div>
+        <div class="section-title">Whole workspace</div>
+        <div class="row">
+          <span class="row-label">Every palette and its arrangement, as one file<span class="info" title="Export writes the workspace to a JSON file; Import replaces the workspace with one. An old layout.json can be imported too.">i</span></span>
+          <span class="row-actions">
+            <button id="btn-export-ws" class="btn">Export&hellip;</button>
+            <button id="btn-import-ws" class="btn">Import&hellip;</button>
+          </span>
+        </div>
+        <div class="section-title section-title-row">
+          <span>Saved workspaces</span>
+          <span class="row-actions">
+            <input id="workspace-name" class="text-input" placeholder="Name" spellcheck="false" maxlength="60" />
+            <button id="btn-save-workspace" class="btn tiny" type="button">Save</button>
+          </span>
+        </div>
+        <div id="workspace-list" class="palette-list"></div>
+        <div id="layout-note" class="hint"></div>
+      </div>
+
+      <div id="tab-general" class="tab-panel hidden">
+        <div class="section-title" data-i18n="settings.section.connection">Connection</div>
+        <div class="conn-row">
+          <span id="settings-dot" class="dot"></span>
+          <span id="settings-state" class="conn-state" data-i18n="settings.conn.notConnected">Not connected</span>
+          <button id="btn-conn" class="btn primary" data-i18n="settings.conn.connect">Connect</button>
+          <button id="btn-forget" class="btn danger hidden" data-i18n="settings.conn.forget">Forget</button>
+        </div>
+        <div id="conn-pair" class="pair-row">
+          <input id="qr-url" class="text-input" placeholder="or paste QR URL / hex payload" data-i18n-placeholder="settings.conn.qrPlaceholder" spellcheck="false" />
+          <button id="btn-use-url" class="btn" data-i18n="settings.conn.use">Use</button>
+          <button id="btn-reconnect" class="btn" data-i18n="settings.conn.reconnect">Reconnect</button>
+        </div>
+
+        <div class="section-title" data-i18n="settings.section.behaviour">Behaviour</div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.liveSync">Live sync while dragging<span class="info" title="Push colour changes to Clip Studio Paint while you drag. Turn off to send only when you release.">i</span></span>
+          <label class="tgl"><input type="checkbox" id="set-live" /><span class="tgl-track"></span></label>
+        </div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.autoHide">Auto-hide<span class="info" title="Show the palette while Clip Studio Paint is active, and hide it when you switch away or click elsewhere.">i</span></span>
+          <label class="tgl"><input type="checkbox" id="set-autohide" /><span class="tgl-track"></span></label>
+        </div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.autoConnect">Connect automatically<span class="info" title="While not connected, look for Clip Studio Paint's Companion Mode QR code on screen and connect as soon as it appears. It only ever reads the QR (locally, never saved).">i</span></span>
+          <label class="tgl"><input type="checkbox" id="set-autoconnect" /><span class="tgl-track"></span></label>
+        </div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.startWithWindows">Start when Windows starts<span class="info" title="Launch Iroiroppa automatically when you sign in to Windows.">i</span></span>
+          <label class="tgl"><input type="checkbox" id="set-login" /><span class="tgl-track"></span></label>
+        </div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.summonHotkey">Summon hotkey<span class="info" title="A system-wide key that shows or hides the palette, even while Clip Studio Paint has focus. Click the box, then press the keys (a modifier is required); press Esc to clear.">i</span></span>
+          <input id="set-summon" class="text-input hotkey-input" readonly placeholder="None" spellcheck="false" aria-label="Summon hotkey" />
+        </div>
+
+        <div class="section-title" data-i18n="settings.section.moduleShortcuts">Module shortcuts</div>
+        <div id="set-command-list" class="command-list"></div>
+
+        <div class="section-title" data-i18n="settings.section.proofColor">Proof Color</div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.colourProfile">Colour profile<span class="info" title="Interpret the document's recorded colours through this profile. Picking one turns proofing on; the default treats the records as sRGB.">i</span></span>
+        </div>
+        <button id="set-profile-default" class="profile-pinned" type="button">
+          <span class="profile-dot"></span>
+          <span class="profile-item-name" data-i18n="settings.profile.default">Default sRGB (no custom profile)</span>
+        </button>
+        <button id="set-profile-browse" class="profile-browse-btn" type="button">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 6.5h5l1.4 1.7h8.6v7.3h-15z"/><path d="M2.5 6.5V4.5h5l1.4 1.7"/></svg>
+          <span data-i18n="settings.profile.browse">Browse for ICC profile…</span>
+        </button>
+        <div id="set-profile-list" class="profile-list settings-profile-list"></div>
+
+        <div class="section-title" data-i18n="settings.section.settingsFile">Settings file</div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.settingsFile">Back up or move your preferences<span class="info" title="Export writes settings.json to a JSON file; Import merges a previously exported file.">i</span></span>
+          <span class="row-actions">
+            <button id="btn-export-settings" class="btn" data-i18n="settings.file.export">Export&hellip;</button>
+            <button id="btn-import-settings" class="btn" data-i18n="settings.file.import">Import&hellip;</button>
+          </span>
+        </div>
+        <div id="settings-note" class="hint"></div>
+
+        <div class="foot-row">
+          <button id="btn-quit" class="btn danger" data-i18n="settings.footer.quit">Quit</button>
+          <span class="foot-right">
+            <button id="settings-update" class="settings-update hidden" type="button" title="Open the release page"></button>
+            <button id="settings-check" class="settings-check" type="button" title="Check GitHub for a newer release" data-i18n="settings.footer.checkUpdates">Check for updates</button>
+            <span id="settings-version" class="settings-version"></span>
+          </span>
+        </div>
+      </div>
+
+      <div id="tab-appearance" class="tab-panel">
+        <div class="section-title" data-i18n="settings.section.mainPanel">Main Panel</div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.crosshair">Show crosshair guides<span class="info" title="Draw the crosshair and guide lines over the colour maps.">i</span></span>
+          <label class="tgl"><input type="checkbox" id="set-cross" /><span class="tgl-track"></span></label>
+        </div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.uiScale">UI scale<span class="info" title="Scale the whole interface between 80% and 160%.">i</span></span>
+          <div class="row-control">
+            <input id="set-ui-scale" class="rng scale-rng" type="range" min="0.8" max="1.6" step="0.01" value="1" aria-label="UI scale" />
+            <div class="spinner">
+              <button id="btn-scale-up" class="spin-btn" type="button" title="Increase by 1%" data-i18n-title="settings.scale.increase">&#9650;</button>
+              <button id="btn-scale-down" class="spin-btn" type="button" title="Decrease by 1%" data-i18n-title="settings.scale.decrease">&#9660;</button>
+            </div>
+            <input id="ui-scale-value" class="scale-input" type="text" inputmode="numeric" maxlength="4" value="100" aria-label="UI scale percent" spellcheck="false" />
+            <span class="scale-suffix">%</span>
+            <button id="btn-scale-reset" class="btn tiny icon-only" type="button" title="Reset to 100%" aria-label="Reset to 100%" data-i18n-title="settings.scale.reset" data-i18n-aria-label="settings.scale.reset">
+              <svg viewBox="0 0 20 20"><path d="M4.6 7.6A6 6 0 0 1 15.6 6.2"/><path d="M15.8 2.6v3.8h-3.8"/><path d="M15.4 12.4A6 6 0 0 1 4.4 13.8"/><path d="M4.2 17.4v-3.8h3.8"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="row">
+          <span class="row-label" data-i18n="settings.language.label">Language</span>
+          <div class="row-control">
+            <select id="set-language" class="select" aria-label="Language" data-i18n-aria-label="settings.language.label"></select>
+          </div>
+        </div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.theme">Theme<span class="info" title="Pick a theme. Add your own by dropping theme JSON files into the Iroiroppa themes folder in AppData.">i</span></span>
+          <div class="row-control">
+            <select id="set-theme" class="select" aria-label="Theme"></select>
+            <button id="btn-accent" class="accent-trigger" type="button" title="Accent colour — click to choose" aria-label="Accent colour" data-i18n-title="settings.accent.choose" data-i18n-aria-label="settings.accent.choose"></button>
+            <button id="btn-accent-reset" class="btn tiny icon-only" title="Use the theme's own accent" aria-label="Use the theme's own accent">
+              <svg viewBox="0 0 20 20"><path d="M4.6 7.6A6 6 0 0 1 15.6 6.2"/><path d="M15.8 2.6v3.8h-3.8"/><path d="M15.4 12.4A6 6 0 0 1 4.4 13.8"/><path d="M4.2 17.4v-3.8h3.8"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.hideNames">Hide module names<span class="info" title="Keep each module's title bar (for dragging) but hide its name.">i</span></span>
+          <label class="tgl"><input type="checkbox" id="set-names" /><span class="tgl-track"></span></label>
+        </div>
+      </div>
+
+      <div id="tab-modules" class="tab-panel hidden">
+        <div class="modules-split">
+          <div id="module-list" class="module-list"></div>
+          <div id="module-detail" class="module-detail"></div>
+        </div>
+        <!-- The Trash, hidden until asked for: settings files for instances and modules that no
+             longer exist. Deleting keeps them so a mis-click is recoverable; startup sweeps the
+             ones older than 30 days (module-store's TRASH_DAYS). -->
+        <div class="trash-bar">
+          <button id="btn-trash" class="icon-btn" type="button" title="Unused settings files" aria-label="Unused settings files">
+            <svg viewBox="0 0 20 20"><path d="M4.5 6.5h11"/><path d="M8 6.5V5h4v1.5"/><path d="M6 6.5l.8 8.5h6.4l.8-8.5"/></svg>
+          </button>
+        </div>
+        <div id="trash-panel" class="trash-panel hidden">
+          <div class="trash-head">
+            <span id="trash-count" data-i18n="settings.modules.trash">Trash</span>
+          <button id="btn-purge" class="btn" type="button" data-i18n="settings.modules.removeUnused">Remove unused settings files</button>
+          </div>
+          <div id="trash-list" class="trash-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="accent-backdrop" class="accent-backdrop hidden"></div>
+    <div id="accent-popup" class="accent-popup hidden" role="dialog" aria-label="Accent colour">
+      <div class="accent-popup-head" data-i18n="settings.accent.title">Accent colour</div>
+      <div id="accent-sv" class="accent-sv"><span id="accent-thumb" class="accent-thumb"></span></div>
+      <input id="accent-hue" class="rng accent-hue" type="range" min="0" max="360" step="1" value="0" aria-label="Hue" />
+      <div class="accent-row">
+        <span id="accent-preview" class="accent-preview"></span>
+        <input id="accent-hex" class="text-input accent-hex" maxlength="7" spellcheck="false" aria-label="Hex colour" />
+      </div>
+      <div class="accent-actions">
+        <button id="accent-cancel" class="btn" data-i18n="settings.accent.cancel">Cancel</button>
+          <button id="accent-save" class="btn primary" data-i18n="settings.accent.save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../shared/color.js"></script>
+<script src="../shared/color-models.js"></script>
+<script src="../shared/slider-gamut.js"></script>
+<script src="../shared/slice-view.js"></script>
+<script src="../shared/shortcut-match.js"></script>
+  <script src="../shared/i18n.js"></script>
+<script src="../shared/lut.js"></script>
+<script src="../shared/proof.js"></script>
+  <script src="../shared/module-manifest.js"></script>
+  <script src="../shared/locale-names.js"></script>
+  <script src="../shared/module-usage.js"></script>
+  <script src="../shared/theme-tokens.js"></script>
+<script src="kernel/themes.js"></script>
+  <script src="kernel/color-store.js"></script>
+  <script src="kernel/module-host.js"></script>
+  <script src="kernel/settings-transfer.js"></script>
+  <script src="kernel/i18n.js"></script>
+<script src="settings.js"></script>
+</body>
+</html>

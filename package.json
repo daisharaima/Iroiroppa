@@ -1,0 +1,73 @@
+{
+  "name": "iroiroppa",
+  "productName": "Iroiroppa",
+  "version": "1.2.0",
+  "description": "Iroiroppa - an OKLCH color picker popup for Clip Studio Paint that connects through Companion Mode (smartphone mode).",
+  "main": "src/main/main.js",
+  "license": "GPL-3.0-or-later",
+  "author": "daisharaima",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/daisharaima/Iroiroppa.git"
+  },
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test",
+    "probe": "node scripts/probe.js",
+    "icon": "node scripts/make-icon.js",
+    "icc": "node scripts/make-icc.js",
+    "screenshot": "node scripts/screenshot.js",
+    "bench": "node scripts/bench.js",
+    "map": "node scripts/map.js",
+    "i18n": "node scripts/i18n.js",
+    "theme:check": "node scripts/theme-check.js",
+    "theme:docs": "node scripts/theme-docs.js",
+    "theme:preview": "node scripts/theme-preview.js",
+    "pack": "npm run icon && electron-builder --dir",
+    "pack:run": "npm run pack && node scripts/launch-packed.js",
+    "dist": "npm run icon && electron-builder --win"
+  },
+  "dependencies": {
+    "jscolorengine": "^1.6.1",
+    "jsqr": "^1.4.0"
+  },
+  "devDependencies": {
+    "culori": "4.0.2",
+    "electron": "44.6.0",
+    "electron-builder": "^26.15.3",
+    "lcms-wasm": "^1.0.5"
+  },
+  "build": {
+    "appId": "com.iroiroppa.app",
+    "productName": "Iroiroppa",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "asarUnpack": [
+      "src/main/workers/**",
+      "src/main/*.ps1"
+    ],
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.exe"
+    }
+  }
+}
