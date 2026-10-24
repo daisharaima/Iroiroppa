@@ -197,7 +197,8 @@
           const b = innerSaturation(model, axes);
           axes[1] = b;
           const lab = model.toLab(axes);
-          const rgb = Color.oklabToRgb(lab.L, lab.a, lab.b);
+          const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
+          const rgb = Color.fitToSrgb(lch.L, lch.C, lch.H);
           // A degree-wide wedge with a half-degree overlap so neighbours never
           // leave a seam; the stroke is wider than the wedge, so the ring is solid.
           const a0 = (deg - 0.4) * Math.PI / 180;
@@ -303,7 +304,7 @@
             const i = px * 4;
             if (i < 0 || i + 3 >= data.length) continue;
             if (inside) {
-              const rgb = Color.oklabToRgb(lab.L, lab.a, lab.b);
+              const rgb = Color.fitToSrgb(lch.L, lch.C, lch.H);
               data[i] = clamp255(rgb.r * 255);
               data[i + 1] = clamp255(rgb.g * 255);
               data[i + 2] = clamp255(rgb.b * 255);

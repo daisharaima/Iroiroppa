@@ -191,7 +191,7 @@
             const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
             const inside = model.dense || store.inGamut(lch.L, lch.C, lch.H);
             if (!inside) continue; // a silhouette: the shape is the gamut
-            const rgb = Color.oklabToRgb(lab.L, lab.a, lab.b);
+            const rgb = Color.fitToSrgb(lch.L, lch.C, lch.H);
             const i = (y * w + x) * 4;
             data[i] = clamp255(rgb.r * 255);
             data[i + 1] = clamp255(rgb.g * 255);

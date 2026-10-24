@@ -84,6 +84,11 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   slider is pushed past the boundary so the Hue slice is seen to transform).
   Slice drags snap as before, and **every recorded value (CSP, hex, paste, proof
   re-interpretation) is always snapped**.
+- **Colours the sRGB window cannot show are drawn at the same lightness, not
+  clipped.** `Color.fitToSrgb` keeps L and H and pulls C to the sRGB edge; a
+  channel clamp instead puts a lightness step exactly where the sRGB boundary
+  crosses a slice (the "suspicious arc"). The pick and the recorded value keep
+  the true chroma — never fit them.
 - **Partial `Sync*` payloads are merged** into the last known state — never let
   them blank `main`/`sub` or fabricate a change.
 - **The heartbeat's idle-timer reset is conditional** (`_mayKeepHostAwake`): it

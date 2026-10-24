@@ -387,8 +387,9 @@ height (`auto`).
   the finished plot through it, and picking applies the exact inverse before the
   existing axis mapping, so the colour under the pointer is the colour picked.
   Slices are always drawn flat (no projection choice): a rasterised panel is
-  transparent outside the gamut — the shape *is* the gamut; only the sRGB warning
-  hatches.
+  transparent outside the gamut — the shape *is* the gamut. Colours the screen
+  cannot show are drawn as the sRGB-edge colour at the same lightness
+  (`Color.fitToSrgb`).
 - **Color Wheel** — a hue ring around the model's hue slice (the two non-hue axes).
   The ring draws the most saturated in-gamut colour at each hue and only turns the
   hue. The inner slice is the model's own geometry: OKLCH shows its flat L×C slice

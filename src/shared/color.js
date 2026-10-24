@@ -282,6 +282,17 @@
     return { L: l, C: reduceChroma(l, C, H), H };
   }
 
+  /**
+   * What to *draw* for a requested appearance in an sRGB window: the same
+   * lightness and hue, chroma pulled inside sRGB only when the screen cannot
+   * show it. Display only — the pick and the recorded value keep the true
+   * chroma (docs/COLOR.md).
+   */
+  function fitToSrgb(L, C, H) {
+    if (inGamut(L, C, H)) return oklchToRgb(L, C, H);
+    return oklchToRgb(L, reduceChroma(L, C, H), H);
+  }
+
   // --- CIELAB (D65) --------------------------------------------------------
   //
   // CIELAB is a view over the same appearance (docs/COLOR.md): OKLab <-> Lab
@@ -700,6 +711,7 @@
     oklabToRgb,
     inGamut,
     gamutMap,
+    fitToSrgb,
     linearRgbToXyz,
     xyzToLinearRgb,
     xyzToLab,

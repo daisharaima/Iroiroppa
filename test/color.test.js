@@ -143,3 +143,24 @@ test('an RGB grey stays under the store hue-anchor threshold', () => {
   assert.ok(grey.C > 0, 'a converted grey still carries floating-point chroma');
   assert.ok(grey.C < 1e-6, `grey chroma ${grey.C} must stay under the store's 1e-6 gate`);
 });
+
+// --- fitToSrgb: the display stand-in for a colour the screen cannot show --------
+
+test('fitToSrgb leaves a displayable colour exactly alone', () => {
+  const a = Color.oklchToRgb(0.6, 0.1, 200);
+  const b = Color.fitToSrgb(0.6, 0.1, 200);
+  assert.equal(b.r, a.r);
+  assert.equal(b.g, a.g);
+  assert.equal(b.b, a.b);
+});
+
+test('fitToSrgb keeps the lightness of a colour outside sRGB', () => {
+  // Inside Adobe RGB, outside sRGB at this lightness and hue.
+  const L = 0.65, H = 150, C = 0.22;
+  assert.equal(Color.inGamut(L, C, H), false, 'the sample must start out of sRGB');
+  const f = Color.fitToSrgb(L, C, H);
+  const back = Color.rgbToOklch(f.r, f.g, f.b);
+  assert.ok(Math.abs(back.L - L) < 1e-6, `lightness ${back.L} must stay ${L}`);
+  assert.ok(Math.abs(back.C - Color.reduceChroma(L, C, H)) < 1e-6, 'chroma lands on the sRGB edge');
+  assert.ok(Color.inGamut(back.L, back.C, back.H), 'the stand-in is displayable');
+});

@@ -252,7 +252,7 @@
           tmp[i] = v;
           const lab = m.toLab(tmp);
           const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-          const f = Color.oklabToRgb(lab.L, lab.a, lab.b);
+          const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
           const inside = m.dense || (typeof m.inGamut === 'function'
             ? m.inGamut(tmp)
             : store.inGamut(lch.L, lch.C, lch.H));

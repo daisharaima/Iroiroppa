@@ -133,7 +133,6 @@
       root.append(row);
     };
     addRange('guideStep', 'Guide spacing', 0.01, 0.25, 0.01, 0.05);
-    addToggle('gamutWarning', 'sRGB gamut warning');
     const numbers = document.createElement('label');
     numbers.className = 'pop-row';
     const box = document.createElement('input');
@@ -168,7 +167,7 @@
     version: 4,
     defaults: {
       model: 'oklch', constantHue: true, constantLightness: true, constantChroma: true,
-      guideLines: true, guideStep: 0.05, gamutWarning: false, hideNumbers: false, orientation: 'vertical',
+      guideLines: true, guideStep: 0.05, hideNumbers: false, orientation: 'vertical',
       slice1Rotate: 0, slice1FlipH: false, slice1FlipV: false,
       slice2Rotate: 0, slice2FlipH: false, slice2FlipV: false,
       slice3Rotate: 0, slice3FlipH: false, slice3FlipV: false,
@@ -275,7 +274,6 @@
       let hideNumbers = false;
       let guideLines = true;
       let guideStep = 0.05;
-      let gamutWarning = false;
       let narrow = false;
       const updateFooter = () => footer.classList.toggle('hidden', hideNumbers || narrow);
 
@@ -299,7 +297,7 @@
        * narrower than one row still gets a scanline — otherwise the corner would
        * be drawn as unreachable.
        */
-      const buildPlot = (key, w, h, intervalsAt, colorAt, warnAt) => {
+      const buildPlot = (key, w, h, intervalsAt, colorAt) => {
         const cached = plotCache.get(key);
         if (cached && cached.width === w && cached.height === h) return cached;
 
@@ -309,13 +307,7 @@
         const img = c2d.createImageData(w, h);
         const data = img.data;
 
-        // In the working gamut but clipping in sRGB: a diagonal stripe (T4).
-        const put = (i, x, y, C, r, g, b) => {
-          if (gamutWarning && warnAt && warnAt(x / (w - 1), C) && ((x + y) & 7) < 3) {
-            r = r * 0.5 + 115 * 0.5;
-            g = g * 0.5 + 115 * 0.5;
-            b = b * 0.5 + 115 * 0.5;
-          }
+        const put = (i, r, g, b) => {
           data[i] = clamp255(r); data[i + 1] = clamp255(g); data[i + 2] = clamp255(b); data[i + 3] = 255;
         };
 
@@ -335,7 +327,7 @@
             }
             if (inside) {
               const { r, g, b } = colorAt(x / (w - 1), C);
-              put(i, x, y, C, r, g, b);
+              put(i, r, g, b);
             } else {
               data[i + 3] = 0;
             }
@@ -352,7 +344,7 @@
             const i = (y * w + x) * 4;
             const C = (1 - y / (h - 1)) * cmax;
             const { r, g, b } = colorAt(x / (w - 1), C);
-            put(i, x, y, C, r, g, b);
+            put(i, r, g, b);
           }
         }
 
@@ -378,12 +370,8 @@
             const i = (y * w + x) * 4;
             const H = (x / (w - 1)) * 360;
             if (store.inGamut(L, C, H)) {
-              const f = Color.oklchToRgb(L, C, H);
-              let r = f.r * 255, g = f.g * 255, b = f.b * 255;
-              if (gamutWarning && !Color.inGamut(L, C, H) && ((x + y) & 7) < 3) {
-                r = r * 0.5 + 115 * 0.5; g = g * 0.5 + 115 * 0.5; b = b * 0.5 + 115 * 0.5;
-              }
-              data[i] = clamp255(r);
+              const f = Color.fitToSrgb(L, C, H);
+              data[i] = clamp255(f.r * 255);
               data[i + 1] = clamp255(g);
               data[i + 2] = clamp255(b);
               data[i + 3] = 255;
@@ -452,14 +440,13 @@
         {
           const canvas = lc.canvas;
           const { w, h } = sizeCanvas(canvas);
-          const key = `lc:${store.plotKeyTag()}:${gamutWarning ? 1 : 0}:${H.toFixed(3)}`;
+          const key = `lc:${store.plotKeyTag()}:${H.toFixed(3)}`;
           const off = buildPlot(key, w, h,
             (xNorm) => store.chromaIntervals(clamp(xNorm, 0, 1), H),
             (xNorm, c) => {
-              const f = Color.oklchToRgb(clamp(xNorm, 0, 1), c, H);
+              const f = Color.fitToSrgb(clamp(xNorm, 0, 1), c, H);
               return { r: clamp255(f.r * 255), g: clamp255(f.g * 255), b: clamp255(f.b * 255) };
-            },
-            (xNorm, c) => !Color.inGamut(clamp(xNorm, 0, 1), c, H));
+            });
           const c2d = paint(canvas, off, w, h, viewFor(0));
           if (store.crosshair) {
             const g = point(0, L, 1 - C / cmax);
@@ -471,14 +458,13 @@
         {
           const canvas = hc.canvas;
           const { w, h } = sizeCanvas(canvas);
-          const key = `hc:${store.plotKeyTag()}:${gamutWarning ? 1 : 0}:${L.toFixed(3)}`;
+          const key = `hc:${store.plotKeyTag()}:${L.toFixed(3)}`;
           const off = buildPlot(key, w, h,
             (xNorm) => store.chromaIntervals(L, xNorm * 360),
             (xNorm, c) => {
-              const f = Color.oklchToRgb(L, c, xNorm * 360);
+              const f = Color.fitToSrgb(L, c, xNorm * 360);
               return { r: clamp255(f.r * 255), g: clamp255(f.g * 255), b: clamp255(f.b * 255) };
-            },
-            (xNorm, c) => !Color.inGamut(L, c, xNorm * 360));
+            });
           const c2d = paint(canvas, off, w, h, viewFor(1));
           if (store.crosshair) {
             const g = point(1, H / 360, 1 - C / cmax);
@@ -491,7 +477,7 @@
         {
           const canvas = hue.canvas;
           const { w, h } = sizeCanvas(canvas);
-          const key = `hue:${store.plotKeyTag()}:${gamutWarning ? 1 : 0}:${C.toFixed(3)}`;
+          const key = `hue:${store.plotKeyTag()}:${C.toFixed(3)}`;
           const off = buildHuePlot(key, w, h, C);
           const c2d = paint(canvas, off, w, h, viewFor(2));
           if (store.crosshair) {
@@ -539,7 +525,7 @@
               ? model.inGamut(tmp)
               : store.inGamut(lch.L, lch.C, lch.H));
             if (inside) {
-              const f = Color.oklabToRgb(lab.L, lab.a, lab.b);
+              const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
               data[i] = clamp255(f.r * 255);
               data[i + 1] = clamp255(f.g * 255);
               data[i + 2] = clamp255(f.b * 255);
@@ -795,7 +781,6 @@
           hideNumbers = settings.hideNumbers === true;
           guideLines = settings.guideLines !== false;
           guideStep = clamp(Number(settings.guideStep) || 0.05, 0.01, 0.5);
-          gamutWarning = settings.gamutWarning === true;
           panels.dataset.orientation = settings.orientation === 'horizontal' ? 'horizontal' : 'vertical';
           panelViews[0] = SV ? SV.composeView(settings.slice1Rotate, settings.slice1FlipH, settings.slice1FlipV) : identity;
           panelViews[1] = SV ? SV.composeView(settings.slice2Rotate, settings.slice2FlipH, settings.slice2FlipV) : identity;

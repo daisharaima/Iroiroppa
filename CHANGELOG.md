@@ -28,6 +28,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Wide slices no longer show a lightness step.** Colours past sRGB are drawn as
+  the sRGB-edge colour at the same lightness (`Color.fitToSrgb`), so a
+  constant-lightness row stays even instead of stepping where the sRGB boundary
+  crosses the slice. The picked and recorded colour is still the true wide-gamut
+  one; only the pixels are a stand-in.
 - **`Slider` is now `Color Slider`** — the name matches the other pickers in a
   float's title bar. The id and saved settings are unchanged.
 - **Projections left Color Slices.** Each slice is drawn flat again; the polar and
@@ -36,6 +41,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- **The "sRGB gamut warning" toggle.** Wide colours are now drawn with the
+  lightness-preserving stand-in, so a hatch over them would only break the
+  uniformity it was there to explain.
 - **The HSV, HSL and CIELAB views** are gone: OkLab/Okhsl cover them with better
   uniformity, and the picker now only tours one perceptual family. Saved module
   settings that name one of them fall back to OKLCH.
