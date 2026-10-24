@@ -655,7 +655,7 @@ function previewHistory(count) {
  * at in the docs: a short CSP Color strip, a 90px slider, three history rows, and
  * tall enough for every Color Slices panel (so no slice looks omitted).
  */
-const PREVIEW_HEIGHTS = { 'csp-color': 40, 'color-slider': 90 };
+const PREVIEW_HEIGHTS = { 'csp-color': 40, 'color-slider': 90, 'color-wheel': 170, 'color-disc': 210 };
 function previewHeight(id, settings) {
   if (PREVIEW_HEIGHTS[id]) return PREVIEW_HEIGHTS[id];
   if (id === 'color-history') {

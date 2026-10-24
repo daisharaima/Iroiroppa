@@ -167,6 +167,7 @@ src/main/
                       (the module-drag itself is `drag-session.js`)
   windows.js          palette/Settings/popout/overlay windows, tray, focus, auto-connect
   store.js            tiny JSON persistence
+  portable.js         a portable build's data root: beside the exe (pure, testable)
   companion/
     client.js         TCP client: auth, heartbeat, read/write, slot selection
     packets.js        frame encode/decode
@@ -196,6 +197,10 @@ src/renderer/
     color-slices.js                Lightness + Chroma + Hue gamut slices (any model);
                                   each slice can be rotated/flipped for display
     color-slider.js               the model-axis sliders (per-channel gamut marking)
+    color-wheel.js                hue ring + the model's hue slice inside it
+    color-disc.js                 the hue x chroma plane on a disc: round for
+                                  Okhsv/Okhsl (relative s), lobed for OKLCH/OKLab
+                                  (absolute chroma, the document gamut)
     color-history.js              recently picked colours
     color-stat.js                 the colour's numbers: swatch, HEX, OKLCH and sRGB
     session.js                    the singleton control panel: connection state and
@@ -359,6 +364,16 @@ documented with its full shape in `docs/LAYOUT.md`. Main owns the file —
 its own palette's columns through the sender-resolved
 `palette:columns:get` / `palette:columns:set`; a float is just another palette, and
 the old `float:columns:get/set` channels are gone.
+
+**A portable build roots that same tree beside its exe.** electron-builder's
+`portable` launcher exports `PORTABLE_EXECUTABLE_DIR` — the folder holding the
+`.exe`, not the temp folder the app is unpacked into — and `src/main/portable.js`
+points `userData` at `<that folder>\Iroiroppa Data` before `ready`;
+`sessionData` (cookies and Chromium caches) follows it. The installed build,
+dev runs and `pack:run` stay on `%APPDATA%\Iroiroppa`. A folder that cannot be
+created or written falls back to the app-data path rather than failing every
+store write. Because Electron keys the single-instance lock on the user-data
+folder, a portable copy and the installed app can run at the same time.
 
 **Named saved workspaces** live in `%APPDATA%\Iroiroppa\workspaces\<id>.json`
 (`{ kind, version, id, name, savedAt, doc }`), written only by

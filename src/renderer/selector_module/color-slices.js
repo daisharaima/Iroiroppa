@@ -21,18 +21,6 @@
   const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
   const clamp255 = (x) => clamp(Math.round(x), 0, 255);
 
-  /** A theme token as { r, g, b } (hex or rgb()), or null. */
-  const cssRgb = (name) => {
-    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    if (!value) return null;
-    const hex = value.replace('#', '');
-    if (/^[0-9a-f]{6}$/i.test(hex)) return { r: parseInt(hex.slice(0, 2), 16), g: parseInt(hex.slice(2, 4), 16), b: parseInt(hex.slice(4, 6), 16) };
-    if (/^[0-9a-f]{3}$/i.test(hex)) return { r: parseInt(hex[0] + hex[0], 16), g: parseInt(hex[1] + hex[1], 16), b: parseInt(hex[2] + hex[2], 16) };
-    const m = value.match(/rgba?\(([^)]+)\)/);
-    if (m) { const p = m[1].split(',').map(Number); return { r: p[0], g: p[1], b: p[2] }; }
-    return null;
-  };
-
   /** The slice settings UI, shared by the popover and the Settings window. */
   const settingsUI = (api, root) => {
     const addToggle = (key, label) => {
@@ -530,18 +518,20 @@
         const fixed = axes[fi];
         const tmp = axes.slice();
         const guides = guideLines && model.id !== Models.DEFAULT_ID;
-        // The out-of-gamut area is a faint diagonal hatch, not left transparent,
-        // so it reads as "unavailable" rather than an empty hole.
-        const blankBase = cssRgb('--bg-3') || cssRgb('--blank') || { r: 0, g: 0, b: 0 };
-        const blankStripe = cssRgb('--line') || blankBase;
+        // Outside the gamut stays transparent (like the analytic OKLCH silhouette):
+        // the shape IS the gamut, so a hatch would only add noise. The sRGB warning
+        // stays an explicit, opt-in hatch.
         // The perceptual lightness of every drawn pixel, for the guide contours.
         const luma = new Float32Array(w * h);
         for (let y = 0; y < h; y++) {
-          const v = vr.min + (1 - y / (h - 1)) * (vr.max - vr.min);
+          const yN = y / (h - 1);
           for (let x = 0; x < w; x++) {
             const idx = y * w + x;
             const i = idx * 4;
-            const u = hr.min + (x / (w - 1)) * (hr.max - hr.min);
+            const un = x / (w - 1);
+            const vn = 1 - yN;
+            const u = hr.min + un * (hr.max - hr.min);
+            const v = vr.min + vn * (vr.max - vr.min);
             tmp[hi] = u; tmp[vi] = v; tmp[fi] = fixed;
             const lab = model.toLab(tmp);
             const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
@@ -556,11 +546,7 @@
               data[i + 3] = 255;
               luma[idx] = lch.L;
             } else {
-              const col = ((x + y) & 7) < 2 ? blankStripe : blankBase;
-              data[i] = col.r;
-              data[i + 1] = col.g;
-              data[i + 2] = col.b;
-              data[i + 3] = 255;
+              data[i + 3] = 0;
               luma[idx] = NaN;
             }
           }
@@ -659,9 +645,10 @@
           if (store.crosshair) {
             const [hi, vi] = Models.PLANES[p];
             const hr = axisRange(model, hi), vr = axisRange(model, vi);
-            const u = (axes[hi] - hr.min) / (hr.max - hr.min);
-            const v = 1 - (axes[vi] - vr.min) / (vr.max - vr.min);
-            const g = point(p, u, v);
+            const su = (axes[hi] - hr.min) / (hr.max - hr.min);
+            const sv = (axes[vi] - vr.min) / (vr.max - vr.min);
+            const sp = { x: su, y: 1 - sv };
+            const g = point(p, sp.x, sp.y);
             drawGuide(c2d, w, h, g.u * (w - 1), g.v * (h - 1));
           }
         }

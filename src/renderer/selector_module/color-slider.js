@@ -119,7 +119,7 @@
 
   reg.modules['color-slider'] = {
     id: 'color-slider',
-    name: 'Slider',
+    name: 'Color Slider',
     version: 4,
     defaults: { model: 'oklch', showL: true, showC: true, showH: true, hideNumbers: false, orientation: 'horizontal', thickness: 70, showOutL: true, showOutC: true, showOutH: true },
     settingsUI,

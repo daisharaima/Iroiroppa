@@ -53,6 +53,7 @@ const { decodeQrFrame } = require('./capture');
 const { createSender } = require('./sender');
 const cspShortcuts = require('./csp-shortcuts');
 const { createMainI18n } = require('./i18n');
+const { portableDataDir, usableDataDir } = require('./portable');
 
 // The live capability set; built once Electron is ready.
 let capabilities = null;
@@ -68,6 +69,19 @@ let sender = null;
 let contactReadSeq = 0;
 // The main-process translator.
 let mainI18n = null;
+
+// A portable build keeps its whole state tree beside its .exe instead of in
+// %APPDATA% (src/main/portable.js), so a copied folder carries the saved pairing
+// and layout with it. This must run before the first `getPath` (the stores below
+// resolve it lazily, but the single-instance lock does not) and before `ready`.
+const portableDir = portableDataDir();
+// Chromium's own `--user-data-dir` (the screenshot recipe, a scripted run) is an
+// explicit choice and wins over the portable default.
+const explicitUserDataDir = process.argv.some((a) => a === '--user-data-dir' || a.startsWith('--user-data-dir='));
+if (portableDir && !explicitUserDataDir) {
+  if (usableDataDir(portableDir)) app.setPath('userData', portableDir);
+  else console.warn(`[portable] ${portableDir} is not writable; using the usual app-data folder`);
+}
 
 // Stores that need only the app-data directory are built once, Electron-free.
 // The proof store reads `settings`, which is assigned once Electron is ready, so

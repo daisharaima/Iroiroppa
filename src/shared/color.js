@@ -436,6 +436,146 @@
     return { h, s, v };
   }
 
+  // --- Okhsl / Okhwb (perceptual HSL, sRGB-referenced) ---------------------
+  //
+  // Bjorn Ottosson's Okhsl and Okhwb (MIT; bottosson.github.io/posts/colorpicker)
+  // — the HSL- and HWB-shaped siblings of Okhsv, built on the same cusp/toe
+  // machinery above. Both are defined against sRGB, so like Okhsv they are only
+  // meaningful inside it. Okhsl's L is the *toe* of Oklab's L (Ottosson's
+  // definition), not Oklab L itself.
+
+  /** The cusp's (S, T) = (C/L, C/(1-L)) — the triangle the gamut fills. */
+  function getStMax(cusp) {
+    return [cusp.C / cusp.L, cusp.C / (1 - cusp.L)];
+  }
+
+  /** The mid-gamut (S, T) Ottosson fits C_mid against. */
+  function getStMid(a_, b_) {
+    const S = 0.11516993 + 1 / (
+      7.4477897 + 4.1590124 * b_ +
+      a_ * (-2.19557347 + 1.75198401 * b_ +
+        a_ * (-2.13704948 - 10.02301043 * b_ +
+          a_ * (-4.24894561 + 5.38770819 * b_ + 4.69891013 * a_))));
+    const T = 0.11239642 + 1 / (
+      1.6132032 - 0.68124379 * b_ +
+      a_ * (0.40370612 + 0.90148123 * b_ +
+        a_ * (-0.27087943 + 0.6122399 * b_ +
+          a_ * (0.00299215 - 0.45399568 * b_ - 0.14661872 * a_))));
+    return [S, T];
+  }
+
+  /**
+   * Where the segment (L0,C0) -> (L1,C1) leaves the sRGB gamut: the cusp triangle
+   * first, then one Halley step against the curved top. `a`,`b` are the unit hue
+   * direction; the result is the parameter t along the segment.
+   */
+  function findGamutIntersection(a, b, L1, C1, L0, cusp) {
+    const cp = cusp || findCusp(a, b);
+    const kl = 0.3963377774 * a + 0.2158037573 * b;
+    const km = -0.1055613458 * a - 0.0638541728 * b;
+    const ks = -0.0894841775 * a - 1.2914855480 * b;
+    let t;
+    if ((L1 - L0) * cp.C - (cp.L - L0) * C1 <= 0) {
+      t = (cp.C * L0) / (C1 * cp.L + cp.C * (L0 - L1));
+    } else {
+      t = (cp.C * (L0 - 1)) / (C1 * (cp.L - 1) + cp.C * (L0 - L1));
+      const dL = L1 - L0, dC = C1;
+      const ldt = dL + dC * kl, mdt = dL + dC * km, sdt = dL + dC * ks;
+      const L = L0 * (1 - t) + t * L1, C = t * C1;
+      const l_ = L + C * kl, m_ = L + C * km, s_ = L + C * ks;
+      const l = l_ * l_ * l_, m = m_ * m_ * m_, s = s_ * s_ * s_;
+      const l3 = 3 * ldt * l_ * l_, m3 = 3 * mdt * m_ * m_, s3 = 3 * sdt * s_ * s_;
+      const l6 = 6 * ldt * ldt * l_, m6 = 6 * mdt * mdt * m_, s6 = 6 * sdt * sdt * s_;
+      const channel = (w0, w1, w2) => {
+        const f = w0 * l + w1 * m + w2 * s - 1;
+        const f1 = w0 * l3 + w1 * m3 + w2 * s3;
+        const f2 = w0 * l6 + w1 * m6 + w2 * s6;
+        const u = f1 / (f1 * f1 - 0.5 * f * f2);
+        return u >= 0 ? -f * u : 1e6;
+      };
+      t += Math.min(
+        channel(4.0767416621, -3.3077115913, 0.2309699292),
+        channel(-1.2684380046, 2.6097574011, -0.3413193965),
+        channel(-0.0041960863, -0.7034186147, 1.7076147010),
+      );
+    }
+    return t;
+  }
+
+  /** Okhsl's C_0 / C_mid / C_max at an (un-toed) lightness and hue direction. */
+  function getCs(L, a_, b_) {
+    if (!(L > 0 && L < 1)) return { C0: 0, Cmid: 0, Cmax: 0 };
+    const cusp = findCusp(a_, b_);
+    const Cmax = findGamutIntersection(a_, b_, L, 1, L, cusp);
+    const [Smax, Tmax] = getStMax(cusp);
+    const [Smid, Tmid] = getStMid(a_, b_);
+    const k = Cmax / Math.min(L * Smax, (1 - L) * Tmax);
+    const Ca = L * Smid, Cb = (1 - L) * Tmid;
+    const Cmid = 0.9 * k * Math.sqrt(Math.sqrt(1 / (1 / Ca ** 4 + 1 / Cb ** 4)));
+    const C0 = Math.sqrt(1 / (1 / ((L * 0.4) ** 2) + 1 / (((1 - L) * 0.8) ** 2)));
+    return { C0, Cmid, Cmax };
+  }
+
+  /** Okhsl (h degrees, s 0..1, l 0..1) -> OKLab. */
+  function okhslToOklab(h, s, l) {
+    const L = toeInv(clamp01(l));
+    if (!s || L <= 0 || L >= 1) return { L, a: 0, b: 0 };
+    const hr = (h / 180) * PI;
+    const a_ = Math.cos(hr), b_ = Math.sin(hr);
+    const { C0, Cmid, Cmax } = getCs(L, a_, b_);
+    let t, k0, k1, k2;
+    if (s < 0.8) {
+      t = 1.25 * s;
+      k0 = 0;
+      k1 = 0.8 * C0;
+      k2 = 1 - k1 / Cmid;
+    } else {
+      t = 5 * (s - 0.8);
+      k0 = Cmid;
+      k1 = (0.2 * Cmid * Cmid * 1.25 * 1.25) / C0;
+      k2 = 1 - k1 / (Cmax - Cmid);
+    }
+    const C = k0 + (t * k1) / (1 - k2 * t);
+    return { L, a: C * a_, b: C * b_ };
+  }
+
+  /** OKLab -> Okhsl { h (0..360), s, l }. */
+  function oklabToOkhsl(L0, a, b) {
+    const l = toe(clamp01(L0));
+    const C0 = Math.hypot(a, b);
+    const h = mod360((Math.atan2(b, a) * 180) / PI);
+    if (C0 <= 1e-12) return { h, s: 0, l };
+    const a_ = a / C0, b_ = b / C0;
+    const { C0: c0, Cmid, Cmax } = getCs(L0, a_, b_);
+    let s;
+    if (C0 < Cmid) {
+      const k1 = 0.8 * c0;
+      const k2 = 1 - k1 / Cmid;
+      const t = (C0 - 0) / (k1 + k2 * (C0 - 0));
+      s = t * 0.8;
+    } else {
+      const k0 = Cmid;
+      const k1 = (0.2 * Cmid * Cmid * 1.25 * 1.25) / c0;
+      const k2 = 1 - k1 / (Cmax - Cmid);
+      const t = (C0 - k0) / (k1 + k2 * (C0 - k0));
+      s = 0.8 + 0.2 * t;
+    }
+    return { h, s, l };
+  }
+
+  /** Okhwb (h degrees, w 0..1, b 0..1) -> OKLab. Derived from Okhsv: w = v(1-s). */
+  function okhwbToOklab(h, w, b) {
+    const v = 1 - clamp01(b);
+    const s = v > 1e-9 ? clamp01(1 - clamp01(w) / v) : 0;
+    return okhsvToOklab(h, s, v);
+  }
+
+  /** OKLab -> Okhwb { h (0..360), w, b }. */
+  function oklabToOkhwb(L0, a, b) {
+    const { h, s, v } = oklabToOkhsv(L0, a, b);
+    return { h, w: v * (1 - s), b: 1 - v };
+  }
+
   // --- HSV / RGB -----------------------------------------------------------
 
   /** HSV -> RGB. h degrees, s/v 0..1. Returns gamma sRGB 0..1. */
@@ -568,6 +708,10 @@
     labToOklab,
     okhsvToOklab,
     oklabToOkhsv,
+    okhslToOklab,
+    oklabToOkhsl,
+    okhwbToOklab,
+    oklabToOkhwb,
     maxChroma,
     reduceChroma,
     chromaIntervals,

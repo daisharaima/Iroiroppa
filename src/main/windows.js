@@ -14,10 +14,18 @@ const { overlayBounds } = require('./overlay-bounds');
 const { menuBox } = require('./overlay-menu-box');
 const { drawIcon, rgbaToBgra } = require('../shared/icon-art');
 const { sendTo } = require('./broadcast');
+const { ensureTopmost } = require('./topmost');
 
 const SETTINGS_WIDTH = 360;
 
 function createWindows(ctx) {
+  /**
+   * Re-assert the topmost band after a show. Normally the runtime does it from
+   * `alwaysOnTop`; on a Windows/Electron combination where that request is
+   * dropped, src/main/topmost.js sets the flag with SetWindowPos instead. It is
+   * a no-op once the window reports itself on top.
+   */
+  const raiseTopmost = (win) => { ensureTopmost(win).catch(() => {}); };
 // --- window -----------------------------------------------------------------
 
 // Auto-hide diagnostics (`--trace-focus`): the foreground stream, the decision,
@@ -325,8 +333,10 @@ function showPopup() {
     ctx.hasPositioned = true;
   }
   if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.showInactive();
+  raiseTopmost(ctx.popup);
   ctx.showFloats(true);
   if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.showInactive();
+  raiseTopmost(ctx.settingsWin);
   // A palette that just appeared is the moment to look for the QR, not the next timer tick.
   scheduleAutoConnect({ immediate: true });
 }
@@ -340,8 +350,10 @@ function showPopupAuto() {
     ctx.hasPositioned = true;
   }
   if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.showInactive();
+  raiseTopmost(ctx.popup);
   ctx.showFloats(true);
   if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.showInactive();
+  raiseTopmost(ctx.settingsWin);
   scheduleAutoConnect({ immediate: true });
 }
 

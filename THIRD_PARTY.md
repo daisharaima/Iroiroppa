@@ -21,3 +21,9 @@ Everything the app ships, and its licence. Iroiroppa itself is
 | Name | Licence | Note |
 | --- | --- | --- |
 | `token-beam` | AGPL-3.0 OR Commercial | The state model, session layer and consumer helpers are a **clean-room** adaptation of its architecture and interfaces — no code, schema or asset is copied, so Iroiroppa stays GPL-3.0-or-later. Reusing token-beam's own code or relay would change the combined-work licence to AGPL-3.0. See `docs/STATE.md`. |
+
+## Colour maths
+
+| Name | Licence | Note |
+| --- | --- | --- |
+| Björn Ottosson's Okhsv / Okhsl / Okhwb reference | MIT | Ported into `src/shared/color.js` (cusp, toe, gamut intersection, the three picker spaces). The MIT notice is kept at the top of that section; nothing is copied from a copyleft implementation. |

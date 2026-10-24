@@ -119,6 +119,16 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
 - **Slice rotate/flip is display-only.** `slice-view.js` transforms the drawn plot and
   picking applies its exact inverse; the colour maths, cache and recorded values stay
   canonical. A transform that only moves the bitmap but not the picker is a bug.
+  **Projections** (`projection.js`: flat / polar / triangle) follow the same rule —
+  the raster inverts the map per pixel and the picker maps the press forward — and
+  the triangle's apex *moves with the hue* on purpose: it is the cusp frame.
+- **A non-activating window must be *in* the topmost band, or it can never come forward.**
+  The palette and floats are `focusable: false`, so a click does not activate them; if
+  the always-on-top request is dropped the window sits at the bottom for good. Electron
+  on Windows 11 build 26300 (Oct 2026 updates) drops it — `setAlwaysOnTop(true)` leaves
+  `isAlwaysOnTop()` false — so `src/main/topmost.js` falls back to a one-shot
+  `SetWindowPos(HWND_TOPMOST)` (`topmost.ps1`, asar-unpacked) after every show, and is a
+  no-op wherever the runtime did its job.
 - **A snap group's shared edge is a splitter, and group membership is derived.** A
   resize of a touching edge resizes/moves the neighbour so the pair stays flush; the
   graph comes from the document's `snap`/`snapTo`, never a parallel map. The drag
@@ -205,9 +215,15 @@ Detailed regression notes for the rules *not* in this core list: `docs/INVARIANT
 and an optional `themes/` folder. The shapes, and who owns what, are in
 `docs/ARCHITECTURE.md`.
 
+**A portable build keeps the same tree in `Iroiroppa Data` beside its exe**
+(electron-builder exports `PORTABLE_EXECUTABLE_DIR`; `src/main/portable.js`
+points `userData` there, falling back to `%APPDATA%` if the folder is
+read-only). The lock follows that folder, so a portable copy and the installed
+app can run side by side.
+
 ## How to verify a change
 
-1. `npm test` (79 test files, 568 tests; protocol, colour, proof, layout, state, release-notes and i18n layers).
+1. `npm test` (82 test files, 592 tests; protocol, colour, proof, layout, state, release-notes and i18n layers).
 2. A `--shot` at 260 px and at 200 px; check the dumped JSON and the image.
 3. When it touches the connection or writes: a live check against CSP. Remember
    only one controller can connect, so quit the app first if you use the probe.

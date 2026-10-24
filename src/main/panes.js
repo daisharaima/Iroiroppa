@@ -9,6 +9,7 @@
 const path = require('node:path');
 const { app, BrowserWindow, screen } = require('electron');
 const { resolveWindowBounds } = require('./window-bounds');
+const { ensureTopmost } = require('./topmost');
 
 function createPanes(ctx) {
 
@@ -116,6 +117,7 @@ function openFloatWindow(entry) {
   win.webContents.on('did-finish-load', () => {
     ctx.applyZoom(win);
     win.showInactive();
+    ensureTopmost(win).catch(() => {});
     // A window is not "moved onto the palette" by being opened: the placement below
     // emits 'move', and the dock-armed timer would otherwise dock a float the instant
     // it appears (over the palette, which is where duplicates land).
@@ -451,8 +453,12 @@ function floatWinFor(id) {
 function showFloats(show) {
   for (const win of ctx.floatWins.values()) {
     if (win.isDestroyed()) continue;
-    if (show) win.showInactive();
-    else win.hide();
+    if (show) {
+      win.showInactive();
+      ensureTopmost(win).catch(() => {});
+    } else {
+      win.hide();
+    }
   }
 }
 

@@ -81,20 +81,28 @@ far:
 | id | axes | notes |
 | --- | --- | --- |
 | `oklch` | L, C, H | the reference view; the default |
+| `oklab` | L, a, b | the canonical value itself; the only model with no hue axis |
 | `okhsv` | H, S, V | Ottosson's Okhsv; S/V are **sRGB-relative**, so it is only meaningful inside sRGB |
-| `lab` | L\*, a\*, b\* | CIELAB **D65** (no adaptation; the ICC boundary adapts to D50) |
+| `okhsl` | H, S, L | Ottosson's Okhsl (L is the *toe* of Oklab's L); S/L are sRGB-relative too |
+| `okhwb` | H, W, B | Ottosson's Okhwb, derived here from Okhsv: `w = v(1-s)`, `b = 1-v` |
 
-The picker modules (`color-slices`, `color-slider`) take a `model` setting. OKLCH
-keeps its analytic silhouette and gradients byte-for-byte; another model
-rasterises each plane against the working gamut and writes the store through
+The lineup is deliberately one perceptual family. The old **CIELAB, HSV and HSL**
+views were removed: OkLab/Okhsl do their job with better uniformity, and the
+picker's job is a view of *one* value, not a tour of colour spaces.
+
+The picker modules (`color-slices`, `color-slider`, `color-wheel`) take a `model`
+setting. OKLCH keeps its analytic silhouette and gradients byte-for-byte; another
+model rasterises each plane against the working gamut and writes the store through
 `setLab`, so proofing, history and snapping are untouched. `setLab` keeps the
 hue anchor when the value is achromatic.
 
 A model may declare `hueIndex` (where the anchor is substituted at zero
-chroma/saturation), `domain` (limits the round-trip test — Okhsv to sRGB), and
-`tol` (loosens it where the maths is lossy in the dark far-out-of-gamut corner —
-Lab, ~`1e-2`). Adding a model is one `register()` call plus a round-trip test;
-`test/color-models.test.js` covers every registered model automatically.
+chroma/saturation), `isAchromatic(axes)` (where that *is* for a model whose
+neutral axis is not its second axis at its minimum — Okhwb), `domain` (limits the
+round-trip test — the sRGB-relative three) and `tol` (loosens it where the maths is
+lossy). Adding a model is one `register()` call plus a round-trip test;
+`test/color-models.test.js` covers every registered model automatically, and its
+lineup test pins the five ids so a sixth is a deliberate decision.
 
 
 ## The evidence

@@ -94,7 +94,8 @@ workflow publishes the file verbatim.
   ever be named is **Adobe RGB (1998)**.
 - **Smoke-test the packaged app once** per release (`dist/win-unpacked` or the
   portable exe): dev Electron and the built app are different programs, and the
-  packaged one is what users get.
+  packaged one is what users get. Run the portable exe from a folder of its own
+  and check it creates `Iroiroppa Data` beside itself (not `%APPDATA%`).
 
 ## Before every non-beta release
 

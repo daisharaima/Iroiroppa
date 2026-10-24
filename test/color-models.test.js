@@ -47,6 +47,24 @@ test('every model round-trips OKLab -> axes -> OKLab', () => {
   }
 });
 
+test('the lineup is the OK family only', () => {
+  assert.deepEqual(Models.ids(), ['oklch', 'oklab', 'okhsv', 'okhsl', 'okhwb']);
+  for (const gone of ['lab', 'hsv', 'hsl']) {
+    assert.equal(Models.get(gone), null, `${gone} is deliberately not a model any more`);
+  }
+});
+
+test('every hue model declares where its hue anchor applies', () => {
+  for (const model of Models.list()) {
+    if (model.hueIndex == null) continue;
+    const axes = model.fromLab({ L: 0.5, a: 0, b: 0 });
+    const achromatic = typeof model.isAchromatic === 'function'
+      ? model.isAchromatic(axes)
+      : Math.abs(axes[1] - model.axes[1].min) < 1e-9;
+    assert.equal(achromatic, true, `${model.id} must call a neutral colour achromatic`);
+  }
+});
+
 test('OKLCH model matches the canonical polar view', () => {
   const m = Models.get('oklch');
   for (const lab of samples) {

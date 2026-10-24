@@ -217,3 +217,8 @@ npm run pack:run      # electron-builder --dir, then launch dist/win-unpacked/Ir
 kills any running Iroiroppa first (a second instance silently defers to the single-instance
 lock and looks like "nothing happened"), then starts it. Kill by command line, never by
 process name alone — other Electron apps run on the build machine.
+
+To exercise the **portable** layout without packaging, set
+`PORTABLE_EXECUTABLE_DIR` to a folder you own before launching: the app then
+keeps its state in `<folder>\Iroiroppa Data` instead of `%APPDATA%\Iroiroppa`
+(that variable is what electron-builder's portable stub exports at run time).

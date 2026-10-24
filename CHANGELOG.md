@@ -7,6 +7,48 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The portable build is self-contained.** It keeps its settings, saved pairing,
+  layout, modules, themes and history in `Iroiroppa Data` beside the exe instead
+  of `%APPDATA%\Iroiroppa`, so copying that folder carries the whole setup to
+  another PC. A portable copy and the installed app no longer share data.
+- **Color Slices projections.** Each map can be drawn `flat` (the unrolled
+  rectangle), `polar` (hue on the angle, chroma on the radius) or `triangle` (the
+  cusp frame, whose apex follows the hue). Display-only and invertible, like
+  rotate/flip; offered only on maps that can carry the shape.
+- **Color Wheel.** A hue ring around the model's hue slice; the ring is the most
+  saturated in-gamut colour at each hue. OKLCH shows its flat L×C slice; OKHSV and
+  OKHSL add a square ⇄ triangle switch (fixed corners for OKHSV, the cusp frame for
+  OKHSL).
+- **Color Disc.** The hue × chroma plane on a circle, with the third axis on a
+  slider: a true circle for OKHSV/OKHSL (relative saturation), the lobed document
+  gamut for OKLCH/OKLab (absolute chroma).
+- **The model lineup is the OK family**: OKLCH, OKLab, OKHSV, OKHSL and OKHWB.
+
+### Changed
+
+- **`Slider` is now `Color Slider`** — the name matches the other pickers in a
+  float's title bar. The id and saved settings are unchanged.
+- **Projections left Color Slices.** Each slice is drawn flat again; the polar and
+  triangle frames moved to their own modules (Color Disc, Color Wheel) so a picker
+  is one geometry instead of a per-slice mode.
+
+### Removed
+
+- **The HSV, HSL and CIELAB views** are gone: OkLab/Okhsl cover them with better
+  uniformity, and the picker now only tours one perceptual family. Saved module
+  settings that name one of them fall back to OKLCH.
+
+### Fixed
+
+- **The palette stays on top again.** On Windows 11 build 26300 a non-activating
+  window whose always-on-top request is dropped can never come forward — it sits at
+  the bottom even when clicked. The app now re-asserts the topmost band itself with
+  a `SetWindowPos` fallback (`src/main/topmost.js`) whenever Electron reports the
+  window as not on top, so the palette and floats float above Clip Studio Paint
+  again.
+
 ## [1.2.1] — 2026-10-23
 
 ### Fixed
@@ -54,9 +96,6 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   **required** channel shows an "unavailable" card instead of a control that does
   nothing; a missing optional one degrades the module. `--capabilities` /
   `--cap-off` force a channel for a screenshot.
-- **Capture Color.** A new selector module that captures a chosen window and
-  eyedrops a colour from it — the first module on a channel other than the
-  Companion protocol.
 - **CSP Shortcuts.** A new selector module listing Clip Studio Paint's own command
   shortcuts and tool keys, searchable, and invoking one over the protocol (falling
   back to a native key send).

@@ -486,6 +486,17 @@ plausible refactor silently breaks it (that is the test for the core list).
   `forward` and `inverse`; `color-slices` paints through the forward transform and
   every `attach` picker maps pointer coordinates through the inverse before applying
   the axis mapping. The colour maths and the plot cache never see the transform.
+- **A projection is display-only and invertible too** (`src/shared/projection.js`).
+  `flat` is the unrolled rectangle, `polar` puts hue on the angle and chroma on the
+  radius (mask = outside the disc), and `triangle` is the **cusp frame**: black,
+  white and the hue's cusp are the corners, so the apex slides with the hue by
+  design. The raster inverts the map per pixel and the picker maps the press
+  forward; a press the map cannot express is clamped, never dropped. Only a panel
+  whose axes can carry the shape offers it (`supports`), so a hand-edited settings
+  file cannot produce an all-mask panel.
+- **The gamut silhouette stays the union of `chromaIntervals` in every projection.**
+  A binary search from zero (or a first-crossing scan) under-fills at blue's fin, and
+  smoothing the boundary to hide it is the bug, not the fix.
 - **CSP shortcut comparison normalizes both sides.** `CommandOrControl`/`Control`
   become `Ctrl`, modifiers are ordered, key aliases (`Return`/`Enter`, `DELETE`/
   `Delete`) meet, and numpad `NUM+` is not the same key as `Plus`. A clash warning is

@@ -21,8 +21,9 @@ Each module does one job and can be shown, hidden, duplicated or resized indepen
 
 - **Session** — connection status, the document's colour profile and the Settings button.
 - **CSP Color** — Clip Studio Paint's foreground, background and transparent colour slots.
-- **Color Slices** — click a colour map to choose a colour.
-- **Slider** — fine-tune lightness, chroma and hue with sliders.
+- **Color Slices** — click a colour map to choose a colour; draw each map flat, polar or in the cusp frame.
+- **Color Wheel** — turn the hue on a ring, with the model's slice in the middle.
+- **Color Slider** — fine-tune lightness, chroma and hue with sliders.
 - **Color History** — recently picked colours you can reuse.
 - **Color Stat** — the current colour's hex code and channel values.
 - **CSP Shortcuts** — search and run Clip Studio Paint's own commands.
@@ -31,10 +32,12 @@ Each module does one job and can be shown, hidden, duplicated or resized indepen
 
 Grab the installer or the portable build from
 [Releases](https://github.com/daisharaima/Iroiroppa/releases). The installer
-closes a running copy of Iroiroppa before it replaces files. The builds are
-unsigned, so Windows SmartScreen may warn on first run ("More info" → "Run
-anyway"). Requires Windows 10/11 (64-bit) and Clip Studio Paint with Companion
-Mode (tested on CSP 5.0.4).
+closes a running copy of Iroiroppa before it replaces files. The portable build
+keeps its settings, saved pairing, layout and history in `Iroiroppa Data` beside
+the exe, so the folder is self-contained — copy both to carry it to another PC.
+The builds are unsigned, so Windows SmartScreen may warn on first run ("More
+info" → "Run anyway"). Requires Windows 10/11 (64-bit) and Clip Studio Paint
+with Companion Mode (tested on CSP 5.0.4).
 
 ## Use
 

@@ -21,6 +21,7 @@
    *     axes: [{ key, label, min, max, fmt }],   // three axes, in display order
    *     fromLab(lab) -> [x, y, z],               // OKLab -> axes (readout & cursor)
    *     toLab([x, y, z]) -> { L, a, b },         // axes -> OKLab (for setLab)
+   *     isAchromatic(axes)? -> boolean           // where the hue anchor applies
    *   }
    * `fmt` is the decimal places for the readout. `axes[1]` is the vertical axis
    * by convention (chroma-like for the pickers).
@@ -62,8 +63,11 @@
    *  zero chroma/saturation (a rectangular value has no hue there). */
   function axesFor(model, store) {
     const axes = model.fromLab(store.lab());
-    if (model.hueIndex != null && Math.abs(axes[1] - model.axes[1].min) < 1e-9) {
-      axes[model.hueIndex] = store.H;
+    if (model.hueIndex != null) {
+      const achromatic = typeof model.isAchromatic === 'function'
+        ? model.isAchromatic(axes)
+        : Math.abs(axes[1] - model.axes[1].min) < 1e-9;
+      if (achromatic) axes[model.hueIndex] = store.H;
     }
     return axes;
   }
@@ -97,41 +101,42 @@
     },
   });
 
-  // --- CIELAB (D65) ---------------------------------------------------------
-  // Defined everywhere (a wide-gamut document needs it out of the sRGB gamut),
-  // but the dark, far-out-of-gamut corners round-trip only to ~1e-2.
+  // --- OKLab — the canonical value as a model -------------------------------
+  // The rectangular parent every other view derives from: a model like any
+  // other (so a slice can show the a-b plane), but with no hue axis. The a/b
+  // range is wide enough for the widest working profile the proof can show.
   register({
-    id: 'lab',
-    name: 'Lab',
-    tol: 1e-2,
+    id: 'oklab',
+    name: 'OKLab',
     axes: [
-      { key: 'l', label: 'L', min: 0, max: 100, scale: 1, fmt: 1 },
-      { key: 'a', label: 'a', min: -128, max: 128, scale: 1, fmt: 1 },
-      { key: 'b', label: 'b', min: -128, max: 128, scale: 1, fmt: 1 },
+      { key: 'l', label: 'L', min: 0, max: 1, scale: 100, fmt: 0 },
+      { key: 'a', label: 'a', min: -0.4, max: 0.4, scale: 1, fmt: 3 },
+      { key: 'b', label: 'b', min: -0.4, max: 0.4, scale: 1, fmt: 3 },
     ],
     fromLab(lab) {
-      const v = Color.oklabToLab(lab.L, lab.a, lab.b);
-      return [v.L, v.a, v.b];
+      return [lab.L, lab.a, lab.b];
     },
     toLab(axes) {
-      return Color.labToOklab(axes[0], axes[1], axes[2]);
+      return { L: axes[0], a: axes[1], b: axes[2] };
     },
   });
 
-  // --- OKHSV (sRGB-referenced) ----------------------------------------------
-  // Ottosson's Okhsv. Its s/v are relative to the *sRGB* gamut, so it is only
-  // meaningful inside sRGB; a wider working profile should use OKLCH or Lab.
+  // --- Okhsv / Okhsl / Okhwb (sRGB-referenced picker spaces) -----------------
+  // Ottosson's three perceptual picks, all defined against sRGB: their S/V/W/B
+  // axes are only meaningful inside it, so `domain` limits the round-trip and
+  // `dense` says every axis value maps to a colour (no out-of-gamut area).
+  const inSrgb = (lab) => {
+    const l = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
+    const eps = 1e-6;
+    return l.r >= -eps && l.r <= 1 + eps && l.g >= -eps && l.g <= 1 + eps && l.b >= -eps && l.b <= 1 + eps;
+  };
+
   register({
     id: 'okhsv',
     name: 'OKHSV',
     hueIndex: 0,
-    // Dense: every in-range axis value maps to an sRGB colour — no out-of-gamut.
     dense: true,
-    domain(lab) {
-      const l = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
-      const eps = 1e-6;
-      return l.r >= -eps && l.r <= 1 + eps && l.g >= -eps && l.g <= 1 + eps && l.b >= -eps && l.b <= 1 + eps;
-    },
+    domain: inSrgb,
     axes: [
       { key: 'h', label: 'H', min: 0, max: 360, scale: 1, fmt: 1 },
       { key: 's', label: 'S', min: 0, max: 1, scale: 100, fmt: 0 },
@@ -146,39 +151,9 @@
     },
   });
 
-  // --- device HSV / HSL (sRGB-referenced) ------------------------------------
-  // The familiar picker spaces. Like Okhsv they are relative to the *sRGB* gamut.
-  const inSrgb = (lab) => {
-    const l = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
-    const eps = 1e-6;
-    return l.r >= -eps && l.r <= 1 + eps && l.g >= -eps && l.g <= 1 + eps && l.b >= -eps && l.b <= 1 + eps;
-  };
-
   register({
-    id: 'hsv',
-    name: 'HSV',
-    hueIndex: 0,
-    dense: true,
-    domain: inSrgb,
-    axes: [
-      { key: 'h', label: 'H', min: 0, max: 360, scale: 1, fmt: 1 },
-      { key: 's', label: 'S', min: 0, max: 1, scale: 100, fmt: 0 },
-      { key: 'v', label: 'V', min: 0, max: 1, scale: 100, fmt: 0 },
-    ],
-    fromLab(lab) {
-      const c = Color.oklabToRgb(lab.L, lab.a, lab.b);
-      const x = Color.rgbToHsv(c.r, c.g, c.b);
-      return [x.h, x.s, x.v];
-    },
-    toLab(axes) {
-      const c = Color.hsvToRgb(axes[0], axes[1], axes[2]);
-      return Color.rgbToOklab(c.r, c.g, c.b);
-    },
-  });
-
-  register({
-    id: 'hsl',
-    name: 'HSL',
+    id: 'okhsl',
+    name: 'OKHSL',
     hueIndex: 0,
     dense: true,
     domain: inSrgb,
@@ -188,13 +163,37 @@
       { key: 'l', label: 'L', min: 0, max: 1, scale: 100, fmt: 0 },
     ],
     fromLab(lab) {
-      const c = Color.oklabToRgb(lab.L, lab.a, lab.b);
-      const x = Color.rgbToHsl(c.r, c.g, c.b);
-      return [x.h, x.s, x.l];
+      const v = Color.oklabToOkhsl(lab.L, lab.a, lab.b);
+      return [v.h, v.s, v.l];
     },
     toLab(axes) {
-      const c = Color.hslToRgb(axes[0], axes[1], axes[2]);
-      return Color.rgbToOklab(c.r, c.g, c.b);
+      return Color.okhslToOklab(axes[0], axes[1], axes[2]);
+    },
+  });
+
+  // Okhwb is Okhsv re-parameterised: w = v(1-s), b = 1-v. Its hue is undefined on
+  // the *neutral axis* w = 1-b, not at w = 0, so it carries its own achromatic
+  // test (the contract's default checks the second axis at its minimum).
+  register({
+    id: 'okhwb',
+    name: 'OKHWB',
+    hueIndex: 0,
+    dense: true,
+    domain: inSrgb,
+    isAchromatic(axes) {
+      return Math.abs(axes[1] - (1 - axes[2])) < 1e-6;
+    },
+    axes: [
+      { key: 'h', label: 'H', min: 0, max: 360, scale: 1, fmt: 1 },
+      { key: 'w', label: 'W', min: 0, max: 1, scale: 100, fmt: 0 },
+      { key: 'b', label: 'B', min: 0, max: 1, scale: 100, fmt: 0 },
+    ],
+    fromLab(lab) {
+      const v = Color.oklabToOkhwb(lab.L, lab.a, lab.b);
+      return [v.h, v.w, v.b];
+    },
+    toLab(axes) {
+      return Color.okhwbToOklab(axes[0], axes[1], axes[2]);
     },
   });
 

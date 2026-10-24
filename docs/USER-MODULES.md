@@ -18,6 +18,8 @@ module contract in full.
 
 The folder name is the module **id** (lower-case letters, digits, `-`, `_`;
 `hello-module`, not `Hello Module`). It must match the `id` the module registers.
+A portable build uses the same tree beside its exe:
+`<exe folder>\Iroiroppa Data\user-modules\`.
 The directory is `user-modules`, **not** `modules` — the latter holds per-instance
 settings JSON.
 

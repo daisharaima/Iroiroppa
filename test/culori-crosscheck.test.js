@@ -79,6 +79,29 @@ test('OKLab ↔ OKLCH agrees on chroma (hue skipped near achromatic)', { skip: !
   assert.ok(worstC < 1e-4, `worst C ${worstC}`);
 });
 
+test('Okhsl and Okhsv agree with culori within 1e-4', { skip: !culori }, () => {
+  const hueGap = (a, b) => Math.abs((((a - b) % 360) + 540) % 360 - 180);
+  let worst = 0;
+  let where = null;
+  for (const [r, g, b] of SAMPLES) {
+    const lab = Color.rgbToOklab(r, g, b);
+    const cases = [
+      ['okhsl', Color.oklabToOkhsl(lab.L, lab.a, lab.b), culori.okhsl({ mode: 'rgb', r, g, b }), 'l'],
+      ['okhsv', Color.oklabToOkhsv(lab.L, lab.a, lab.b), culori.okhsv({ mode: 'rgb', r, g, b }), 'v'],
+    ];
+    for (const [space, got, ref, third] of cases) {
+      if (!ref || ref.s < 1e-4) continue;
+      const d = Math.max(
+        Math.abs(got.s - ref.s),
+        Math.abs(got[third] - ref[third]),
+        hueGap(got.h, ref.h) / 360,
+      );
+      if (d > worst) { worst = d; where = [space, got, ref]; }
+    }
+  }
+  assert.ok(worst < 1e-4, `worst ${worst} at ${JSON.stringify(where)}`);
+});
+
 test('an in-gamut round trip is stable', { skip: !culori }, () => {
   for (const [r, g, b] of SAMPLES.slice(0, 500)) {
     const lab = Color.rgbToOklab(r, g, b);
