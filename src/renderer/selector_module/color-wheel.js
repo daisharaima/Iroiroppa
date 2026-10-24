@@ -379,7 +379,7 @@
         const lIdx = lightAxis(model);
         axes[lIdx] = model.axes[lIdx].min + un * (model.axes[lIdx].max - model.axes[lIdx].min);
         axes[1] = model.axes[1].min + vn * (model.axes[1].max - model.axes[1].min);
-        store.setLab(model.toLab(axes), { notify: 'live', snap: true, gamut: 'picker' });
+        store.setLab(model.toLab(axes), { notify: 'live', snap: true });
       };
 
       const attach = () => {

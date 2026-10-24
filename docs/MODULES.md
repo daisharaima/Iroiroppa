@@ -117,13 +117,12 @@ once it has loaded.
 | --- | --- |
 | `lch()` | current `{ L, C, H }` |
 | `subscribe(fn)` | redraw on any change; returns an unsubscribe |
-| `setLCH(lch, { notify, snap, gamut })` | request a change; `notify` is `live` (drag), `commit` (release) or `none`; `snap` pulls into the picker gamut (`'picker'`) or the document's (`'record'`, the default) |
+| `setLCH(lch, { notify })` | request a change; `notify` is `live` (drag), `commit` (release) or `none` |
 | `selectSlot('main' / 'sub' / 'transparent')` | ask CSP to activate a slot |
-| `proofOn()` / `useDocumentGamut()` / `proof` / `proofInfo` / `mode` | the active proof |
-| `inGamut(L,C,H)` / `maxChroma(L,H)` / `chromaIntervals(L,H)` / `cmax()` | the **picker** gamut (sRGB, always) |
-| `documentInGamut` / `documentReduceChroma` / `documentCmax()` | the space a recorded value is validated against |
+| `proofOn()` / `useWorkingGamut()` / `proof` / `proofInfo` / `mode` | the active proof |
+| `inGamut(L,C,H)` / `maxChroma(L,H)` / `cmax()` | the active gamut |
 | `readRecorded(rgb)` / `contentRgb(lch?)` / `appearanceRgb(lch?)` / `contentHex(lch?)` | recorded ↔ appearance |
-| `plotKeyTag()` | a constant: the maps are the same under every profile |
+| `plotKeyTag()` | cache key for the active gamut + profile |
 | `crosshair` / `dragging` / `lastStored` | shared flags the module reads/sets |
 
 Modules **read** colour from the store and **request** changes; they never own
@@ -388,7 +387,8 @@ height (`auto`).
   the finished plot through it, and picking applies the exact inverse before the
   existing axis mapping, so the colour under the pointer is the colour picked.
   Slices are always drawn flat (no projection choice): a rasterised panel is
-  transparent outside the gamut — the shape *is* the sRGB gamut.
+  transparent outside the gamut — the shape *is* the gamut; only the sRGB warning
+  hatches.
 - **Color Wheel** — a hue ring around the model's hue slice (the two non-hue axes).
   The ring draws the most saturated in-gamut colour at each hue and only turns the
   hue. The inner slice is the model's own geometry: OKLCH shows its flat L×C slice
@@ -398,8 +398,8 @@ height (`auto`).
 - **Color Disc** — the hue × chroma plane on a circle, with the third axis (L or V)
   on a slider below. The radius is the model's own saturation axis: OKHSV/OKHSL use
   relative s, so the disc is a true circle; OKLCH/OKLab use absolute chroma, so the
-  rim is the widest hue at that lightness and the sRGB gamut is the lobed shape
-  inside it (round would have to lie about chroma magnitude). Out of gamut is
+  rim is the widest hue at that lightness and the document's gamut is the lobed
+  shape inside it (round would have to lie about chroma magnitude). Out of gamut is
   transparent, like the slices; OKLab reads its hue from `atan2(b, a)`.
 - **Color History** — main records a CSP **pick** (a change that supplies or changes the active slot's colour; an inactive-slot diff or a pure foreground/background switch adds nothing). A left-button release over CSP takes a fresh protocol read, so the newest tile appears on release with the exact last colour; a 450 ms settle covers picks with no pointer release (keyboard, hex, paste). **Record only while drawing** (one global setting, shown here) records only a non-Alt canvas contact: picks are noted, and the next canvas down takes a fresh read and adds the colour actually used. Every window only mirrors the shared list.
 - **CSP Shortcuts** — CSP's own list is read-only. It reads only the current
@@ -420,7 +420,7 @@ height (`auto`).
 | 1 | **Color Slices** | Constant Hue (L×C), Constant Lightness (H×C) and Constant Chroma (H×L) maps; each is hideable in the module's settings and drawn flat — projections live in their own modules. |
 | 2 | **Color Slider** | The active model's three axis sliders (L / C / H in OKLCH; horizontal ↔ vertical). |
 | 3 | **Color Wheel** | ✅ A hue ring around the active model's hue slice (the two non-hue axes); drag the ring for hue and the inner shape for the rest. OKLCH shows the flat L×C slice, OKHSV/OKHSL switch between the square and a triangle (fixed corners for OKHSV, cusp for OKHSL). |
-| 4 | **Color Disc** | ✅ The hue × chroma plane on a circle with the third axis on a slider: round for OKHSV/OKHSL (relative s), lobed for OKLCH/OKLab (absolute chroma, the sRGB gamut). |
+| 4 | **Color Disc** | ✅ The hue × chroma plane on a circle with the third axis on a slider: round for OKHSV/OKHSL (relative s), lobed for OKLCH/OKLab (absolute chroma, the document gamut). |
 | 5 | ~~Color Gamut~~ | **Not a module.** A gamut view is a slice of the profile with the silhouette Color Slices already draws — a second picker with the same data. The disc is a different geometry, not a fourth copy. |
 | 5 | **CSP Color** | The foreground / background / transparent slots (row ↔ column). |
 

@@ -92,7 +92,7 @@ picker's job is a view of *one* value, not a tour of colour spaces.
 
 The picker modules (`color-slices`, `color-slider`, `color-wheel`) take a `model`
 setting. OKLCH keeps its analytic silhouette and gradients byte-for-byte; another
-model rasterises each plane against the sRGB gamut and writes the store through
+model rasterises each plane against the working gamut and writes the store through
 `setLab`, so proofing, history and snapping are untouched. `setLab` keeps the
 hue anchor when the value is achromatic.
 
@@ -183,26 +183,19 @@ interpolates them (`src/shared/lut.js`) — the renderer has no build step and c
 
 ## Gamut and the chroma axis
 
-The picker draws **sRGB, always** — the document profile never widens the maps
-(sRGB and Adobe RGB max out at roughly 0.32 and 0.38 chroma respectively).
-Consequences:
+The reachable set is the **profile's** gamut, not sRGB's, whenever the `working`
+model is active (sRGB and Adobe RGB max out at roughly 0.32 and 0.38 chroma
+respectively). Consequences:
 
-- The maps, the chroma slider band, the wheel and the disc all use sRGB's
-  `maxChroma`/`inGamut`/`chromaIntervals` (`Color.*`), and the chroma axis is the
-  fixed 0.4 that contains the sRGB gamut.
-- Switching profiles therefore does not redraw the maps: the plot cache is keyed
-  by the slice coordinates alone.
-- A colour recorded by CSP can still *appear* outside sRGB (an Adobe RGB document
-  can hold one). It is drawn clipped in this sRGB window, exactly like any
-  wide-gamut image, and the crosshair sits above the maps when its chroma is past
-  the axis. The value itself is kept (`documentCmax()`).
-- Snapping is split: `gamut:'picker'` (slice/wheel picks) pulls into sRGB;
-  `gamut:'record'` (CSP, hex, paste, profile re-interpretation) pulls into the
-  document's own gamut, so a wide record is never clamped to sRGB.
-
-An inbound value from CSP is the *record*: it is converted once to its
-appearance (`readOklch`) and never written back. The stat/hex keeps showing the
-record, so a later write round-trips to the same value.
+- The maps, the chroma slider band and `clampChroma` all use the profile's
+  `maxChroma`/`inGamut`.
+- The chroma axis is sized from the widest chroma in the profile
+  (`chromaAxis()` — scan + 5% headroom, rounded to 0.05) so a saturated green is
+  not cropped off the top.
+- Appearances can be **outside sRGB** (Adobe RGB is wider than sRGB). They are
+  drawn clipped in this sRGB window, exactly like any wide-gamut image. The
+  picker's **sRGB gamut warning** toggle marks those with a hatch — the pixels
+  the working gamut holds but sRGB cannot (`Color.inGamut`).
 
 ### The boundary is not single-valued near the corners
 
