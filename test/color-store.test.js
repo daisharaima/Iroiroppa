@@ -73,3 +73,26 @@ test('the drawing-only gate pushes an explicit pick but adds no local tile', () 
   assert.deepEqual(store.history, []);
   assert.deepEqual(pushed, [store.lastStored], 'main still learns the pending pick');
 });
+
+// --- our own write comes back through the service broadcast ---------------------
+
+test('the echo of our own write does not move the colour', () => {
+  const store = loadStore();
+  store.setLCH({ L: 0.6, C: 0.02, H: 250 }, { notify: 'commit' });
+  const rec = { ...store.lastStored };
+  const before = store.lch();
+  store.applyIncoming({ active: 'main', main: { rgb: rec }, rgb: rec });
+  const after = store.lch();
+  assert.ok(Math.abs(after.H - before.H) < 1e-9, `H must stay ${before.H}, got ${after.H}`);
+  assert.ok(Math.abs(after.C - before.C) < 1e-9);
+  assert.deepEqual(store.lastStored, rec);
+});
+
+test('a genuinely different host colour is still applied', () => {
+  const store = loadStore();
+  store.setLCH({ L: 0.6, C: 0.02, H: 250 }, { notify: 'commit' });
+  const before = store.lch().H;
+  const rec = { r: 10, g: 200, b: 30 };
+  store.applyIncoming({ active: 'main', main: { rgb: rec }, rgb: rec });
+  assert.ok(Math.abs(store.lch().H - before) > 5, 'the host colour wins');
+});

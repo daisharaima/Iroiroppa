@@ -162,6 +162,11 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   stale and discarded; a poll that reverts to the colour just changed away from is
   read-back lag and is ignored briefly; a partial sync only counts as a pick when it
   supplies or changes the active slot. `src/main/service.js`, `docs/STATE.md`.
+  **A window also ignores an incoming RGB it wrote itself** (`ColorStore._ownWrites`):
+  the service broadcasts every write back to every window, and re-deriving the pick
+  from that 8-bit record rotates the hue by up to a few degrees, or adopts a record
+  that clipped at the gamut. Main's burst filter cannot help there — the value is
+  ours by construction, not a lagging host read.
 - **Never send to a destroyed `webContents`.** Every window send goes through
   `src/main/broadcast.js` (`sendTo`/`broadcast`), which checks the window *and* its
   webContents and never throws; `state-hub.set` swallows an emit error. A throw there

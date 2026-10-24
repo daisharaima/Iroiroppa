@@ -32,6 +32,10 @@
       this.proof = null;
       this.proofInfo = null;
       this.lastStored = null;
+      // The records this window wrote lately: a broadcast echo of our own write
+      // (and CSP's read-back of it) must not move the pick — the record is 8-bit
+      // and, past the gamut, already clipped (docs/COLOR.md).
+      this._ownWrites = [];
       this.pendingSend = false;
       // Flags the rest of the app keeps in sync.
       this.connected = false;
@@ -248,6 +252,7 @@
       if (notify !== 'live') {
         this._log('set', { notify, snap, ask: { L: lch.L, C: lch.C, H: lch.H }, before, stored, dragging: this.dragging });
       }
+      if (stored) this._rememberWrite(stored);
       this._emit();
       if (notify === 'live') this._write(false);
       else if (notify === 'commit') this._write(true);
@@ -258,8 +263,18 @@
       return { L: +this.L.toFixed(6), C: +this.C.toFixed(6), H: +this.hue.toFixed(6) };
     }
 
-    /** One line in the colour log (docs/DEV.md). Never throws. */
-    _log(kind, extra) {
+    /** Remember a record this window wrote, newest last, so an echo cannot move us. */
+    _rememberWrite(rgb) {
+      this._ownWrites.push({ r: rgb.r, g: rgb.g, b: rgb.b });
+      if (this._ownWrites.length > 8) this._ownWrites.shift();
+    }
+
+    /** Is this RGB one of our own recent writes (a broadcast echo or a read-back)? */
+    _isOwnWrite(rgb) {
+      return this._ownWrites.some((w) => w.r === rgb.r && w.g === rgb.g && w.b === rgb.b);
+    }
+
+    /** One line in the colour log (docs/DEV.md). Never throws. */    _log(kind, extra) {
       const csp = this.csp;
       if (!csp || typeof csp.colourLog !== 'function') return;
       try {
@@ -287,6 +302,7 @@
     /** Push the current colour to CSP now (used after applyRecordedRgb). */
     push(immediate) {
       this.lastStored = this.contentRgb();
+      this._rememberWrite(this.lastStored);
       this._recordHistory(this.lastStored);
       this._markActiveSlot(this.lastStored);
       this._emit();
@@ -307,7 +323,17 @@
       if (color.main || color.sub || color.active) {
         this.slots = { main: color.main || null, sub: color.sub || null, active: color.active || null };
       }
+      if (color.rgb && this._isOwnWrite(color.rgb)) {
+        // Our own write coming back: the store already holds the picked colour,
+        // and re-deriving it from the 8-bit record would rotate the hue (up to a
+        // few degrees at low chroma) or adopt a clipped record. Keep the pick.
+        this.lastStored = { r: color.rgb.r, g: color.rgb.g, b: color.rgb.b };
+        this._log('self', { rgb: color.rgb, before });
+        this._emit();
+        return;
+      }
       if (color.rgb) {
+        this._ownWrites.length = 0; // a real host change ends our burst
         this.lastStored = { r: color.rgb.r, g: color.rgb.g, b: color.rgb.b };
         const { L, C, H } = this.readRecorded(color.rgb);
         this._applyLCH({ L, C, H }, { snap: true });

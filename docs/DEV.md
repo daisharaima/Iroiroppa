@@ -104,7 +104,7 @@ object per line:
 
 | field | meaning |
 | --- | --- |
-| `kind` | `set` (a pick; `notify` says `commit`), `host` (a value CSP sent), `host-ignored` (arrived mid-drag), `recorded` (hex/paste), `reinterpret` (profile or mode change) |
+| `kind` | `set` (a pick; `notify` says `commit`), `host` (a value CSP sent), `host-ignored` (arrived mid-drag), `self` (this window's own write echoed back), `recorded` (hex/paste), `reinterpret` (profile or mode change) |
 | `L` `C` `H` | the store's value **after** the change |
 | `before` | the `L,C,H` before it |
 | `ask` | the LCH the caller requested (a `set`) |
