@@ -83,9 +83,11 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   gamut a *recorded* value is validated against. Do not route the plots through
   `proof.chromaAxis()` again: the wider map cannot be shown in the sRGB window,
   and drawing it only produces a clipped, misleading one.
-- **Chroma may sit outside the gamut on purpose, but only above the maps.** The C
-  slider snaps at the sRGB boundary; a *recorded* appearance from CSP may still
-  sit past it (up to `documentCmax()`) and must never be clamped to the maps.
+- **Chroma may sit outside the gamut on purpose, but only above the maps.** A
+  *recorded* appearance from CSP may sit past the sRGB edge (up to
+  `documentCmax()`) and must never be clamped to the maps; the Color Slider's C
+  track is the one control that can still create such a colour on purpose (it
+  stops at the 0.4 axis, not the sRGB edge, so the crosshair leaves the maps).
   Snapping is split: `gamut:'picker'` (slice/wheel picks) uses sRGB, and
   `gamut:'record'` (CSP, hex, paste, profile re-interpretation) uses the
   document's own gamut.

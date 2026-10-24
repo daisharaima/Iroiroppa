@@ -324,9 +324,9 @@
           store.dragging = true;
           const m = model();
           raw[i] = Number(rows[i].rng.value);
-          // The slider is allowed to leave the gamut: that is what moves the Slices'
-          // crosshair into their out-of-gamut (hatched) area. Only recorded values
-          // and slice drags snap; this pick is neither.
+          // The slider is allowed to leave the gamut: it is the one control that
+          // can still reach a document-only colour (the maps stop at the sRGB
+          // edge). Only recorded values and slice drags snap; this pick is neither.
           setAxis(i, raw[i], 'live');
         });
         const release = () => {

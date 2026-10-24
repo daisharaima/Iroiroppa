@@ -199,6 +199,9 @@ Consequences:
 - Snapping is split: `gamut:'picker'` (slice/wheel picks) pulls into sRGB;
   `gamut:'record'` (CSP, hex, paste, profile re-interpretation) pulls into the
   document's own gamut, so a wide record is never clamped to sRGB.
+- The **Color Slider's C track is the escape hatch**: it spans the 0.4 axis, so it
+  can still be pushed into a document-only colour even though the maps stop at the
+  sRGB edge; the crosshair then sits above the maps.
 
 An inbound value from CSP is the *record*: it is converted once to its
 appearance (`readOklch`) and never written back. The stat/hex keeps showing the
