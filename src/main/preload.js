@@ -204,4 +204,6 @@ contextBridge.exposeInMainWorld('csp', {
   }),
   onModuleChanged: (cb) => ipcRenderer.on('module:changed', (_e, d) => cb(d)),
   onModuleAction: (cb) => ipcRenderer.on('module:action', (_e, p) => cb(p)),
+  /** One line in the colour log (docs/DEV.md). Fire-and-forget. */
+  colourLog: (entry) => ipcRenderer.send('log:colour', entry),
 });

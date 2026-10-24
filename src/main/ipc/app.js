@@ -6,6 +6,7 @@
 // so it needs no inner helpers. `wireIpc` calls `register(ctx)`.
 
 const { app, ipcMain, dialog, shell } = require('electron');
+const colourLog = require('../colour-log');
 
 function register(ctx, trusted = () => false) {
   ipcMain.handle('app:snapshot', () => ({ ...ctx.service.snapshot(), capabilities: ctx.capabilities.state() }));
@@ -45,6 +46,11 @@ function register(ctx, trusted = () => false) {
     return { ok: false, error: 'no invoke path' };
   });
   ipcMain.handle('app:version', () => app.getVersion());
+  // The colour log (docs/DEV.md): one line per colour transition, so a live pick
+  // can be replayed after the fact. Bounded by the logger, never trusted.
+  ipcMain.on('log:colour', (_e, entry) => {
+    if (entry && typeof entry === 'object' && !Array.isArray(entry)) colourLog.record(entry);
+  });
   ipcMain.handle('update:get', () => ctx.updateInfo);
   ipcMain.handle('update:check', () => ctx.refreshUpdateCheck());
   // The renderer cannot navigate under its CSP, so links are opened here, and

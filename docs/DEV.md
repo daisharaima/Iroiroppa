@@ -96,6 +96,25 @@ profile, so they run on any machine. The tests that assert the real wide-gamut
 observations look for a suitable profile in the Windows colour directory or
 `D:/Download`, and skip (visibly) when it is absent.
 
+## Colour log
+
+Every colour transition is written to `colour-log.jsonl` in the data folder
+(`%APPDATA%\Iroiroppa`, or `Iroiroppa Data` beside a portable exe). One JSON
+object per line:
+
+| field | meaning |
+| --- | --- |
+| `kind` | `set` (a pick; `notify` says `commit`), `host` (a value CSP sent), `host-ignored` (arrived mid-drag), `recorded` (hex/paste), `reinterpret` (profile or mode change) |
+| `L` `C` `H` | the store's value **after** the change |
+| `before` | the `L,C,H` before it |
+| `ask` | the LCH the caller requested (a `set`) |
+| `stored` | the 8-bit record (`{r,g,b}`) sent to CSP |
+| `mode` / `model` / `profile` | the proof state at that moment |
+
+The file rotates on every launch (`colour-log.jsonl.prev` keeps the previous
+run) and stops at 4000 lines. Read the order of `set`, `host` and `reinterpret`
+lines to tell whether the picker or the document moved.
+
 ## Release checklist
 
 See `docs/RELEASE.md` — it is the single checklist, and the `release` skill
