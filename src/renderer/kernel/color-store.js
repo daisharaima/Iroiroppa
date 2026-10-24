@@ -238,7 +238,6 @@
 
     /** Set the colour and optionally push it to CSP. */
     setLCH(lch, { notify = 'none', snap = false } = {}) {
-      const before = this._snap();
       this._applyLCH(lch, { snap });
       let stored = null;
       if (notify !== 'none') {
@@ -249,18 +248,10 @@
         // and broadcasts the shared list to every window.
         if (notify === 'commit') this._recordHistory(stored);
       }
-      if (notify !== 'live') {
-        this._log('set', { notify, snap, ask: { L: lch.L, C: lch.C, H: lch.H }, before, stored, dragging: this.dragging });
-      }
       if (stored) this._rememberWrite(stored);
       this._emit();
       if (notify === 'live') this._write(false);
       else if (notify === 'commit') this._write(true);
-    }
-
-    /** Rounded {L,C,H} for a log line. */
-    _snap() {
-      return { L: +this.L.toFixed(6), C: +this.C.toFixed(6), H: +this.hue.toFixed(6) };
     }
 
     /** Remember a record this window wrote, newest last, so an echo cannot move us. */
@@ -274,29 +265,11 @@
       return this._ownWrites.some((w) => w.r === rgb.r && w.g === rgb.g && w.b === rgb.b);
     }
 
-    /** One line in the colour log (docs/DEV.md). Never throws. */    _log(kind, extra) {
-      const csp = this.csp;
-      if (!csp || typeof csp.colourLog !== 'function') return;
-      try {
-        csp.colourLog({
-          t: Date.now(),
-          kind,
-          mode: this.mode,
-          model: this.proofOn() ? (this.proof.model || 'working') : null,
-          profile: this.proofInfo && this.proofInfo.path ? this.proofInfo.path : null,
-          ...this._snap(),
-          ...extra,
-        });
-      } catch { /* logging must never break a pick */ }
-    }
-
     /** Interpret a recorded sRGB value (hex field, paste) without sending. */
     applyRecordedRgb(rgb) {
-      const before = this._snap();
       const { L, C, H } = this.readRecorded(rgb);
       // A recorded value is in gamut by definition: snap for safety.
       this._applyLCH({ L, C, H }, { snap: true });
-      this._log('recorded', { rgb, before, stored: this.contentRgb() });
     }
 
     /** Push the current colour to CSP now (used after applyRecordedRgb). */
@@ -314,11 +287,7 @@
      *  window (src/main/service.js) covers the not-dragging case. Main records
      *  host picks, so this only applies the colour and never writes history. */
     applyIncoming(color) {
-      if (!color || this.dragging) {
-        if (color && color.rgb) this._log('host-ignored', { rgb: color.rgb, dragging: this.dragging });
-        return;
-      }
-      const before = this._snap();
+      if (!color || this.dragging) return;
       if (typeof color.transparent === 'boolean') this.transparent = color.transparent;
       if (color.main || color.sub || color.active) {
         this.slots = { main: color.main || null, sub: color.sub || null, active: color.active || null };
@@ -328,7 +297,6 @@
         // and re-deriving it from the 8-bit record would rotate the hue (up to a
         // few degrees at low chroma) or adopt a clipped record. Keep the pick.
         this.lastStored = { r: color.rgb.r, g: color.rgb.g, b: color.rgb.b };
-        this._log('self', { rgb: color.rgb, before });
         this._emit();
         return;
       }
@@ -337,19 +305,16 @@
         this.lastStored = { r: color.rgb.r, g: color.rgb.g, b: color.rgb.b };
         const { L, C, H } = this.readRecorded(color.rgb);
         this._applyLCH({ L, C, H }, { snap: true });
-        this._log('host', { rgb: color.rgb, before, stored: this.contentRgb() });
       }
       this._emit();
     }
 
     /** Re-read the stored colour through the current proof (profile/mode change). */
     reinterpret() {
-      const before = this._snap();
       if (this.lastStored) {
         const { L, C, H } = this.readRecorded(this.lastStored);
         this._applyLCH({ L, C, H }, { snap: true });
       }
-      this._log('reinterpret', { before, stored: this.lastStored });
       this._emit();
     }
 

@@ -50,6 +50,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A pick no longer rotates the hue when you release the slider.** The app
+  broadcast every write back to its own window and re-read the 8-bit record as a
+  new colour, moving H by up to a few degrees (worst at low chroma) and adopting
+  the clipped record past the gamut. A window now ignores the records it just
+  wrote; a real value from Clip Studio Paint still wins.
 - **The palette stays on top again.** On Windows 11 build 26300 a non-activating
   window whose always-on-top request is dropped can never come forward — it sits at
   the bottom even when clicked. The app now re-asserts the topmost band itself with

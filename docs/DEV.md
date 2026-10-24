@@ -96,24 +96,27 @@ profile, so they run on any machine. The tests that assert the real wide-gamut
 observations look for a suitable profile in the Windows colour directory or
 `D:/Download`, and skip (visibly) when it is absent.
 
-## Colour log
+## Diagnosing a hue jump
 
-Every colour transition is written to `colour-log.jsonl` in the data folder
-(`%APPDATA%\Iroiroppa`, or `Iroiroppa Data` beside a portable exe). One JSON
-object per line:
+A pick that rotates the hue after you release the slider is a round-trip bug, not
+a math bug: the store's L/C/H never move otherwise (`test/color-store.test.js`).
+The usual cause is the app re-reading an 8-bit record — either its own write
+broadcast back (the `_ownWrites` guard in `ColorStore.applyIncoming` exists for
+that) or a genuine host value that clipped at the gamut.
 
-| field | meaning |
-| --- | --- |
-| `kind` | `set` (a pick; `notify` says `commit`), `host` (a value CSP sent), `host-ignored` (arrived mid-drag), `self` (this window's own write echoed back), `recorded` (hex/paste), `reinterpret` (profile or mode change) |
-| `L` `C` `H` | the store's value **after** the change |
-| `before` | the `L,C,H` before it |
-| `ask` | the LCH the caller requested (a `set`) |
-| `stored` | the 8-bit record (`{r,g,b}`) sent to CSP |
-| `mode` / `model` / `profile` | the proof state at that moment |
+A temporary colour log once pinpointed exactly this: one JSON line per
+transition (`set`, `host`, `host-ignored`, `self`, `recorded`, `reinterpret`)
+with the L/C/H before and after and the record sent. It was removed after the
+fix; restore it from history when the symptom returns:
 
-The file rotates on every launch (`colour-log.jsonl.prev` keeps the previous
-run) and stops at 4000 lines. Read the order of `set`, `host` and `reinterpret`
-lines to tell whether the picker or the document moved.
+```
+git show 310f36e -- src/main/colour-log.js
+```
+
+Then wire `colourLog.init(app.getPath('userData'))`, the `log:colour` channel
+and `ColorStore._log` back in as that commit did. Read the order of the lines:
+a `host` right after a `set` with the same RGB is an echo, a different RGB is
+the document.
 
 ## Release checklist
 

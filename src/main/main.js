@@ -54,7 +54,6 @@ const { createSender } = require('./sender');
 const cspShortcuts = require('./csp-shortcuts');
 const { createMainI18n } = require('./i18n');
 const { portableDataDir, usableDataDir } = require('./portable');
-const colourLog = require('./colour-log');
 
 // The live capability set; built once Electron is ready.
 let capabilities = null;
@@ -83,10 +82,6 @@ if (portableDir && !explicitUserDataDir) {
   if (usableDataDir(portableDir)) app.setPath('userData', portableDir);
   else console.warn(`[portable] ${portableDir} is not writable; using the usual app-data folder`);
 }
-
-// The colour log (docs/DEV.md) lives in the data folder, so it follows a portable
-// build and the `--user-data-dir` of a scripted run. Started before `ready`.
-colourLog.init(app.getPath('userData'));
 
 // Stores that need only the app-data directory are built once, Electron-free.
 // The proof store reads `settings`, which is assigned once Electron is ready, so
