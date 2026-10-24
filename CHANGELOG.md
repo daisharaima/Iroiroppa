@@ -22,12 +22,17 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   OKHSL add a square ⇄ triangle switch (fixed corners for OKHSV, the cusp frame for
   OKHSL).
 - **Color Disc.** The hue × chroma plane on a circle, with the third axis on a
-  slider: a true circle for OKHSV/OKHSL (relative saturation), the lobed document
+  slider: a true circle for OKHSV/OKHSL (relative saturation), the lobed sRGB
   gamut for OKLCH/OKLab (absolute chroma).
 - **The model lineup is the OK family**: OKLCH, OKLab, OKHSV, OKHSL and OKHWB.
 
 ### Changed
 
+- **The picker is sRGB whatever the document profile.** The maps, wheel, disc and
+  slider no longer widen to the selected ICC profile: the profile now only converts
+  the colour on read and write, so switching it never changes the picture. A colour
+  recorded by CSP that *appears* outside sRGB is still kept exactly and is not
+  snapped to the maps.
 - **`Slider` is now `Color Slider`** — the name matches the other pickers in a
   float's title bar. The id and saved settings are unchanged.
 - **Projections left Color Slices.** Each slice is drawn flat again; the polar and
@@ -36,6 +41,8 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
+- **The "sRGB gamut warning" toggle.** Nothing a picker draws can sit outside
+  sRGB any more, so there was nothing left to mark.
 - **The HSV, HSL and CIELAB views** are gone: OkLab/Okhsl cover them with better
   uniformity, and the picker now only tours one perceptual family. Saved module
   settings that name one of them fall back to OKLCH.

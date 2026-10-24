@@ -200,7 +200,7 @@ src/renderer/
     color-wheel.js                hue ring + the model's hue slice inside it
     color-disc.js                 the hue x chroma plane on a disc: round for
                                   Okhsv/Okhsl (relative s), lobed for OKLCH/OKLab
-                                  (absolute chroma, the document gamut)
+                                  (absolute chroma, the sRGB gamut)
     color-history.js              recently picked colours
     color-stat.js                 the colour's numbers: swatch, HEX, OKLCH and sRGB
     session.js                    the singleton control panel: connection state and

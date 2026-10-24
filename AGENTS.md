@@ -76,14 +76,19 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
 - **`Color.rgbToHex` takes 0–255; `Color.rgb01ToHex` takes 0–1.** No per-channel
   "is this a float?" heuristic — a channel of exactly `0` or `1` is misread and
   out-of-sRGB appearances render the wrong colour.
-- **The gamut-plot cache key includes profile identity and gamut**, and the
-  chroma axis covers the active gamut (`proof.chromaAxis()`) — otherwise
-  switching profiles leaves stale maps and saturated greens are cropped off the
-  top.
-- **Chroma may sit outside the gamut, up to the axis bound, on purpose** (the C
-  slider is pushed past the boundary so the Hue slice is seen to transform).
-  Slice drags snap as before, and **every recorded value (CSP, hex, paste, proof
-  re-interpretation) is always snapped**.
+- **The picker always draws sRGB; the document profile only converts read and
+  write.** The maps, wheel, disc and slider use the sRGB gamut (`Color.*`, a fixed
+  0.4 chroma axis) whatever profile is selected, so changing the profile never
+  alters the picture; `proof.js` supplies only `readOklch`/`writeSrgb` plus the
+  gamut a *recorded* value is validated against. Do not route the plots through
+  `proof.chromaAxis()` again: the wider map cannot be shown in the sRGB window,
+  and drawing it only produces a clipped, misleading one.
+- **Chroma may sit outside the gamut on purpose, but only above the maps.** The C
+  slider snaps at the sRGB boundary; a *recorded* appearance from CSP may still
+  sit past it (up to `documentCmax()`) and must never be clamped to the maps.
+  Snapping is split: `gamut:'picker'` (slice/wheel picks) uses sRGB, and
+  `gamut:'record'` (CSP, hex, paste, profile re-interpretation) uses the
+  document's own gamut.
 - **Partial `Sync*` payloads are merged** into the last known state — never let
   them blank `main`/`sub` or fabricate a change.
 - **The heartbeat's idle-timer reset is conditional** (`_mayKeepHostAwake`): it
@@ -179,7 +184,7 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   an unplugged monitor) — never `setPosition` a saved record directly.
 - **Changing the profile or model must re-interpret the stored colour** — never
   re-send it, since the stored value has not changed. The plot cache needs no
-  clearing: its key carries the profile identity and gamut.
+  clearing: the maps are the same picture under every profile.
 - **Every palette is addressed by id, and main owns `layout.json`.** No board ever
   writes the floats: a board reads and writes **only its own** palette through
   `palette:columns:get/set` (the palette is resolved from the *sender*, never from

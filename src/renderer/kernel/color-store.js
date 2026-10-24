@@ -97,34 +97,52 @@
       return this.mode !== 'default' && Boolean(this.proof);
     }
 
-    useWorkingGamut() {
+    /** The document's own space is only in play for the `working` model. */
+    useDocumentGamut() {
       return this.proofOn() && this.proof.model === 'working';
     }
 
+    /** The maps are the same picture under every profile, so they share a slot. */
     plotKeyTag() {
-      return this.useWorkingGamut() ? `w:${(this.proofInfo && this.proofInfo.path) || ''}` : 's';
+      return 's';
     }
 
+    // --- picker gamut: sRGB, always (docs/COLOR.md) ------------------------
+
     inGamut(L, C, H) {
-      return this.useWorkingGamut() ? this.proof.inGamut({ L, C, H }) : Color.inGamut(L, C, H);
+      return Color.inGamut(L, C, H);
     }
 
     maxChroma(L, H) {
-      return this.useWorkingGamut() ? this.proof.maxChroma(L, H, 0.6) : Color.maxChroma(L, H);
+      return Color.maxChroma(L, H);
     }
 
     /** In-gamut chroma intervals for the map silhouette (see Color). */
     chromaIntervals(L, H) {
-      return this.useWorkingGamut() ? this.proof.chromaIntervals(L, H, 0.6) : Color.chromaIntervals(L, H);
+      return Color.chromaIntervals(L, H);
     }
 
-    /** Largest in-gamut chroma <= C: what an out-of-gamut value snaps to. */
-    reduceChroma(L, C, H) {
-      return this.useWorkingGamut() ? this.proof.reduceChroma(L, C, H, 0.6) : Color.reduceChroma(L, C, H);
-    }
-
+    /** The widest chroma the maps draw: sRGB's axis, never the profile's. */
     cmax() {
-      return this.useWorkingGamut() ? this.proof.chromaAxis() : 0.4;
+      return 0.4;
+    }
+
+    // --- document gamut: validation and snapping only ---------------------
+
+    /** Is this appearance inside the document's space? */
+    documentInGamut(L, C, H) {
+      return this.useDocumentGamut() ? this.proof.inGamut({ L, C, H }) : Color.inGamut(L, C, H);
+    }
+
+    /** Largest document chroma <= C: what an out-of-gamut value snaps to. */
+    documentReduceChroma(L, C, H) {
+      return this.useDocumentGamut() ? this.proof.reduceChroma(L, C, H, 0.6) : Color.reduceChroma(L, C, H);
+    }
+
+    /** Widest chroma a recorded value may hold; never shrinks one. */
+    documentCmax() {
+      if (!this.useDocumentGamut() || typeof this.proof.chromaAxis !== 'function') return 0.4;
+      return Math.max(0.4, this.proof.chromaAxis());
     }
 
     /** OKLCH of a value recorded by CSP, as seen through the current proof. */
@@ -218,12 +236,17 @@
      * `snap` is set, an out-of-gamut chroma is pulled back to the boundary at
      * this lightness and hue (slice drags, and values recorded by CSP).
      */
-    _applyLCH(lch, { snap = false } = {}) {
+    _applyLCH(lch, { snap = false, gamut = 'record' } = {}) {
       const L = clamp01(lch.L);
       const H = clamp(lch.H, 0, 360);
-      let C = clamp(lch.C, 0, this.cmax());
-      if (snap && !this.inGamut(L, C, H)) {
-        C = clamp(this.reduceChroma(L, C, H), 0, this.cmax());
+      let C = clamp(lch.C, 0, this.documentCmax());
+      if (snap) {
+        const picker = gamut === 'picker';
+        const inside = picker ? this.inGamut(L, C, H) : this.documentInGamut(L, C, H);
+        if (!inside) {
+          const reduced = picker ? Color.reduceChroma(L, C, H) : this.documentReduceChroma(L, C, H);
+          C = clamp(reduced, 0, this.documentCmax());
+        }
       }
       const ab = Color.oklchToOklab(L, C, H);
       this.L = L;
@@ -232,9 +255,11 @@
       this.hue = H;
     }
 
-    /** Set the colour and optionally push it to CSP. */
-    setLCH(lch, { notify = 'none', snap = false } = {}) {
-      this._applyLCH(lch, { snap });
+    /** Set the colour and optionally push it to CSP. `gamut` picks which space
+     *  a snapping value is pulled into: the sRGB maps (`picker`) or the
+     *  document's space (`record`, the default for values coming from CSP). */
+    setLCH(lch, { notify = 'none', snap = false, gamut = 'record' } = {}) {
+      this._applyLCH(lch, { snap, gamut });
       if (notify !== 'none') {
         const stored = this.contentRgb();
         this.lastStored = stored;

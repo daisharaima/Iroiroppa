@@ -495,8 +495,9 @@ plausible refactor silently breaks it (that is the test for the core list).
   whose axes can carry the shape offers it (`supports`), so a hand-edited settings
   file cannot produce an all-mask panel.
 - **The gamut silhouette stays the union of `chromaIntervals` in every projection.**
-  A binary search from zero (or a first-crossing scan) under-fills at blue's fin, and
-  smoothing the boundary to hide it is the bug, not the fix.
+  The maps are the sRGB gamut whatever profile is selected; a binary search from
+  zero (or a first-crossing scan) under-fills at blue's fin, and smoothing the
+  boundary to hide it is the bug, not the fix.
 - **CSP shortcut comparison normalizes both sides.** `CommandOrControl`/`Control`
   become `Ctrl`, modifiers are ordered, key aliases (`Return`/`Enter`, `DELETE`/
   `Delete`) meet, and numpad `NUM+` is not the same key as `Plus`. A clash warning is
