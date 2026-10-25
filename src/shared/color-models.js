@@ -9,9 +9,12 @@
  * Loads as CommonJS in Node and as a global `IroColorModels` in the renderer.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./color'));
-  else root.IroColorModels = factory(root.Color);
-})(typeof self !== 'undefined' ? self : this, function (Color) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('./color'), require('../renderer/vendor/helmlab/helmlab.umd.js'));
+  } else {
+    root.IroColorModels = factory(root.Color, root.helmlab);
+  }
+})(typeof self !== 'undefined' ? self : this, function (Color, Helm) {
   'use strict';
 
   /**
@@ -196,6 +199,67 @@
       return Color.okhwbToOklab(axes[0], axes[1], axes[2]);
     },
   });
+
+  // --- HelmGen (Helmlab GenSpace): the cylindrical and the rectangular view --
+  // Two views over ONE space (docs/COLOR.md): `helmgenlch` is the polar form a
+  // picker needs, `helmgen` the rectangular parent (no hue axis, like OKLab).
+  // Helmlab's entry point is XYZ (D65), so both adapters hop OKLab -> linear RGB
+  // -> XYZ -> GenLab. `gen.space` is the raw space: the `gen` facade has no
+  // toXyz. The vendored bundle is optional — without it these models simply do
+  // not exist rather than taking the picker down.
+  if (Helm && Helm.Helmlab) {
+    // The module exports the classes; the facade (gen/metric/tokens) lives on an
+    // instance.
+    const gen = new Helm.Helmlab().gen;
+    const helmXyz = (lab) => {
+      const lin = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
+      const v = Color.linearRgbToXyz(lin.r, lin.g, lin.b);
+      return [v.X, v.Y, v.Z];
+    };
+    const helmLab = (xyz) => {
+      const lin = Color.xyzToLinearRgb(xyz[0], xyz[1], xyz[2]);
+      return Color.linearRgbToOklab(lin.r, lin.g, lin.b);
+    };
+
+    register({
+      id: 'helmgenlch',
+      name: 'HelmGen LCH',
+      hueIndex: 2,
+      domain: inSrgb,
+      dragScale: 2,
+      axes: [
+        { key: 'l', label: 'L', min: 0, max: 1, scale: 100, fmt: 0 },
+        { key: 'c', label: 'C', min: 0, max: 0.65, scale: 1000, fmt: 0 },
+        { key: 'h', label: 'H', min: 0, max: 360, scale: 1, fmt: 1 },
+      ],
+      fromLab(lab) {
+        const lch = gen.toLch(gen.space.fromXYZ(helmXyz(lab)));
+        return [lch[0], lch[1], lch[2]];
+      },
+      toLab(axes) {
+        return helmLab(gen.space.toXYZ(gen.lch(axes[0], axes[1], axes[2])));
+      },
+    });
+
+    register({
+      id: 'helmgen',
+      name: 'HelmGen',
+      domain: inSrgb,
+      dragScale: 2,
+      axes: [
+        { key: 'l', label: 'L', min: 0, max: 1, scale: 100, fmt: 0 },
+        { key: 'a', label: 'a', min: -0.45, max: 0.45, scale: 1, fmt: 3 },
+        { key: 'b', label: 'b', min: -0.6, max: 0.6, scale: 1, fmt: 3 },
+      ],
+      fromLab(lab) {
+        const v = gen.space.fromXYZ(helmXyz(lab));
+        return [v[0], v[1], v[2]];
+      },
+      toLab(axes) {
+        return helmLab(gen.space.toXYZ(gen.lab(axes[0], axes[1], axes[2])));
+      },
+    });
+  }
 
   return { register, get, list, ids, has, DEFAULT_ID, PLANES, axesFor, axisRange, formatAxis };
 });

@@ -34,6 +34,7 @@ Two colour concepts are easy to confuse and both matter:
 | `npm run probe` | standalone CLI client: scan the QR, read/write the colour |
 | `npm run i18n` | check the locale catalogs against the keys the code asks for |
 | `npm run icc` | regenerate the synthetic ICC used by the proof tests |
+| `npm run vendor:helmlab` | rebuild the vendored Helmlab browser bundle from its devDependency (`src/renderer/vendor/helmlab/`) |
 | `npm run icon` | regenerate `build/icon.png` |
 | `npm run pack` / `npm run pack:run` / `npm run dist` | electron-builder (fetched on demand); **`pack:run` also (re)launches the packaged app — the standing rule after any code change** |
 
@@ -61,7 +62,10 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   holds `L`/`a`/`b` plus a **hue anchor** (a rectangular space has no hue at
   `C = 0`); `lch()` derives `C` and returns the anchor. Render the appearance from
   the stored Lab, never by re-deriving LCH — the swap must stay invisible
-  (`test/oklab-canonical.test.js`, `docs/COLOR.md`).
+  (`test/oklab-canonical.test.js`, `docs/COLOR.md`). A model may wrap a third
+  space (the two Helmlab GenSpace views hop through XYZ), but it still owns no
+  colour and must round-trip through OKLab — `test/color-models.test.js` covers
+  every registered model automatically, including the id lineup.
 - **Gamut tolerance must be magnitude-relative** (`1e-5 × max|channel|`), not an
   absolute epsilon — an absolute epsilon near black accepts a spurious chroma and
   spikes the dark end of the lightness map. Applies to both `color.js#inGamut`

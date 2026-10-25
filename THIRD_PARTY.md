@@ -15,6 +15,7 @@ Everything the app ships, and its licence. Iroiroppa itself is
 | Name | Version | Licence | Location | Note |
 | --- | --- | --- | --- | --- |
 | `culori` | 4.0.2 | MIT | `src/renderer/vendor/culori/` | loaded as a classic script; used only through `kernel/color-interop.js` (see `docs/STATE.md`). The npm package is also a **devDependency** (same pin) as the test oracle for `test/culori-crosscheck.test.js`. |
+| `helmlab` | 1.0.0 | MIT | `src/renderer/vendor/helmlab/` | loaded as a classic script; used only through `shared/color-models.js` (the HelmGen models) and `shared/colour-distance.js` (the MetricSpace distance). The npm package is a **devDependency** (same pin); `npm run vendor:helmlab` rebuilds the bundle and `test/helmlab-vendor.test.js` keeps it in step. |
 
 ## Adapted (no code copied)
 

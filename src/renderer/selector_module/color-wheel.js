@@ -15,7 +15,7 @@
   reg.modules = reg.modules || {};
   const Models = window.IroColorModels;
   const Pj = window.IroProjection || null;
-  const WHEEL_MODELS = ['oklch', 'okhsv', 'okhsl'];
+  const WHEEL_MODELS = ['oklch', 'okhsv', 'okhsl', 'helmgenlch'];
   // Models whose slice square is itself the gamut, so a triangle is exact and the
   // user may switch between the square and the triangle. OKLCH is always flat.
   const SHAPED_MODELS = ['okhsv', 'okhsl'];

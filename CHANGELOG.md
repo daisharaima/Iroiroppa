@@ -9,6 +9,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Two Helmlab GenSpace views.** **HelmGen LCH** (polar) and **HelmGen**
+  (rectangular) join the colour-model list in Color Slices, Color Slider and Color
+  Disc, with HelmGen LCH also in Color Wheel. They draw against the same document
+  gamut as every other view; the picked colour, the CSP record and history are
+  unchanged.
 - **The portable build is self-contained.** It keeps its settings, saved pairing,
   layout, modules, themes and history in `Iroiroppa Data` beside the exe instead
   of `%APPDATA%\Iroiroppa`, so copying that folder carries the whole setup to

@@ -491,7 +491,7 @@
 
       const axisRange = (model, i) => Models.axisRange(model, i);
 
-      const buildRasterPlot = (key, w, h, plane, axes, model) => {
+      const buildRasterPlot = (key, w, h, plane, axes, model, withGuides = true) => {
         const cached = plotCache.get(key);
         if (cached && cached.width === w && cached.height === h) return cached;
         const off = document.createElement('canvas');
@@ -503,7 +503,7 @@
         const hr = axisRange(model, hi), vr = axisRange(model, vi);
         const fixed = axes[fi];
         const tmp = axes.slice();
-        const guides = guideLines && model.id !== Models.DEFAULT_ID;
+        const guides = withGuides && guideLines && model.id !== Models.DEFAULT_ID;
         // Outside the gamut stays transparent (like the analytic OKLCH silhouette):
         // the shape IS the gamut, so a hatch would only add noise. The sRGB warning
         // stays an explicit, opt-in hatch.
@@ -611,8 +611,15 @@
           const section = panelSections[p];
           if (section.classList.contains('hidden')) continue;
           const canvas = panelCanvases[p];
-          const { w, h } = sizeCanvas(canvas, 1.5);
-          const key = `g${p}:${store.plotKeyTag()}:${model.id}:${guideLines ? 1 : 0}:${guideStep}:${w}x${h}:${axes[0].toFixed(4)}:${axes[1].toFixed(4)}:${axes[2].toFixed(4)}`;
+          const { w: fw, h: fh } = sizeCanvas(canvas, 1.5);
+          // A model whose per-pixel hop through another space is expensive (the
+          // GenSpace views) renders at half resolution mid-drag; the crosshair
+          // stays crisp and the full-resolution map lands on release.
+          const scale = store.dragging && model.dragScale > 1 ? model.dragScale : 1;
+          const w = Math.max(1, Math.round(fw / scale));
+          const h = Math.max(1, Math.round(fh / scale));
+          const wantGuides = guideLines && scale === 1;
+          const key = `g${p}:${store.plotKeyTag()}:${model.id}:${wantGuides ? 1 : 0}:${guideStep}:${w}x${h}:${axes[0].toFixed(4)}:${axes[1].toFixed(4)}:${axes[2].toFixed(4)}`;
           const now = performance.now();
           let off = plotCache.get(key);
           if (!off || off.width !== w || off.height !== h) {
@@ -622,12 +629,12 @@
             if (reuse) {
               off = lastOff[p];
             } else {
-              off = buildRasterPlot(key, w, h, p, axes, model);
+              off = buildRasterPlot(key, w, h, p, axes, model, wantGuides);
               lastOff[p] = off;
               lastBuilt[p] = now;
             }
           }
-          const c2d = paint(canvas, off, w, h, viewFor(p));
+          const c2d = paint(canvas, off, fw, fh, viewFor(p));
           if (store.crosshair) {
             const [hi, vi] = Models.PLANES[p];
             const hr = axisRange(model, hi), vr = axisRange(model, vi);
@@ -635,7 +642,7 @@
             const sv = (axes[vi] - vr.min) / (vr.max - vr.min);
             const sp = { x: su, y: 1 - sv };
             const g = point(p, sp.x, sp.y);
-            drawGuide(c2d, w, h, g.u * (w - 1), g.v * (h - 1));
+            drawGuide(c2d, fw, fh, g.u * (fw - 1), g.v * (fh - 1));
           }
         }
       };

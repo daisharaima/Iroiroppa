@@ -18,6 +18,7 @@
     "probe": "node scripts/probe.js",
     "icon": "node scripts/make-icon.js",
     "icc": "node scripts/make-icc.js",
+    "vendor:helmlab": "node scripts/vendor-helmlab.js",
     "screenshot": "node scripts/screenshot.js",
     "bench": "node scripts/bench.js",
     "map": "node scripts/map.js",
@@ -37,6 +38,7 @@
     "culori": "4.0.2",
     "electron": "44.6.0",
     "electron-builder": "^26.15.3",
+    "helmlab": "1.0.0",
     "lcms-wasm": "^1.0.5"
   },
   "build": {

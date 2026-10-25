@@ -81,28 +81,60 @@ far:
 | id | axes | notes |
 | --- | --- | --- |
 | `oklch` | L, C, H | the reference view; the default |
-| `oklab` | L, a, b | the canonical value itself; the only model with no hue axis |
+| `oklab` | L, a, b | the canonical value itself; no hue axis |
 | `okhsv` | H, S, V | Ottosson's Okhsv; S/V are **sRGB-relative**, so it is only meaningful inside sRGB |
 | `okhsl` | H, S, L | Ottosson's Okhsl (L is the *toe* of Oklab's L); S/L are sRGB-relative too |
 | `okhwb` | H, W, B | Ottosson's Okhwb, derived here from Okhsv: `w = v(1-s)`, `b = 1-v` |
+| `helmgenlch` | L, C, H | Helmlab's GenSpace in polar form: its own L/C scale (0–1, chroma 0–~0.5), hue 0–360 |
+| `helmgen` | L, a, b | the same GenSpace, rectangular; no hue axis |
 
-The lineup is deliberately one perceptual family. The old **CIELAB, HSV and HSL**
-views were removed: OkLab/Okhsl do their job with better uniformity, and the
-picker's job is a view of *one* value, not a tour of colour spaces.
+The first five are the OK family: OkLab is the value the store holds, and the
+three sRGB-relative pickers are Ottosson's. The last two are the **Helmlab
+GenSpace** views, added on request: they round-trip through XYZ and own no
+colour, so the canonical value, the proof, the records and history are untouched.
+The picker's gamut still comes from the document's ICC profile — a model never
+decides what is displayable.
 
-The picker modules (`color-slices`, `color-slider`, `color-wheel`) take a `model`
-setting. OKLCH keeps its analytic silhouette and gradients byte-for-byte; another
-model rasterises each plane against the working gamut and writes the store through
-`setLab`, so proofing, history and snapping are untouched. `setLab` keeps the
-hue anchor when the value is achromatic.
+The GenSpace transform is well conditioned inside any real display gamut (worst
+1.1e-7 measured over sRGB) but degrades for colours no RGB gamut holds — OKLCH
+L 0.06 at C 0.39 drifts by up to 0.13 through a round trip. That corner is
+outside every working gamut and the store snaps to the working gamut, so the
+picker never holds one; both models gate their contract test to sRGB (`domain`)
+to keep the guarantee honest.
+
+The Helmlab code is vendored (MIT, `src/renderer/vendor/helmlab/`, rebuilt with
+`npm run vendor:helmlab`); `THIRD_PARTY.md` records it.
+
+The picker modules (`color-slices`, `color-slider`, `color-wheel`, `color-disc`)
+take a `model` setting. OKLCH keeps its analytic silhouette and gradients
+byte-for-byte; another model rasterises each plane against the working gamut and
+writes the store through `setLab`, so proofing, history and snapping are
+untouched. `setLab` keeps the hue anchor when the value is achromatic.
 
 A model may declare `hueIndex` (where the anchor is substituted at zero
 chroma/saturation), `isAchromatic(axes)` (where that *is* for a model whose
 neutral axis is not its second axis at its minimum — Okhwb), `domain` (limits the
-round-trip test — the sRGB-relative three) and `tol` (loosens it where the maths is
-lossy). Adding a model is one `register()` call plus a round-trip test;
-`test/color-models.test.js` covers every registered model automatically, and its
-lineup test pins the five ids so a sixth is a deliberate decision.
+round-trip test — the sRGB-relative three and the GenSpace pair) and `tol`
+(loosens it where the maths is lossy). Adding a model is one `register()` call
+plus a round-trip test; `test/color-models.test.js` covers every registered model
+automatically, and its lineup test pins the seven ids so an eighth is a
+deliberate decision.
+
+### Distance (MetricSpace, GenSpace's sibling)
+
+Helmlab's other space is for *measuring*, not picking: MetricSpace, trained for
+colour-difference prediction (STRESS 22.48 on COMBVD against CIEDE2000's 29.20).
+`src/shared/colour-distance.js` exposes it over the app's OKLab:
+
+| function | result |
+| --- | --- |
+| `difference(a, b)` | the trained metric: 0 for identical, ~0.15 and above saturating (the order still ranks) |
+| `jnd(a, b)` | the same in just-noticeable-difference units — 1 JND = 0.035633; <1 unnoticed, 1–2 subtle, >2 clear |
+| `nearest(lab, list)` | `{ index, distance }` for the closest colour in a list |
+
+Bad input returns `null` and never throws, and a call costs about 0.5 µs. **No
+picker uses it yet** — it exists so a module that ranks or matches colours calls
+this instead of inventing a ΔE.
 
 
 ## The evidence

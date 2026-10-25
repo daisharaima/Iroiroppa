@@ -16,7 +16,7 @@
   reg.modules = reg.modules || {};
   const Models = window.IroColorModels;
 
-  const DISC_MODELS = ['oklch', 'oklab', 'okhsv', 'okhsl'];
+  const DISC_MODELS = ['oklch', 'oklab', 'okhsv', 'okhsl', 'helmgenlch', 'helmgen'];
 
   const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
   const clamp255 = (x) => clamp(Math.round(x), 0, 255);
@@ -117,11 +117,12 @@
 
       // --- the radius -----------------------------------------------------------
       /** The disc's rim, in model units: 1 for the dense models, the widest hue's
-       *  chroma at this lightness for OKLCH/OKLab. */
+       *  chroma at this lightness *in the model's own axis units* (so a model whose
+       *  chroma scale differs from OKLCH still fills the disc). */
       const scaleFor = (model, axes) => {
         if (model.dense) return 1;
-        const lIdx = lightAxis(model);
-        const L = axes[lIdx];
+        const lab = model.toLab(axes);
+        const L = Color.oklabToOklch(lab.L, lab.a, lab.b).L;
         let maxC = 0;
         for (let i = 0; i < 90; i += 1) {
           const H = (i / 90) * 360;
@@ -129,7 +130,9 @@
           // rim and leave every other hue looking shrunken.
           const ivs = typeof store.chromaIntervals === 'function' ? store.chromaIntervals(L, H) : [];
           const C = ivs.length ? ivs[0][1] : store.maxChroma(L, H);
-          maxC = Math.max(maxC, C);
+          if (!(C > 0)) continue;
+          const at = model.fromLab(Color.oklchToOklab(L, C, H));
+          maxC = Math.max(maxC, model.hueIndex == null ? Math.hypot(at[1], at[2]) : at[1]);
         }
         return maxC > 1e-6 ? maxC : model.axes[1].max;
       };
@@ -137,22 +140,22 @@
       /** Model axes for a disc point (hue degrees, radius 0..1). */
       const axesAt = (model, axes, hue, r, scale) => {
         const out = axes.slice();
-        if (model.id === 'oklab') {
+        if (model.hueIndex == null) {
+          // A rectangular model has no hue axis: the disc angle is the a/b angle.
           const rad = (hue * Math.PI) / 180;
           const C = r * scale;
           out[1] = C * Math.cos(rad);
           out[2] = C * Math.sin(rad);
           return out;
         }
-        const hIdx = model.hueIndex;
-        out[hIdx] = hue;
+        out[model.hueIndex] = hue;
         out[1] = model.dense ? r * model.axes[1].max : r * scale;
         return out;
       };
 
       /** The disc point of the current colour. */
       const pointOf = (model, axes, scale) => {
-        if (model.id === 'oklab') {
+        if (model.hueIndex == null) {
           const C = Math.hypot(axes[1], axes[2]);
           const hue = ((Math.atan2(axes[2], axes[1]) * 180) / Math.PI + 360) % 360;
           return { hue, r: scale > 0 ? clamp(C / scale, 0, 1) : 0 };

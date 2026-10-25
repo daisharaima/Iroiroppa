@@ -82,6 +82,7 @@ Genuine thanks to everyone below — this app stands on their work:
 - Protocol reverse engineering: [chocolatkey/clipremote](https://github.com/chocolatkey/clipremote) (MIT).
 - Companion Mode field notes and a great deal of inspiration: [andyubird/LumaPaletteCSP](https://github.com/andyubird/LumaPaletteCSP) by **andyubird** (GPL-3.0) — an OKLCH picker for CSP that does this first.
 - OKLab / OKLCH colour space: [Björn Ottosson](https://bottosson.github.io/posts/oklab/).
+- GenSpace / MetricSpace colour spaces: [Helmlab](https://helmlab.space/) by **Görkem Yıldız** (MIT), vendored in `src/renderer/vendor/helmlab/`.
 - Palette UI inspiration: **PaintPalette** by echo-tree and **Kroma** by 秫稻_ (both on Bilibili).
 - QR decoding: [jsQR](https://github.com/cozmo/jsQR) (Apache-2.0).
 - Building on [Electron](https://www.electronjs.org/) and [electron-builder](https://www.electron.build/).

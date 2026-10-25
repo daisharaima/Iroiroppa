@@ -218,7 +218,8 @@ src/renderer/
   overlay.html/.css/.js             the drag chip: its own click-through window
 src/shared/
   color.js            OKLab/OKLCH, sRGB, HSV, CIELAB, Okhsv, gamut maths (UMD)
-  color-models.js     the colour-model views (OKLCH/OKHSV/Lab) over OKLab (UMD, pure)
+  color-models.js     the colour-model views (OKLCH/OKHSV/HelmGen) over OKLab (UMD, pure)
+  colour-distance.js  Helmlab MetricSpace differences over OKLab (UMD; no picker uses it yet)
   slider-gamut.js     hard-edged in/out-of-gamut slider stops (UMD, pure)
   slice-view.js       per-slice rotate/flip: forward draw + exact inverse pick (UMD, pure)
   shortcut-match.js   normalize CSP/Electron accelerators + find clashes (UMD, pure)
@@ -250,6 +251,7 @@ scripts/
   theme-check.js      validate a theme against the token manifest (`npm run theme:check`)
   theme-docs.js       regenerate the token table in docs/THEMES.md (`npm run theme:docs`)
   theme-preview.js    render a theme to a PNG (`npm run theme:preview`)
+  vendor-helmlab.js   rebuilds src/renderer/vendor/helmlab/ from the npm devDependency (`npm run vendor:helmlab`)
 test/                 node:test suites
 ```
 

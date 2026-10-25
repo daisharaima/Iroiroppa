@@ -47,10 +47,31 @@ test('every model round-trips OKLab -> axes -> OKLab', () => {
   }
 });
 
-test('the lineup is the OK family only', () => {
-  assert.deepEqual(Models.ids(), ['oklch', 'oklab', 'okhsv', 'okhsl', 'okhwb']);
+test('the lineup is the OK family plus the two GenSpace views', () => {
+  assert.deepEqual(Models.ids(), ['oklch', 'oklab', 'okhsv', 'okhsl', 'okhwb', 'helmgenlch', 'helmgen']);
   for (const gone of ['lab', 'hsv', 'hsl']) {
     assert.equal(Models.get(gone), null, `${gone} is deliberately not a model any more`);
+  }
+});
+
+// The generic round-trip above is gated to sRGB (`domain`). GenSpace is also
+// used for wide-gamut appearances, so pin the conditioning away from the
+// near-black high-chroma corner no RGB gamut contains (`docs/COLOR.md`).
+test('the GenSpace models round-trip high-chroma colours', () => {
+  const samples = [
+    Color.oklchToOklab(0.60, 0.30, 145), // the wide green an Adobe RGB document holds
+    Color.oklchToOklab(0.55, 0.30, 265),
+    Color.oklchToOklab(0.70, 0.25, 30),
+    Color.oklchToOklab(0.45, 0.25, 300),
+  ];
+  for (const id of ['helmgenlch', 'helmgen']) {
+    const model = Models.get(id);
+    for (const lab of samples) {
+      const back = model.toLab(model.fromLab(lab));
+      assert.ok(Math.abs(back.L - lab.L) < 1e-5, `${id} L ${back.L} vs ${lab.L}`);
+      assert.ok(Math.abs(back.a - lab.a) < 1e-5, `${id} a ${back.a} vs ${lab.a}`);
+      assert.ok(Math.abs(back.b - lab.b) < 1e-5, `${id} b ${back.b} vs ${lab.b}`);
+    }
   }
 });
 

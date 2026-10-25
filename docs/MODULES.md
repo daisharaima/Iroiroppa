@@ -10,9 +10,10 @@ column; floats with a Dock action and snap-to-dock; and responsive orientations
 with drag-out-to-float. The **`color-history`** module (recently picked colours,
 main-owned so every window shares one list) was added after the plan.
 
-The two picker modules take a **colour-model** setting (`src/shared/color-models.js`,
-docs/COLOR.md): OKLCH by default, with OKHSV and CIELAB as alternate views over
-the same canonical OKLab value.
+The picker modules take a **colour-model** setting (`src/shared/color-models.js`,
+docs/COLOR.md): OKLCH by default, with OKLab, OKHSV, OKHSL, OKHWB and the two
+Helmlab GenSpace views (HelmGen, HelmGen LCH) as alternate views over the same
+canonical OKLab value.
 
 ---
 
@@ -395,13 +396,14 @@ height (`auto`).
   hue. The inner slice is the model's own geometry: OKLCH shows its flat L×C slice
   (the lens is seen whole), while OKHSV/OKHSL have a **square ⇄ triangle** switch —
   OKHSV's triangle has fixed corners (its S/V square *is* the gamut), OKHSL's is the
-  cusp frame whose apex follows the hue.
+  cusp frame whose apex follows the hue. HelmGen LCH draws flat like OKLCH; the
+  rectangular HelmGen has no hue axis and is not offered here.
 - **Color Disc** — the hue × chroma plane on a circle, with the third axis (L or V)
   on a slider below. The radius is the model's own saturation axis: OKHSV/OKHSL use
-  relative s, so the disc is a true circle; OKLCH/OKLab use absolute chroma, so the
-  rim is the widest hue at that lightness and the document's gamut is the lobed
+  relative s, so the disc is a true circle; OKLCH/OKLab/HelmGen use absolute chroma,
+  so the rim is the widest hue at that lightness and the document's gamut is the lobed
   shape inside it (round would have to lie about chroma magnitude). Out of gamut is
-  transparent, like the slices; OKLab reads its hue from `atan2(b, a)`.
+  transparent, like the slices; a rectangular model reads its hue from `atan2(b, a)`.
 - **Color History** — main records a CSP **pick** (a change that supplies or changes the active slot's colour; an inactive-slot diff or a pure foreground/background switch adds nothing). A left-button release over CSP takes a fresh protocol read, so the newest tile appears on release with the exact last colour; a 450 ms settle covers picks with no pointer release (keyboard, hex, paste). **Record only while drawing** (one global setting, shown here) records only a non-Alt canvas contact: picks are noted, and the next canvas down takes a fresh read and adds the colour actually used. Every window only mirrors the shared list.
 - **CSP Shortcuts** — CSP's own list is read-only. It reads only the current
   workspace `.spws` (falling back to `default.khc` only when that workspace has no
