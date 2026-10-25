@@ -226,7 +226,6 @@
       name: 'HelmGen LCH',
       hueIndex: 2,
       domain: inSrgb,
-      dragScale: 2,
       axes: [
         { key: 'l', label: 'L', min: 0, max: 1, scale: 100, fmt: 0 },
         { key: 'c', label: 'C', min: 0, max: 0.65, scale: 1000, fmt: 0 },
@@ -245,7 +244,6 @@
       id: 'helmgen',
       name: 'HelmGen',
       domain: inSrgb,
-      dragScale: 2,
       axes: [
         { key: 'l', label: 'L', min: 0, max: 1, scale: 100, fmt: 0 },
         { key: 'a', label: 'a', min: -0.45, max: 0.45, scale: 1, fmt: 3 },

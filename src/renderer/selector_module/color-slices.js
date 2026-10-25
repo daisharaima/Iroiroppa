@@ -203,7 +203,6 @@
       // most ~11/s so it stays full-resolution (guides must not thicken) and the
       // crosshair is redrawn every frame over the cached map.
       const lastOff = [null, null, null];
-      const lastBuilt = [0, 0, 0];
       // The lightness of the colour the current drag started from: drawn as a red
       // guide line until the pointer is released.
       let dragL = null;
@@ -491,7 +490,7 @@
 
       const axisRange = (model, i) => Models.axisRange(model, i);
 
-      const buildRasterPlot = (key, w, h, plane, axes, model, withGuides = true) => {
+      const buildRasterPlot = (key, w, h, plane, axes, model) => {
         const cached = plotCache.get(key);
         if (cached && cached.width === w && cached.height === h) return cached;
         const off = document.createElement('canvas');
@@ -503,8 +502,7 @@
         const hr = axisRange(model, hi), vr = axisRange(model, vi);
         const fixed = axes[fi];
         const tmp = axes.slice();
-        const guides = withGuides && guideLines && model.id !== Models.DEFAULT_ID;
-        // Outside the gamut stays transparent (like the analytic OKLCH silhouette):
+        const guides = guideLines && model.id !== Models.DEFAULT_ID;        // Outside the gamut stays transparent (like the analytic OKLCH silhouette):
         // the shape IS the gamut, so a hatch would only add noise. The sRGB warning
         // stays an explicit, opt-in hatch.
         // The perceptual lightness of every drawn pixel, for the guide contours.
@@ -611,30 +609,20 @@
           const section = panelSections[p];
           if (section.classList.contains('hidden')) continue;
           const canvas = panelCanvases[p];
-          const { w: fw, h: fh } = sizeCanvas(canvas, 1.5);
-          // A model whose per-pixel hop through another space is expensive (the
-          // GenSpace views) renders at half resolution mid-drag; the crosshair
-          // stays crisp and the full-resolution map lands on release.
-          const scale = store.dragging && model.dragScale > 1 ? model.dragScale : 1;
-          const w = Math.max(1, Math.round(fw / scale));
-          const h = Math.max(1, Math.round(fh / scale));
-          const wantGuides = guideLines && scale === 1;
-          const key = `g${p}:${store.plotKeyTag()}:${model.id}:${wantGuides ? 1 : 0}:${guideStep}:${w}x${h}:${axes[0].toFixed(4)}:${axes[1].toFixed(4)}:${axes[2].toFixed(4)}`;
-          const now = performance.now();
+          const { w, h } = sizeCanvas(canvas, 1.5);
+          const key = `g${p}:${store.plotKeyTag()}:${model.id}:${guideLines ? 1 : 0}:${guideStep}:${w}x${h}:${axes[0].toFixed(4)}:${axes[1].toFixed(4)}:${axes[2].toFixed(4)}`;
           let off = plotCache.get(key);
           if (!off || off.width !== w || off.height !== h) {
-            // Mid-drag, rebuild at most every ~90 ms (full resolution, so the
-            // baked guides keep their width); the crosshair still redraws each frame.
-            const reuse = store.dragging && lastOff[p] && lastOff[p].width === w && lastOff[p].height === h && (now - lastBuilt[p] < 90);
-            if (reuse) {
-              off = lastOff[p];
-            } else {
-              off = buildRasterPlot(key, w, h, p, axes, model, wantGuides);
-              lastOff[p] = off;
-              lastBuilt[p] = now;
-            }
+            // A GenSpace raster costs ~400 ms at panel size, and rendering it at
+            // half resolution to keep a drag smooth leaves a jagged gamut edge.
+            // So while a slider is being dragged, hold the last full-resolution
+            // map and let it catch up on release; the crosshair still redraws
+            // every frame, and picking never changes the fixed axis anyway.
+            const hold = store.dragging && lastOff[p] && lastOff[p].width === w && lastOff[p].height === h;
+            off = hold ? lastOff[p] : buildRasterPlot(key, w, h, p, axes, model);
+            lastOff[p] = off;
           }
-          const c2d = paint(canvas, off, fw, fh, viewFor(p));
+          const c2d = paint(canvas, off, w, h, viewFor(p));
           if (store.crosshair) {
             const [hi, vi] = Models.PLANES[p];
             const hr = axisRange(model, hi), vr = axisRange(model, vi);
@@ -642,7 +630,7 @@
             const sv = (axes[vi] - vr.min) / (vr.max - vr.min);
             const sp = { x: su, y: 1 - sv };
             const g = point(p, sp.x, sp.y);
-            drawGuide(c2d, fw, fh, g.u * (fw - 1), g.v * (fh - 1));
+            drawGuide(c2d, w, h, g.u * (w - 1), g.v * (h - 1));
           }
         }
       };
