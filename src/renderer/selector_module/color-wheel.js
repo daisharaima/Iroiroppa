@@ -303,6 +303,13 @@
       const RING_OUTER_L = 0.7;
       const RING_HELM_L = 0.65;
       const ringColor = (model, hue, light) => {
+        // The ring is the maximal in-gamut colour per hue. It can lie past the sRGB display:
+        // clip it (the plain drawing-app look) rather than fading it, or the whole ring goes
+        // pastel on a wide-gamut document.
+        const clip = (L, C, H) => {
+          const lin = Color.oklchToRgb(L, C, H);
+          return { r: Math.min(1, Math.max(0, lin.r)), g: Math.min(1, Math.max(0, lin.g)), b: Math.min(1, Math.max(0, lin.b)) };
+        };
         if (model.id === 'helmgenlch') {
           const axes = [0, 0, 0];
           axes[hueIndexOf(model)] = hue;
@@ -310,11 +317,11 @@
           axes[1] = model.axes[1].max;
           const lab = model.toLab(axes);
           const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-          return Color.fitToSrgb(lch.L, lch.C, lch.H);
+          return clip(lch.L, lch.C, lch.H);
         }
         const L = clamp01(light);
         const C = Math.max(0, store.maxChroma(L, hue));
-        return Color.fitToSrgb(L, C, hue);
+        return clip(L, C, hue);
       };
 
       /** The fixed outer band: the widest in-gamut colour at every hue. */
@@ -493,11 +500,12 @@
             if (typeof model.inGamut === 'function') {
               if (!model.inGamut(a)) continue;
               const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-              const rgb = Color.fitToSrgb(lch.L, lch.C, lch.H);
+              const mark = store.markOutOfDisplay && !Color.inGamut(lch.L, lch.C, lch.H);
+              const rgb = mark ? Color.fitToSrgb(lch.L, lch.C, lch.H) : Color.oklabToRgb(lab.L, lab.a, lab.b);
               px[0] = clamp255(rgb.r * 255);
               px[1] = clamp255(rgb.g * 255);
               px[2] = clamp255(rgb.b * 255);
-              px[3] = 255;
+              px[3] = mark ? 140 : 255;
             } else if (Raster && typeof Raster.pixelFromLab === 'function') {
               labOut.L = lab.L; labOut.a = lab.a; labOut.b = lab.b;
               Raster.pixelFromLab(labOut, px, workingGamut, store.markOutOfDisplay ? 140 : 255);
@@ -505,11 +513,12 @@
             } else {
               const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
               if (!G.inside(model, a, store)) continue;
-              const rgb = Color.fitToSrgb(lch.L, lch.C, lch.H);
+              const mark = store.markOutOfDisplay && !Color.inGamut(lch.L, lch.C, lch.H);
+              const rgb = mark ? Color.fitToSrgb(lch.L, lch.C, lch.H) : Color.oklabToRgb(lab.L, lab.a, lab.b);
               px[0] = clamp255(rgb.r * 255);
               px[1] = clamp255(rgb.g * 255);
               px[2] = clamp255(rgb.b * 255);
-              px[3] = 255;
+              px[3] = mark ? 140 : 255;
             }
             const row = Math.round(by) + y;
             const col = Math.round(bx) + x;

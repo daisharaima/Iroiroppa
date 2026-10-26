@@ -170,34 +170,30 @@
 
         const lin = Color.oklabToLinearRgb(L, a, b);
         const r = gamma(lin.r);
-        if (r < -GAMUT_REL_TOL || r > 1 + GAMUT_REL_TOL) {
-          if (!fill) { data[i + 3] = 0; continue; }
-          paintFitted(data, i, L, a, b, OUT_ALPHA);
-          continue;
-        }
         const g = gamma(lin.g);
-        if (g < -GAMUT_REL_TOL || g > 1 + GAMUT_REL_TOL) {
-          if (!fill) { data[i + 3] = 0; continue; }
-          paintFitted(data, i, L, a, b, OUT_ALPHA);
-          continue;
-        }
         const bl = gamma(lin.b);
-        if (bl < -GAMUT_REL_TOL || bl > 1 + GAMUT_REL_TOL) {
-          if (!fill) { data[i + 3] = 0; continue; }
-          paintFitted(data, i, L, a, b, OUT_ALPHA);
-          continue;
-        }
-
-        if (workingGamut && (r < 0 || r > 1 || g < 0 || g > 1 || bl < 0 || bl > 1)) {
-          // Inside the working gamut but past sRGB: draw the lightness-preserving
-          // stand-in (docs/COLOR.md) rather than clipping. Full opacity (the plain
-          // soft-proof look) unless the caller asks to mark it (`outAlpha`).
-          const lch = Color.oklabToOklch(L, a, b);
-          const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
-          data[i] = clamp255(f.r * 255);
-          data[i + 1] = clamp255(f.g * 255);
-          data[i + 2] = clamp255(f.b * 255);
-          data[i + 3] = outAlpha;
+        if (r < -GAMUT_REL_TOL || r > 1 + GAMUT_REL_TOL
+          || g < -GAMUT_REL_TOL || g > 1 + GAMUT_REL_TOL
+          || bl < -GAMUT_REL_TOL || bl > 1 + GAMUT_REL_TOL) {
+          // Past the sRGB display window. Inside the document that is a real colour the
+          // screen cannot show: paint it clipped — the plain drawing-app look, no faded
+          // region — unless the user asked to mark it (`outAlpha` < 255), which uses the
+          // dimmed chroma fit so the region is visible. Outside the document it is not a
+          // colour the map can pick: a hole (perceptual models) or the dimmed fill (a
+          // dense model's map is a shape, not a silhouette with bites out of it).
+          if (!workingGamut || !workingGamut(lab)) {
+            if (!fill) { data[i + 3] = 0; continue; }
+            paintFitted(data, i, L, a, b, OUT_ALPHA);
+            continue;
+          }
+          if (outAlpha >= 255) {
+            data[i] = clamp255(r * 255);
+            data[i + 1] = clamp255(g * 255);
+            data[i + 2] = clamp255(bl * 255);
+            data[i + 3] = 255;
+          } else {
+            paintFitted(data, i, L, a, b, outAlpha);
+          }
           if (luma) luma[y * width + x] = nativeLight ? axes[lightIdx] : L;
           continue;
         }
@@ -245,7 +241,15 @@
       || g < -WIN_TOL || g > 1 + WIN_TOL
       || b < -WIN_TOL || b > 1 + WIN_TOL) {
       if (!workingGamut || !workingGamut(lab)) { out[3] = 0; return out; }
-      // Inside the working gamut but past sRGB: draw the stand-in, never clip.
+      // Inside the working gamut but past sRGB: clipped at full opacity (the plain
+      // drawing-app look), or the dimmed chroma fit when the caller marks the region.
+      if (outAlpha >= 255) {
+        out[0] = clamp255(r * 255);
+        out[1] = clamp255(g * 255);
+        out[2] = clamp255(b * 255);
+        out[3] = 255;
+        return out;
+      }
       const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
       const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
       out[0] = clamp255(f.r * 255);

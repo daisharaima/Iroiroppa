@@ -178,6 +178,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   gets the perceptual S/V curves instead of plain HSV. CMYK/LUT documents (no RGB cube)
   get a gamut-relative S: 100% is the document gamut's own limit at that hue and
   lightness, so every pick is a colour the document holds.
+- **Maps clip instead of fading.** A colour the document holds but the display cannot show
+  used to be painted as the desaturated stand-in, which turned most of a wide-gamut
+  document's Wheel/Disc/Slices into a pale patch. Maps now paint the **clipped** colour
+  (the drawing-app look) at full opacity; **Settings → Mark colours this display can't
+  show** dims that region when you want to see where it is. The picked value is unchanged.
 - **No white holes in a map.** The Disc is always a full disc and a dense model's plane is
   total: an out-of-gamut pixel is drawn as the sRGB stand-in at reduced opacity, not left
   transparent. A colour the document holds but the display cannot show is drawn as the

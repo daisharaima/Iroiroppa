@@ -278,11 +278,11 @@ respectively). Consequences:
 - The chroma axis is sized from the widest chroma in the profile
   (`chromaAxis()` — scan + 5% headroom, rounded to 0.05) so a saturated green is
   not cropped off the top.
-- Appearances can be **outside sRGB** (Adobe RGB is wider than sRGB). The maps
-  draw them with `Color.fitToSrgb`: the same lightness and hue, chroma pulled to
-  the sRGB edge, so a row keeps one lightness instead of showing the step a
-  channel clamp would. The pick and the recorded value keep the true chroma —
-  only the drawn pixel is a stand-in.
+- Appearances can be **outside sRGB** (Adobe RGB is wider than sRGB). The **maps clip**
+  them to the display (the channel clamp every drawing app uses), so a wide-gamut
+  document keeps saturated maps; marking the region (`store.markOutOfDisplay`) paints
+  the `Color.fitToSrgb` stand-in dimmed instead. The swatch and the recorded value keep
+  the true chroma — only the drawn pixel is a display value.
 
 ### The boundary is not single-valued near the corners
 

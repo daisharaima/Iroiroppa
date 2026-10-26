@@ -89,10 +89,13 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   Slice drags snap as before, and **every recorded value (CSP, hex, paste, proof
   re-interpretation) is always snapped**.
 - **Colours the sRGB window cannot show are drawn at the same lightness, not
-  clipped.** `Color.fitToSrgb` keeps L and H and pulls C to the sRGB edge; a
-  channel clamp instead puts a lightness step exactly where the sRGB boundary
-  crosses a slice (the "suspicious arc"). The pick and the recorded value keep
-  the true chroma — never fit them.
+  clipped — except inside a map.** `Color.fitToSrgb` keeps L and H and pulls C to the sRGB
+  edge; a channel clamp instead puts a lightness step exactly where the sRGB boundary
+  crosses a slice (the "suspicious arc"). That rule holds for the **swatch and the stored
+  colour**; a **map** instead clips (raster-plane/disc/wheel paint the clamped channels) so
+  a wide-gamut document does not fade the whole out-of-display region — the user reported
+  that fade as a "pale patch". The picked and recorded value keep the true chroma either
+  way — never fit them.
 - **Partial `Sync*` payloads are merged** into the last known state — never let
   them blank `main`/`sub` or fabricate a change.
 - **The heartbeat's idle-timer reset is conditional** (`_mayKeepHostAwake`): it
@@ -271,11 +274,12 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   model's plane is total) paints an out-of-document-gamut pixel as the sRGB stand-in at
   reduced opacity instead of leaving it transparent — a hole reads as a bite out of the
   shape. **A pixel the document can hold but the sRGB screen cannot** is a different
-  case: it is drawn as the nearest displayable colour (lightness and hue kept) at full
-  opacity — the plain soft-proof look — and only dimmed when the user turns on
+  case: it is drawn **clipped** — the channel clamp every drawing app uses, so the map
+  stays saturated and no faded band appears — and only dimmed when the user turns on
   **Settings → Mark colours this display can't show** (`markOutOfDisplay`). That setting
   exists because a wide-gamut document makes this region large (the whole Rec.2020 cube
-  minus sRGB), and the nearest displayable colour looks like a washed pastel there.
+  minus sRGB), and the faded fit used to read as a washed pastel. The *single-colour*
+  appearance (the swatch) still uses `Color.fitToSrgb`, so the readout keeps its lightness.
 - **A snap group's shared edge is a splitter, and group membership is derived.** A
   resize of a touching edge resizes/moves the neighbour so the pair stays flush; the
   graph comes from the document's `snap`/`snapTo`, never a parallel map. The drag

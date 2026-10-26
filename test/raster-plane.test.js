@@ -116,17 +116,19 @@ test('fill paints out-of-gamut pixels instead of leaving holes', () => {
   }
 });
 
-test('a colour past sRGB is drawn dimmed only when asked (the out-of-display mark)', () => {
+test('a colour past sRGB is clipped at full opacity, dimmed only when asked', () => {
   // A wide-gamut document colour: inside the working gamut, outside sRGB.
   const lab = { L: 0.59, a: 0.25, b: -0.2 };
   const keep = () => true;
   const full = new Uint8ClampedArray(4);
   Raster.pixelFromLab(lab, full, keep);
-  assert.strictEqual(full[3], 255, 'default: the nearest displayable colour at full opacity');
+  assert.strictEqual(full[3], 255, 'default: full opacity, no faded region');
+  // Clipping keeps the saturation (like any drawing app); the chroma fit desaturates.
+  const spread = (p) => Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2]);
   const dim = new Uint8ClampedArray(4);
   Raster.pixelFromLab(lab, dim, keep, 140);
   assert.strictEqual(dim[3], 140, 'marked: dimmed');
-  assert.deepStrictEqual([...dim.slice(0, 3)], [...full.slice(0, 3)], 'same colour, only the opacity marks it');
+  assert.ok(spread(full) >= spread(dim), 'the clipped colour is at least as saturated as the fit');
   // Outside the document gamut it is still a hole (the slice shows what it can pick).
   const hole = new Uint8ClampedArray(4);
   Raster.pixelFromLab(lab, hole, () => false);
