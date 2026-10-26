@@ -140,6 +140,7 @@ human clicking:
 | `--profiles` | open the colour-profile popup |
 | `--menu-shot <png>` | with `--profiles`, capture the overlay menu itself (its own window) |
 | `--trace-focus` | print foreground changes and the immediate hide/show decision to stdout |
+| `--trace-input` | log every pointer event each page receives (plus a hit-test probe and the window's state) to `input-trace.log` — for a palette that paints but takes no clicks; also enabled by `IRO_TRACE_INPUT=1` |
 | `--capabilities <id[,id…]>` | force capability channels on before the shot |
 | `--cap-off <id[,id…]>` | force capability channels off (renders the "unavailable" state) |
 | `--legacy-state` | fall back to the legacy per-domain channels instead of the canonical model |
@@ -153,9 +154,11 @@ human clicking:
 | `--module-popover <id>` | open that module's settings window (clicks its ⋯ button) |
 | `--open-popover <moduleId>[=<instanceId>]` | open a module-settings window directly (does not depend on a hover button) |
 | `--popover-shot <png>` | capture the module-settings window (pair with `--open-popover`) |
+| `--popover-click <selector>` | click a control in the module-settings window (pair with `--open-popover`); the reference flow for the ⋯ panel |
+| `--popover-shot-late <png>` | capture the module-settings window **after** `--popover-click` (the normal shot is taken before it) |
 | `--palette-menu` | click the palette's ☰ and report where the menu landed: the overlay window's real bounds, the palette's bounds and the menu's items (the menu is drawn by the overlay, so this is how "it left the palette" is checked) |
 | `--module-toggle <id>` | with it, click the first control in that settings window |
-| `--board-size <id>=<px>[,…]` | resize a column id or module instance (palette) |
+| `--board-size <id>=<px>[,…]` | resize a column id or module instance (palette); a locked-ratio module's pixels are converted to its height:width ratio |
 | `--board-move <instance>=<columnId>` | move a module between columns |
 | `--board-drag <instance>=<spec>` | drop a module: `left`/`right` edge or `<columnId>[:index]` |
 | `--board-add-column` | add a column (palette) |

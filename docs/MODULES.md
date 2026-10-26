@@ -11,9 +11,10 @@ with drag-out-to-float. The **`color-history`** module (recently picked colours,
 main-owned so every window shares one list) was added after the plan.
 
 The picker modules take a **colour-model** setting (`src/shared/color-models.js`,
-docs/COLOR.md): OKLCH by default, with OKLab, OKHSV, OKHSL, OKHWB and the two
-Helmlab GenSpace views (HelmGen, HelmGen LCH) as alternate views over the same
-canonical OKLab value.
+docs/COLOR.md): OKLCH by default, with OKLab, CIELAB, CIELCH, OKHSV, OKHSL, OKHWB
+and the two Helmlab GenSpace views (HelmGen, HelmGen LCH) as alternate views over
+the same canonical OKLab value. Appearance → **Color model family** filters every list
+to one family.
 
 ---
 
@@ -92,7 +93,8 @@ once it has loaded.
     name: 'Color Slider',
     version: 1,
     defaults: { /* module settings */ },
-    settingsUI(api, root) {}, // the settings UI (popover and Settings window)
+    settingsUI(api, root) {}, // the settings UI (popover and Settings window); may use
+                              // kernel/model-options.js — a throw is shown, never blank
     minSize(settings) {},     // the smallest box that shows everything
     create(ctx) {
       // ctx.el       : container element the module fills
@@ -114,6 +116,13 @@ once it has loaded.
 
 `ctx.color` is the kernel `ColorStore`. The surface modules use:
 
+**Where `settingsUI` renders.** The same function builds the ⋯ popup
+(`module-settings.html`) and the Settings window's Modules tab, so both pages load
+`kernel/model-options.js` and both wrap the call in `try/catch` (a throw is shown, never a
+blank section). The Model control is an in-page menu from that helper, not a native
+`<select>`: a select's list is an OS window outside the topmost band and would open
+behind the page.
+
 | Call | Purpose |
 | --- | --- |
 | `lch()` | current `{ L, C, H }` |
@@ -127,7 +136,11 @@ once it has loaded.
 | `crosshair` / `dragging` / `lastStored` | shared flags the module reads/sets |
 
 Modules **read** colour from the store and **request** changes; they never own
-colour state. The runtime registry is `window.Iro.modules` (each module registers
+colour state. A map that *is* a shape (the Disc is a disc; a dense model's plane is
+total) never leaves transparent holes: an out-of-document-gamut pixel is drawn as the
+sRGB stand-in at reduced opacity, so the shape stays whole and the region still reads as
+out of gamut. The lightness guide is traced from the map it is painted on (that map's
+fixed light), never from the live colour across a paced map. The runtime registry is `window.Iro.modules` (each module registers
 itself); the *list* of modules is `src/shared/module-manifest.js` — the single
 source of truth for ids and metadata (`name`, `autoHeight`, `instanceable`, `group`, `capabilities`), read
 by main (the Settings → Modules list, and the layout model's registry) and by the
@@ -373,8 +386,21 @@ Sizing is **locked-ratio** (`docs/LAYOUT.md`, "Height modes"): CSP Color, Color
 Slices, Slider and Color History derive their height from the column width
 times a per-instance ratio, set with the **Module Size** slider in Settings →
 Modules (or a module's own ⋯ popup). The number beside the slider is editable;
-the label alone is not the control. Color Stat and Session keep their content
-height (`auto`).
+the label alone is not the control. Dragging a card's **bottom edge** writes the
+same ratio (see "Module edge drag" below). Color Stat and Session keep their
+content height (`auto`) and have no edge handle.
+
+### Module edge drag
+
+A locked-ratio module's bottom edge is its height: the drag writes the same
+`height: { mode: 'ratio', ratio }` as the Module Size slider (capped at 2.5 and
+floored at `_minHeightOf`). A shared edge resizes the ratio module above it (or the
+one below when the above is a fill); the splitter's weight-trading remains for
+columns with no ratio module. The last module gets its own `.module-edge` handle
+whose hit area is *inside* the card, so it outranks the OS window-resize border;
+the palette's outer edge (and the 12 px corner grip) still resizes the window.
+Auto-height modules (Color Stat, Session) have no edge. `ratioFromDrag()` in
+`layout-model.js` is the shared maths and is unit-tested.
 
 ### Picker extras
 
@@ -382,29 +408,93 @@ height (`auto`).
   The track is sampled and the in/out boundary is written as two stops at the same
   percentage, so the edge is crisp (no gradient). Horizontal sliders use left/right
   nudge arrows; vertical sliders keep up/down. Hue nudges by one whole degree; the
-  other axes land on the displayed precision.
-- **Color Slices** — each slice's row has a show/hide box plus rotate (90° steps)
-  and flip-H/flip-V buttons. The transform is display-only: `slice-view.js` draws
-  the finished plot through it, and picking applies the exact inverse before the
-  existing axis mapping, so the colour under the pointer is the colour picked.
-  Slices are always drawn flat (no projection choice): a rasterised panel is
-  transparent outside the gamut — the shape *is* the gamut. Colours the screen
-  cannot show are drawn as the sRGB-edge colour at the same lightness
-  (`Color.fitToSrgb`).
-- **Color Wheel** — a hue ring around the model's hue slice (the two non-hue axes).
-  The ring draws the most saturated in-gamut colour at each hue and only turns the
-  hue. The inner slice is the model's own geometry: OKLCH shows its flat L×C slice
-  (the lens is seen whole), while OKHSV/OKHSL have a **square ⇄ triangle** switch —
-  OKHSV's triangle has fixed corners (its S/V square *is* the gamut), OKHSL's is the
-  cusp frame whose apex follows the hue. HelmGen LCH draws flat like OKLCH; the
-  rectangular HelmGen has no hue axis and is not offered here.
-- **Color Disc** — the hue × chroma plane on a circle, with the third axis (L or V)
-  on a slider below. The radius is the model's own saturation axis: OKHSV/OKHSL use
-  relative s, so the disc is a true circle; OKLCH/OKLab/HelmGen use absolute chroma,
-  so the rim is the widest hue at that lightness and the document's gamut is the lobed
-  shape inside it (round would have to lie about chroma magnitude). Out of gamut is
-  transparent, like the slices; a rectangular model reads its hue from `atan2(b, a)`.
-- **Color History** — main records a CSP **pick** (a change that supplies or changes the active slot's colour; an inactive-slot diff or a pure foreground/background switch adds nothing). A left-button release over CSP takes a fresh protocol read, so the newest tile appears on release with the exact last colour; a 450 ms settle covers picks with no pointer release (keyboard, hex, paste). **Record only while drawing** (one global setting, shown here) records only a non-Alt canvas contact: picks are noted, and the next canvas down takes a fresh read and adds the colour actually used. Every window only mirrors the shared list.
+  other axes land on the displayed precision. The thumb is a small **ring**, matching
+  the Slices pointer. There is no lightness guide line in this module; holding Shift
+  on a chroma/hue row still holds the model's native lightness and solves the light axis.
+- **Color Slices** — the three slices are named by their two free channels in display
+  order (`L × C`, `H × C`, `H × L`; OKHSV's first is `V × S`). The first is always
+  the fixed-hue slice, so the lineup is consistent across models. Each row has a
+  show/hide box, a reorder gripper (drag, or ArrowUp/ArrowDown) that persists
+  `sliceOrder`, plus rotate (90° steps) and flip-H/flip-V buttons. The transform is
+  display-only: `slice-view.js` draws the finished plot through it, and picking
+  applies the exact inverse before the shared axis mapping (`slice-geometry.js`), so
+  the colour under the pointer is the colour picked.
+
+  Slices are always drawn flat (no projection choice). The raster and the pick test
+  the **same** reachability predicate, so a shown pixel is always pickable; the
+  sRGB-referenced models (OKHSV/OKHSL/OKHWB) cannot represent a colour outside sRGB,
+  so their crosshair is clamped to the panel edge (a dashed outer ring) instead of
+  disappearing. Colours the screen cannot show are drawn as the sRGB-edge colour at
+  the same lightness (`Color.fitToSrgb`).
+
+  While any drag is active, every other visible slice is rebuilt in turn (one panel
+  per animation frame at native 1× CSS resolution, overlays every frame), so the other
+  maps visibly follow the selected L/C/H without downscaled or blocky edges. On
+  release every panel is rebuilt at full device resolution.
+
+  The **crosshair** is the old full-width/height pair of hairlines through the
+  pointer; the **pointer** is a separate small ring. Both are thin. The **lightness
+  guide** is one overlay polyline through the selected colour, styled as a
+  ~1 px light/dark hairline. It is drawn when the module's **Lightness guide** toggle
+  is on; Shift holds the model's native lightness for the gesture (pressed before or
+  during the drag; releasing resumes). A plane whose fixed axis *is* that native
+  lightness is wholly one value, so it has no line. In a fixed-light plane the pointer is
+  projected onto the contour by solving the chroma axis, so the plane stays put. The
+  line turns red while locked.
+- **Color Wheel** — a two-band hue ring around the model's hue slice. The **outer**
+  band is a fixed-lightness (OKLab L = 0.70) gamut-edge reference that never changes
+  with the selection; using the max-saturation OKHSV path instead follows the sRGB blue
+  fin and jumps at the primary, which is the old blue seam. The **inner** band is the
+  same continuous hue edge at the selected OKLab L. Both turn the hue (Shift on either
+  band holds the chosen lightness). A **Hue rotation** slider rotates both bands and
+  the ring picking; it does not rotate the inner L/C shape. The inner shape has its own
+  **rotate / flip-H / flip-V** controls (the same display-only view transform as
+  Slices; the raster transform and `SV.forward()` agree, so picking stays under the
+  pointer). The inner slice is the model's own geometry: OKLCH shows its flat L×C slice
+  (the lens is seen whole, and its chroma axis is the working gamut), while
+  OKHSV/OKHSL have a **square ⇄ triangle** switch. OKHSV's fixed triangle is
+  **equilateral and inscribed** in the ring's hole. OKHSL's cusp frame keeps the
+  **square mode's black-white side** and puts the cusp on x = 0.9. Both map the whole
+  square onto the triangle. The inner shape carries the single thin guide (module
+  toggle); the hue pointer sits on the **outer** band and is the same small ring as the
+  Color Slider, while the inner pointer is a small ring too. During a drag the canvas
+  is native 1× CSS (full 2× on release); the inner raster and overlay stay crisp, with
+  the raster capped at ~90 ms (150 ms when another module is dragging).
+- **Color Disc** — the hue × chroma plane on a circle, with the third axis (L or V) on
+  a Slider-style row below: the same `.rng` gradient, ring thumb, value field,
+  steppers and full-colour track as the Color Slider module. The radius is the model's
+  own saturation axis: OKHSV/OKHSL use relative s, so the disc is a true circle;
+  OKLCH/OKLab/CIELAB/CIELCH/HelmGen use absolute chroma, so the rim is **fixed at the global
+  in-gamut extent across reference lightnesses**, not recomputed at the selected L.
+  The in-gamut silhouette at the current L grows/shrinks inside that fixed rim;
+  re-scaling the rim per L made the pointer slide radially whenever the L row moved. Out of gamut is transparent, like the slices, and a press snaps to the
+  boundary (shown == pickable); a rectangular model reads its hue from `atan2(b, a)`.
+  The pointer itself is clamped to the **current-L silhouette**, not the global rim, so a
+  stored chroma outside that silhouette cannot leave it on the transparent white area; the
+  fixed rim still keeps in-gamut pointers from sliding radially as L changes.
+  The single thin guide follows the model's native lightness; the module has its
+  own show/hide toggle. Shift projects a disc drag onto the contour. A native-light
+  model can make the whole disc one value, in which case there is no contour and Shift
+  is a no-op. The disc canvas is full 2× when idle and native device pixels while a
+  gesture is in flight; while the L row moves the disc rebuilds live, paced by the
+  measured interactive build. A drag that leaves the disc keeps following the pointer at
+  the rim (the ring is drawn from the event, not from the stored colour), so a locked
+  lightness that cannot be reached never freezes it.
+
+  The module is **content-sized** (`autoHeight`): the canvas takes the palette width and
+  its height follows (`aspect-ratio: 1`), so the card ends under the footer. A column
+  share only ever left an empty band beneath a circle. Its model list keeps one entry per
+  **space** — the a/b forms (OKLab, CIELAB, HelmGen) plus OKHSV/OKHSL — because a disc of
+  a space and of its LCH twin is the same picture; a saved LCH id resolves to the twin.
+
+  **Guide lightness (all pickers).** There is no global source setting. A model with
+  `lightSource: 'native'` uses its own lightness axis (OKLCH/OKLab, CIELAB/CIELCH,
+  HelmGen, future HCT/CAM16); the sRGB-relative OKHSV/OKHSL/OKHWB views use canonical
+  OKLab `L`. `G.lightnessOf(model, axes)` returns that scalar;
+  `G.setLightness`/`applyLightness`/`guideCurve` solve to it. A fixed plane/disc only
+  has no contour when its fixed axis is that model's native light axis. A sample whose
+  target is unreachable is dropped, never drawn along the panel edge. The line is red while
+  locked. — main records a CSP **pick** (a change that supplies or changes the active slot's colour; an inactive-slot diff or a pure foreground/background switch adds nothing). A left-button release over CSP takes a fresh protocol read, so the newest tile appears on release with the exact last colour; a 450 ms settle covers picks with no pointer release (keyboard, hex, paste). **Record only while drawing** (one global setting, shown here) records only a non-Alt canvas contact: picks are noted, and the next canvas down takes a fresh read and adds the colour actually used. Every window only mirrors the shared list.
 - **CSP Shortcuts** — CSP's own list is read-only. It reads only the current
   workspace `.spws` (falling back to `default.khc` only when that workspace has no
   table), shows the file's saved time, and has a Refresh button that re-resolves the
@@ -414,15 +504,19 @@ height (`auto`).
   presets themselves carry no shortcut in `BrushPreset.bfps`. The **Iroiroppa** tab
   edits the app's command bindings and the summon hotkey; a binding whose normalized
   accelerator matches a CSP command/tool shows a clash warning (`shortcut-match.js`).
+  When the folder cannot be found the module offers **Locate CSP data folder…**, and
+  Settings → General carries the same pick: the CELSYS folder (which contains
+  `CLIPStudioPaintVer…`) or the version folder itself. Empty means Auto (the default
+  `Documents\CELSYS` and `Config.sqlite`'s custom path).
 
 
 ## 8. Modules in scope for the rewrite
 
 | # | Module | Contents |
 | --- | --- | --- |
-| 1 | **Color Slices** | Constant Hue (L×C), Constant Lightness (H×C) and Constant Chroma (H×L) maps; each is hideable in the module's settings and drawn flat — projections live in their own modules. |
+| 1 | **Color Slices** | The model's three coordinate planes, named by their free channels (`L × C` / `H × C` / `H × L`, or `V × S` / … for hue-first models), in role order; each is hideable and reorderable in the module's settings and drawn flat — projections live in their own modules. |
 | 2 | **Color Slider** | The active model's three axis sliders (L / C / H in OKLCH; horizontal ↔ vertical). |
-| 3 | **Color Wheel** | ✅ A hue ring around the active model's hue slice (the two non-hue axes); drag the ring for hue and the inner shape for the rest. OKLCH shows the flat L×C slice, OKHSV/OKHSL switch between the square and a triangle (fixed corners for OKHSV, cusp for OKHSL). |
+| 3 | **Color Wheel** | ✅ A two-band hue ring (fixed outer reference + contextual inner ring) around the active model's hue slice; drag either band for hue and the inner shape for the rest. Inner rotate/flip and a hue-rotation slider; OKLCH shows the flat L×C slice with the working gamut's chroma axis; OKHSL uses the square-mode black-white side plus a vertical-moving cusp, OKHSV an equilateral inscribed triangle. |
 | 4 | **Color Disc** | ✅ The hue × chroma plane on a circle with the third axis on a slider: round for OKHSV/OKHSL (relative s), lobed for OKLCH/OKLab (absolute chroma, the document gamut). |
 | 5 | ~~Color Gamut~~ | **Not a module.** A gamut view is a slice of the profile with the silhouette Color Slices already draws — a second picker with the same data. The disc is a different geometry, not a fourth copy. |
 | 5 | **CSP Color** | The foreground / background / transparent slots (row ↔ column). |
@@ -437,7 +531,7 @@ Each module's *default* is a hidden template: the tab lists and edits only **ins
 and a new instance is added from the default with the ＋ row.
 
 **Default layout:** one column containing `csp-color`, `color-slices`,
-`color-slider` (top to bottom) — matching today's order, with the Hue slice added
+`color-slider` (top to bottom) — matching today's order, with all three named maps
 inside `color-slices`.
 
 ## 9. Themes

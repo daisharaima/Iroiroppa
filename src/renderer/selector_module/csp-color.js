@@ -14,17 +14,13 @@
     row.className = 'pop-row';
     const name = document.createElement('span');
     name.textContent = window.Iro.t('module.settings.orientation');
-    const sel = document.createElement('select');
-    sel.className = 'pop-select';
-    for (const [value, text] of [['horizontal', window.Iro.t('module.settings.horizontal')], ['vertical', window.Iro.t('module.settings.vertical')]]) {
-      const opt = document.createElement('option');
-      opt.value = value;
-      opt.textContent = text;
-      sel.append(opt);
-    }
-    sel.value = api.get().orientation === 'vertical' ? 'vertical' : 'horizontal';
-    sel.addEventListener('change', () => api.patch({ orientation: sel.value }));
-    row.append(name, sel);
+    row.append(name);
+    window.IroModelOptions.menu(row, {
+      items: [['horizontal', 'module.settings.horizontal'], ['vertical', 'module.settings.vertical']]
+        .map(([value, key]) => ({ value, label: window.Iro.t(key) })),
+      value: api.get().orientation === 'vertical' ? 'vertical' : 'horizontal',
+      onChange: (v) => api.patch({ orientation: v }),
+    });
     root.append(row);
   };
 

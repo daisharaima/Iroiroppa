@@ -86,6 +86,18 @@ function register(ctx, trusted = () => false) {
     });
     return res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0];
   });
+  ipcMain.handle('shortcut:resolve', (_e, root) => ctx.resolveCspFolder(root));
+  ipcMain.handle('shortcut:browseRoot', async (_e, current) => {
+    const fallback = ctx.resolveCspFolder('').root || undefined;
+    const res = await dialog.showOpenDialog({
+      title: ctx.t('dialog.chooseCspFolder'),
+      defaultPath: typeof current === 'string' && current ? current : fallback,
+      properties: ['openDirectory'],
+    });
+    if (res.canceled || res.filePaths.length === 0) return null;
+    const picked = res.filePaths[0];
+    return { path: picked, ...ctx.resolveCspFolder(picked) };
+  });
   ipcMain.handle('themes:list', () => ctx.listThemes());
 }
 

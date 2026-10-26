@@ -70,6 +70,56 @@ test('list reports a missing install instead of throwing', () => {
   assert.deepEqual(res.commands, []);
 });
 
+test('resolveFolder accepts the CELSYS root or the version folder', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iro-folder-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const celsys = path.join(root, 'CELSYS');
+  const settings = path.join(celsys, 'CLIPStudioPaintVer1_5_0');
+  fs.mkdirSync(path.join(settings, 'Shortcut'), { recursive: true });
+
+  const fromRoot = shortcuts.resolveFolder(celsys);
+  assert.equal(fromRoot.override, true);
+  assert.equal(fromRoot.settings, settings);
+
+  const auto = shortcuts.resolveFolder('', { documents: root });
+  assert.equal(auto.override, false);
+  assert.equal(auto.invalid, false);
+  assert.equal(auto.settings, settings, 'empty means the default Documents/CELSYS location');
+
+  const fromVersion = shortcuts.resolveFolder(settings);
+  assert.equal(fromVersion.override, true);
+  assert.equal(fromVersion.settings, settings);
+  assert.equal(fromVersion.root, celsys);
+
+  const invalid = shortcuts.resolveFolder(root);
+  assert.equal(invalid.invalid, true);
+  assert.equal(invalid.settings, '');
+});
+
+test('list honours the explicit folder and explains a wrong one', (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iro-list-root-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const celsys = path.join(root, 'CELSYS');
+  const settings = path.join(celsys, 'CLIPStudioPaintVer1_5_0');
+  fs.mkdirSync(path.join(settings, 'Shortcut'), { recursive: true });
+  const file = path.join(settings, 'Shortcut', 'default.khc');
+  const db = new DatabaseSync(file);
+  db.exec('CREATE TABLE shortcutmenu (menucommandtype TEXT, menucommand TEXT, shortcut TEXT, modifier INTEGER)');
+  db.prepare('INSERT INTO shortcutmenu VALUES (?, ?, ?, ?)').run('t', 'File.New', 'N', 4);
+  db.close();
+
+  const ok = shortcuts.list({ root: celsys, documents: path.join(os.tmpdir(), 'nope') });
+  assert.equal(ok.ok, true);
+  assert.equal(ok.settings, settings);
+  assert.equal(ok.root, celsys);
+  assert.equal(ok.commands.length, 1);
+
+  const bad = shortcuts.list({ root, documents: path.join(os.tmpdir(), 'nope') });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.invalid, true);
+  assert.match(bad.reason, /CLIPStudioPaintVer/);
+});
+
 test('listCommands reads only the current workspace, never another one', (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iro-ws-'));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));

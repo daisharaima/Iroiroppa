@@ -88,6 +88,27 @@ time('Proof.maxChromaBound (cached)', 200000, () => proof.maxChromaBound());
   console.log(`${'Proof.maxChromaBound (cold)'.padEnd(32)} ${ms.toFixed(1).padStart(8)} ms  (once per profile/model change)`);
 }
 
+// --- the real plane rasteriser (src/shared/raster-plane.js) -------------------
+// One panel-sized plane (205 x 170 CSS px, a 200 px palette's slice) through the
+// path the Slices module uses: axes -> OKLab -> sRGB, with the sRGB bounds test.
+const Raster = require('../src/shared/raster-plane');
+const Models = require('../src/shared/color-models');
+for (const id of ['cielab', 'cielch', 'helmgen', 'helmgenlch']) {
+  const model = Models.get(id);
+  if (!model) continue;
+  const W = 205, H = 170;
+  const out = new Uint8ClampedArray(W * H * 4);
+  const ranges = model.axes.map((a) => ({ min: a.min, max: a.max }));
+  const fixed = model.axes.map((a) => (a.min + a.max) / 2);
+  let first = 0;
+  time(`raster plane ${id} (205x170)`, 8, (i) => {
+    const start = process.hrtime.bigint();
+    Raster.renderPlane({ model, plane: i % 3, fixed, ranges, width: W, height: H, out });
+    if (i === 0) first = Number(process.hrtime.bigint() - start) / 1e6;
+  });
+  console.log(`${''.padEnd(32)} ${first.toFixed(1).padStart(8)} ms  (first build, JIT cold)`);
+}
+
 // --- poll (one SyncColorCircleUIState read) ---------------------------------
 const payload = {
   ColorSelectionModel: 'HSV',

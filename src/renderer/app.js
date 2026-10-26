@@ -155,6 +155,7 @@
     if (lang !== window.Iro.i18n.code) window.Iro.i18n.use(lang);
     store.liveSync = s.liveSync !== false;
     store.crosshair = s.crosshair !== false;
+    store.setViewFamily(s.viewFamily);
     store.historyGate = s.historyGate === true;
     themeRegistry.apply(s.theme, s.accents || {});
     const locked = s.locked === true;
@@ -296,9 +297,24 @@
     // Safety net: a drag can be interrupted by the window hiding (follow-focus),
     // which would otherwise leave `dragging` stuck and block incoming colours.
     window.addEventListener('pointerup', () => { store.dragging = false; });
-    window.addEventListener('blur', () => { store.dragging = false; });
+    window.addEventListener('blur', () => { store.dragging = false; window.dispatchEvent(new Event('iro:input-reset')); });
     // Clicking the palette counts as "outside" the module settings popout.
     document.addEventListener('pointerdown', () => csp.closeModuleSettings(), true);
+    if (csp.onInputReset) {
+      csp.onInputReset(() => {
+        if (document.exitPointerLock) document.exitPointerLock();
+        window.dispatchEvent(new Event('iro:input-reset'));
+      });
+    }
+    // `--trace-input`: log what this page receives, so a dead-looking palette can
+    // say whether the press ever reached the DOM (docs/DEV.md).
+    if (window.IroInputReset && window.IroInputReset.trace) window.IroInputReset.trace(csp);
+    // Every press re-asserts the native window band: Chromium drops the topmost bit
+    // when it rewrites the style on the activation attempt (topmost.js).
+    window.addEventListener('pointerdown', () => { if (csp.inputPress) csp.inputPress(); }, true);
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') window.dispatchEvent(new Event('iro:input-reset'));
+    }, true);
 
     store.subscribe(renderChrome);
     if (window.Iro.state && window.Iro.state.mode === 'model') {
@@ -316,6 +332,7 @@
       // The history is shared with any float window (main owns the list).
       if (csp.onHistoryChanged) csp.onHistoryChanged((list) => store.setHistory(list));
     }
+    if (csp.onColorPreview) csp.onColorPreview((color) => store.applyPreview(color));
     csp.onSettings(applySettings);
   }
 

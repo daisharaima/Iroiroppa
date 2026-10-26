@@ -26,6 +26,8 @@ const { resolveWindowBounds } = require('./window-bounds');
 const { checkForUpdates } = require('./update-check');
 const { createLayoutStore } = require('./layout-store');
 const { createLayoutService } = require('./layout-service');
+const { createInputTrace, traceEnabled } = require('./input-trace');
+const { stopBand } = require('./topmost');
 const { createDragSession } = require('./drag-session');
 const { createModuleStore, TRASH_DAYS } = require('./module-store');
 const { createThemeStore } = require('./theme-store');
@@ -770,6 +772,9 @@ const primaryPlacement = () => {
 const isDev = process.argv.includes('--dev');
 const shotIndex = process.argv.indexOf('--shot');
 const shotPath = shotIndex >= 0 ? process.argv[shotIndex + 1] : null;
+// Opt-in only: the input trace exists to diagnose a palette that paints but takes
+// no clicks (docs/DEV.md, `--trace-input`).
+const traceInput = traceEnabled() ? createInputTrace() : null;
 const argValue = (name) => {
   const i = process.argv.indexOf(name);
   return i >= 0 ? process.argv[i + 1] : undefined;
@@ -811,12 +816,17 @@ const DEFAULT_SETTINGS = Object.freeze({
   autoHide: true,
   autoConnect: true,
   crosshair: true,
+  // guide/lock follow the active model's native lightness (see slice-geometry)
+  viewFamily: 'all', // all | oklab | cielab | helmgen (future hct)
   hideModuleNames: false,
   locked: false,
   proofProfile: '', // first run resolves the machine's Adobe RGB (1998); see findAdobeRgbProfile()
   proofProfiles: [],
   proofModel: 'working',
   proofMode: 'proof',
+  // Where Clip Studio Paint keeps its settings. Empty = the default location
+  // (Config.sqlite's custom path, else Documents\CELSYS); see csp-shortcuts.js.
+  cspDataDir: '',
   uiScale: 1,
   // Which Settings tab was last open, so the window reopens where the user left it.
   settingsTab: 'appearance',
@@ -1106,7 +1116,15 @@ const ctx = {
   moduleStore, mintInstanceId: (prefix) => layout.newId(prefix),
   paletteDragMembers,
   argValue, shotPath, runShot,
-  shortcutList: () => cspShortcuts.list({ documents: app.getPath('documents') }),
+  traceInput,
+  shortcutList: () => cspShortcuts.list({
+    root: settings.get().cspDataDir || undefined,
+    documents: app.getPath('documents'),
+  }),
+  resolveCspFolder: (root) => cspShortcuts.resolveFolder(
+    root === undefined ? (settings.get().cspDataDir || '') : root,
+    { documents: app.getPath('documents') },
+  ),
   localeCodes: listLocaleCodes,
   broadcast, broadcastHistory, historyList, saveHistory,
   commitHistory: (rgb) => historyGate.onExplicit(rgb),
@@ -1378,6 +1396,12 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     });
     service.on('status', (s) => { broadcast('companion:status', s); if (stateHub) stateHub.set('connection', s); setHealth({ csp: s.state }); });
     service.on('color', (c) => { broadcast('companion:color', c); if (stateHub) stateHub.set('color', c); });
+    service.on('preview', (p) => {
+      for (const win of paletteWindows()) {
+        if (win.webContents.id === p.sourceId) continue;
+        sendTo(win, 'companion:color-preview', { lab: p.lab, active: p.active });
+      }
+    });
     service.on('pick', (rgb) => historyGate.onPick(rgb));
     // A left-button release over CSP is the precise end of a pick: take a fresh
     // protocol read and record that colour at once. A left-button down on the CSP
@@ -1498,6 +1522,8 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     stopFollowFocus();
     unregisterSummonHotkey();
     unregisterCommandHotkeys();
+    // Close the long-lived native band helper (topmost.js) before the app exits.
+    stopBand();
     // The document is saved on a short debounce; make sure the last change lands.
     layout.dispose();
   });

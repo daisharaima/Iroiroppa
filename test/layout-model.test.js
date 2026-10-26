@@ -323,6 +323,13 @@ test('setHeight stores each mode and refuses an unknown instance', () => {
   assert.equal(Model.reduce(before, { type: 'module.setHeight', instanceId: 'gone' }, OPT).error, 'unknown-instance');
 });
 
+test('an edge drag maps height/width to the same ratio the slider sets', () => {
+  assert.equal(Model.ratioFromDrag(420, 300), 1.4);
+  assert.equal(Model.ratioFromDrag(1000, 300), 2.5, 'capped at the slider maximum');
+  assert.equal(Model.ratioFromDrag(2, 300, 40), 40 / 300, 'the module floor wins');
+  assert.equal(Model.ratioFromDrag(1, 0), null, 'an unmeasured card has no ratio');
+});
+
 test('setWidth updates the named columns only', () => {
   const before = base();
   const out = Model.reduce(before, {

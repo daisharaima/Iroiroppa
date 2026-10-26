@@ -110,16 +110,22 @@ A palette holds **one column** now (a legacy multi-column document collapses to 
 it): every module is stacked top to bottom in that single column.
 
 - `auto` — the module's measured content height (Color Stat, Session).
-- `px` — an explicit height (a splitter drag).
+- `px` — an explicit height. Legacy: the current splitter and edge drag write
+  `ratio`, never `px`.
 - `fill` — absorbs the leftover space, shared by `weight` among `fill` siblings.
 - `ratio` — **locked-ratio sizing**: the module's height is its column's content
   width times a ratio (height : width). It is the default for a module that
   declares `defaultRatio` in the manifest (CSP Color, Color Slices, Slider,
   Color History); the **Module Size** slider in Settings → Modules edits it per
-  instance (`module.setHeight`). Because the height tracks the column width, a
-  locked-ratio module has no second resize axis and takes no splitter between two
-  of them, and a palette whose modules all fit their own size is exactly as tall
-  as its content — the window grows to, and shrinks onto, its **tallest column**.
+  instance (`module.setHeight`), and so does dragging the card's **bottom edge**
+  (`ratioFromDrag` in `layout-model.js`, capped at 2.5). A shared edge resizes the
+  ratio module above it (or the one below when the above is a fill); the last
+  module in the column gets its own edge handle, placed inside the card so it wins
+  over the OS window-resize border. A ratio drag also requests a parent-window fit
+  (`_fitNaturalWindow`) after each move: an all-natural palette grows or shrinks so
+  the module's new height is visible instead of being clipped/left with a gap. Auto-height modules have no edge handle, and a
+  palette whose modules all fit their own size is exactly as tall as its content —
+  the window grows to, and shrinks onto, its **tallest column**.
 
 A module's **orientation** (horizontal | vertical) is a per-instance setting for
 Color Slices, Slider and CSP Color; nothing flips on the box's shape.

@@ -253,6 +253,11 @@
 
     const def = await loadDef(moduleId);
     document.getElementById('ms-title').textContent = (def && def.name) || moduleId;
+    const settingsStore = {
+      viewFamily: window.IroColorModels
+        ? window.IroColorModels.normalizeFamily((snapshot.settings || {}).viewFamily)
+        : (((snapshot.settings || {}).viewFamily) || 'all'),
+    };
 
     let stored = {};
     try { stored = (await csp.getModuleSettings(settingsKey, moduleId)) || {}; } catch { stored = {}; }
@@ -267,13 +272,25 @@
     const mountSettings = () => {
       settingsBox.replaceChildren();
       if (def && typeof def.settingsUI === 'function') {
-        def.settingsUI(api, settingsBox);
+        try {
+          def.settingsUI(api, settingsBox, settingsStore);
+        } catch (err) {
+          // A settings UI that throws used to leave an empty box — a popup that looked
+          // as if the module had no settings (the "settings disappeared" report).
+          console.error('[module-settings] settingsUI failed', err);
+          settingsBox.replaceChildren();
+          const failed = document.createElement('div');
+          failed.className = 'ms-empty';
+          failed.textContent = String((err && err.message) || err || 'settings failed');
+          settingsBox.append(failed);
+        }
       } else {
         const empty = document.createElement('div');
         empty.className = 'ms-empty';
         empty.textContent = window.Iro.t('ui.modules.noSettings');
         settingsBox.append(empty);
       }
+      requestAnimationFrame(fitWindow);
     };
     mountSettings();
     const hosts = await addActions();
@@ -296,6 +313,12 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') csp.closeModuleSettings(); });
     requestAnimationFrame(fitWindow);
     setTimeout(fitWindow, 60);
+    // Opening a menu grows the page; the window is content-fitted, so re-fit it or the
+    // list is cut at the window edge.
+    if (typeof ResizeObserver === 'function') {
+      const app = document.getElementById('app');
+      if (app) new ResizeObserver(() => requestAnimationFrame(fitWindow)).observe(app);
+    }
   }
 
   init();

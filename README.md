@@ -17,16 +17,17 @@ smartphone"). No plugins, no scripts inside CSP, no file patching.
 
 ## Modules
 
-Each module does one job and can be shown, hidden, duplicated or resized independently.
+Each module does one job and can be shown, hidden, duplicated, resized with its settings or by dragging its bottom edge.
 
-- **Session** — connection status, the document's colour profile and the Settings button.
+- **Session** — connection status, the document's colour profile and the Settings button. Appearance → **Color model family** limits every model list to OKLab, CIELAB or HelmGen; all models remain views over the same canonical OKLab value.
 - **CSP Color** — Clip Studio Paint's foreground, background and transparent colour slots.
-- **Color Slices** — click a colour map to choose a colour; draw each map flat, polar or in the cusp frame.
-- **Color Wheel** — turn the hue on a ring, with the model's slice in the middle.
-- **Color Slider** — fine-tune lightness, chroma and hue with sliders.
+- **Color Slices** — three named maps (`L × C`, `H × C`, `H × L`), reorderable in the module settings; all of them follow a drag live, and Shift keeps the model's native lightness.
+- **Color Wheel** — a fixed outer hue band and a contextual inner one, with the model's slice or an inscribed equilateral / cusp triangle in the middle; the inner shape can be rotated/flipped and the hue ring rotated.
+- **Color Slider** — fine-tune lightness, chroma and hue with sliders; Shift on a chroma/hue row keeps the model's native lightness.
+- **Color Disc** — hue × chroma on a circle with a full Slider-style lightness row underneath; Shift locks the model's native lightness contour.
 - **Color History** — recently picked colours you can reuse.
 - **Color Stat** — the current colour's hex code and channel values.
-- **CSP Shortcuts** — search and run Clip Studio Paint's own commands.
+- **CSP Shortcuts** — search and run Clip Studio Paint's own commands (you can point it at a non-default CSP data folder).
 
 ## Install
 

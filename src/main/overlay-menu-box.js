@@ -31,6 +31,8 @@ function menuBox(opts = {}) {
   const items = Array.isArray(opts.items) ? opts.items : [];
   const area = opts.area || { x: 0, y: 0, width: 1920, height: 1080 };
   const anchor = opts.anchor || { x: area.x, y: area.y };
+  const ax = Number.isFinite(anchor.x) ? anchor.x : area.x + INSET;
+  const ay = Number.isFinite(anchor.y) ? anchor.y : area.y + INSET;
   const rowHeight = Number.isFinite(opts.rowHeight) ? opts.rowHeight : ROW_H;
   const padding = Number.isFinite(opts.padding) ? opts.padding : PADDING;
   const maxRows = Number.isFinite(opts.maxRows) ? Math.max(1, opts.maxRows) : 10;
@@ -54,8 +56,8 @@ function menuBox(opts = {}) {
   const areaCap = Number.isFinite(opts.maxHeight) ? opts.maxHeight : Math.round(area.height * 0.7);
   const height = Math.round(clamp(Math.min(natural, rowHeightCap), MIN_HEIGHT, Math.max(MIN_HEIGHT, areaCap)));
 
-  const x = Math.round(clamp(anchor.x, area.x + INSET, area.x + area.width - width - INSET));
-  const y = Math.round(clamp(anchor.y, area.y + INSET, area.y + area.height - height - INSET));
+  const x = Math.round(clamp(ax, area.x + INSET, area.x + area.width - width - INSET));
+  const y = Math.round(clamp(ay, area.y + INSET, area.y + area.height - height - INSET));
 
   return { x, y, width, height, visibleRows, scrolls: natural > height };
 }

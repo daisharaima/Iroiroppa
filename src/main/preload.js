@@ -88,6 +88,8 @@ contextBridge.exposeInMainWorld('csp', {
   getProof: () => ipcRenderer.invoke('proof:get'),
   listProofProfiles: (refresh = false) => ipcRenderer.invoke('proof:list', { refresh }),
   browseProofProfile: () => ipcRenderer.invoke('proof:browse'),
+  resolveCspRoot: (root) => ipcRenderer.invoke('shortcut:resolve', root),
+  browseCspRoot: (current) => ipcRenderer.invoke('shortcut:browseRoot', current),
   listThemes: () => ipcRenderer.invoke('themes:list'),
   getModuleSettings: (id, fallbackId) => ipcRenderer.invoke('modules:get', id, fallbackId),
   saveModuleSettings: (id, settings, version, moduleId) => ipcRenderer.invoke('modules:set', { id, settings, version, moduleId }),
@@ -119,6 +121,13 @@ contextBridge.exposeInMainWorld('csp', {
   overlayMenuPick: (index) => ipcRenderer.send('overlay:menu:pick', { index }),
   overlayMenuClose: () => ipcRenderer.send('overlay:menu:close'),
   onOverlayMenu: (cb) => ipcRenderer.on('overlay:menu', (_e, d) => cb(d)),
+  closeModuleSettings: () => ipcRenderer.send('module-settings:close'),
+  onInputReset: (cb) => ipcRenderer.on('input:reset', () => cb()),
+  // Opt-in input diagnosis (`--trace-input`); main drops the record without the flag.
+  inputTrace: (rec) => ipcRenderer.send('input:trace', rec),
+  // A press makes Chromium rewrite the window's extended style; main re-asserts the
+  // topmost/non-activating band so the window cannot fall behind (topmost.js).
+  inputPress: () => ipcRenderer.send('input:press'),
   boardMetrics: (metrics) => ipcRenderer.send('board:metrics', metrics),
   dragBegin: (payload) => ipcRenderer.send('drag:begin', payload),
   dragDrop: () => ipcRenderer.invoke('drag:drop'),
@@ -158,6 +167,8 @@ contextBridge.exposeInMainWorld('csp', {
 
   writeColor: (rgb, immediate = false) =>
     ipcRenderer.send('color:write', { r: rgb.r, g: rgb.g, b: rgb.b, immediate }),
+  previewColor: (lab, active) =>
+    ipcRenderer.send('color:preview', { L: lab.L, a: lab.a, b: lab.b, active }),
 
   updateSettings: (patch) => ipcRenderer.invoke('settings:update', patch),
   setSummonHotkey: (accel) => ipcRenderer.invoke('shortcut:setSummon', accel),
@@ -184,6 +195,7 @@ contextBridge.exposeInMainWorld('csp', {
 
   onStatus: (cb) => ipcRenderer.on('companion:status', (_e, s) => cb(s)),
   onColor: (cb) => ipcRenderer.on('companion:color', (_e, c) => cb(c)),
+  onColorPreview: (cb) => ipcRenderer.on('companion:color-preview', (_e, c) => cb(c)),
   onSettings: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),
   onUpdate: (cb) => ipcRenderer.on('update:changed', (_e, info) => cb(info)),
   onLayoutChanged: (cb) => ipcRenderer.on('layout:changed', (_e, layout) => cb(layout)),

@@ -31,6 +31,18 @@ const RATIO_MIN = 0.05;
 const RATIO_MAX = 4;
 const clampRatio = (r) => Math.min(RATIO_MAX, Math.max(RATIO_MIN, r));
 
+/**
+ * A module edge drag: the pointer's height (px) over the card's width. This is
+ * the same ratio the Module Size slider sets; the drag is capped at the
+ * slider's 2.5 so the stored value and the UI can never disagree.
+ */
+function ratioFromDrag(height, width, minHeight = 24) {
+  const w = Number(width);
+  if (!(w > 0)) return null;
+  const h = Math.max(Number(minHeight) || 0, Number(height) || 0);
+  return clampRatio(Math.min(2.5, h / w));
+}
+
   // --- small helpers --------------------------------------------------------
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
@@ -1019,6 +1031,7 @@ const clampRatio = (r) => Math.min(RATIO_MAX, Math.max(RATIO_MIN, r));
     MAX_NAME,
     RATIO_MIN,
     RATIO_MAX,
+    ratioFromDrag,
     INTENT_TYPES: Object.keys(INTENTS),
     idFactory,
     normalise,

@@ -349,8 +349,7 @@
       readOklch(recorded) {
         const a = softProof(recorded);
         return Color.rgbToOklch(a[0], a[1], a[2]);
-      },
-      writeSrgb(lch) { return oklchToSrgbFloats(lch); },
+      },      writeSrgb(lch) { return oklchToSrgbFloats(lch); },
       displaySrgb(lch) { return oklchToSrgbFloats(lch); },
       displaySrgbFromContent(recorded) { return softProof(recorded); },
     };
@@ -515,13 +514,36 @@
       readOklch(recorded) {
         const a = toAppearance(recorded);
         return Color.rgbToOklch(a[0], a[1], a[2]);
-      },
-      /** The value to send to CSP for an OKLCH of the appearance. */
+      },      /** The value to send to CSP for an OKLCH of the appearance. */
       writeSrgb(lch) { return toRecorded(oklchToSrgbFloats(lch)); },
       /** sRGB that renders this appearance in our (sRGB) window. */
       displaySrgb(lch) { return oklchToSrgbFloats(lch); },
       /** How a recorded colour looks (for UI chips). */
       displaySrgbFromContent(recorded) { return toAppearance(recorded); },
+      /** Document encoded RGB (0..1 per channel) <-> OKLab, for the model reference. */
+      recordToOklab(recorded) {
+        const a = proofToSrgb(recorded);
+        return Color.rgbToOklab(a[0], a[1], a[2]);
+      },
+      oklabToRecord(lab) {
+        const s = Color.oklabToRgb(lab.L, lab.a, lab.b);
+        return srgbToProof([s.r, s.g, s.b]);
+      },
+      /**
+       * Linear document RGB <-> OKLab (no TRC). The Ottosson steps work in linear
+       * light; `toRec`/`fromRec` are the profile's own white-normalised coordinates.
+       * Out-of-cube values are allowed (they are the "outside the wall" colours).
+       */
+      oklabToLinearRecord(lab) {
+        const lin = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
+        const xyzD50 = mulVec(BRADFORD_D65_D50, mulVec(M_SRGB, [lin.r, lin.g, lin.b]));
+        return toRec(xyzD50);
+      },
+      linearRecordToOklab(rec) {
+        const xyzD65 = mulVec(BRADFORD_D50_D65, mulVec(P, fromRec(rec)));
+        const lin = mulVec(M_SRGB_INV, xyzD65);
+        return Color.linearRgbToOklab(lin[0], lin[1], lin[2]);
+      },
     };
   }
 

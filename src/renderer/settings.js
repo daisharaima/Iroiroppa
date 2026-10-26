@@ -23,6 +23,7 @@ const el = {
   setLive: $('set-live'),
   setAutoHide: $('set-autohide'),
   setCross: $('set-cross'),
+  setViewFamily: $('set-view-family'),
   setLogin: $('set-login'),
   setSummon: $('set-summon'),
   commandList: $('set-command-list'),
@@ -38,6 +39,10 @@ const el = {
   setProfileDefault: $('set-profile-default'),
   setProfileBrowse: $('set-profile-browse'),
   setProfileList: $('set-profile-list'),
+  setCspBrowse: $('btn-csp-browse'),
+  setCspAuto: $('btn-csp-auto'),
+  setCspPath: $('set-csp-path'),
+  setCspState: $('set-csp-state'),
   moduleList: $('module-list'),
   btnTrash: $('btn-trash'),
   btnPurge: $('btn-purge'),
@@ -225,6 +230,11 @@ function applySettings(s) {
   currentProfileValue = s.proofMode === 'default' ? '' : (s.proofProfile || '');
   renderProfiles();
   el.setCross.checked = s.crosshair !== false;
+  if (el.setViewFamily) {
+    el.setViewFamily.value = window.IroColorModels
+      ? window.IroColorModels.normalizeFamily(s.viewFamily)
+      : (s.viewFamily || 'all');
+  }
   el.setLogin.checked = s.launchAtLogin === true;
   el.setSummon.value = s.summonHotkey || '';
   renderCommandList();
@@ -246,6 +256,7 @@ function applySettings(s) {
   }
   themeRegistry.apply(themeId, accents[themeId]);
   updateAccentTrigger();
+  refreshCspFolder();
   requestAnimationFrame(fitWindow);
 }
 
@@ -389,6 +400,37 @@ async function browseProfile() {
     await chooseProfile(path);
     await loadProfiles(true);
   } catch { /* dialog cancelled or unreadable profile */ }
+}
+
+// --- CSP data folder -------------------------------------------------------
+
+/** Show the folder the Shortcuts module will actually read. */
+async function refreshCspFolder() {
+  if (!el.setCspPath) return;
+  let res = null;
+  try { res = await window.csp.resolveCspRoot(); } catch { res = null; }
+  const chosen = (liveSettings && liveSettings.cspDataDir) || '';
+  const shown = chosen || (res && res.root) || '';
+  el.setCspPath.textContent = shown || window.Iro.t('settings.cspData.autoPath');
+  el.setCspPath.title = shown;
+  if (!res) {
+    el.setCspState.textContent = '';
+    el.setCspState.title = '';
+    return;
+  }
+  el.setCspState.textContent = res.settings
+    ? `${window.Iro.t('settings.cspData.found')} ${res.settings}`
+    : window.Iro.t('settings.cspData.notFound');
+  el.setCspState.title = res.reason || '';
+}
+
+async function browseCspFolder() {
+  try {
+    const picked = await window.csp.browseCspRoot((liveSettings && liveSettings.cspDataDir) || '');
+    if (!picked) return;
+    await window.csp.updateSettings({ cspDataDir: picked.path || '' });
+    await refreshCspFolder();
+  } catch { /* dialog cancelled or unreadable path */ }
 }
 
 // --- modules tab -----------------------------------------------------------
@@ -609,6 +651,7 @@ async function syncPreview() {
   const mode = liveSettings.proofMode === 'proof' ? 'proof' : 'default';
   store.mode = mode;
   store.crosshair = liveSettings.crosshair !== false;
+  store.setViewFamily(liveSettings.viewFamily);
   if (mode === 'proof') {
     try {
       const info = await window.csp.getProof();
@@ -1085,7 +1128,17 @@ async function renderModuleDetail() {
     const body = document.createElement('div');
     body.className = 'module-detail-body';
     el.moduleDetail.append(body);
-    def.settingsUI(api, body);
+    try {
+      def.settingsUI(api, body, { viewFamily: liveSettings && liveSettings.viewFamily });
+    } catch (err) {
+      // A settings UI that throws must say so, not leave just the size slider behind.
+      console.error('[settings] settingsUI failed', id, err);
+      body.replaceChildren();
+      const failed = document.createElement('div');
+      failed.className = 'module-detail-empty';
+      failed.textContent = String((err && err.message) || err || 'settings failed');
+      body.append(failed);
+    }
   } else {
     const empty = document.createElement('div');
     empty.className = 'module-detail-empty';
@@ -1512,6 +1565,8 @@ function wire() {
   el.setAutoConnect.addEventListener('change', () => csp.updateSettings({ autoConnect: el.setAutoConnect.checked }));
   el.setProfileDefault.addEventListener('click', () => chooseProfile(''));
   if (el.setProfileBrowse) el.setProfileBrowse.addEventListener('click', browseProfile);
+  if (el.setCspBrowse) el.setCspBrowse.addEventListener('click', browseCspFolder);
+  if (el.setCspAuto) el.setCspAuto.addEventListener('click', () => window.csp.updateSettings({ cspDataDir: '' }).then(refreshCspFolder));
   el.setLogin.addEventListener('change', () => csp.updateSettings({ launchAtLogin: el.setLogin.checked }));
   // The summon hotkey: capture the keys (never typing into the box) and hand the
   // accelerator to main, which registers it and reports whether it took.
@@ -1536,6 +1591,9 @@ function wire() {
     }
   });
   el.setCross.addEventListener('change', () => csp.updateSettings({ crosshair: el.setCross.checked }));
+  if (el.setViewFamily) {
+    el.setViewFamily.addEventListener('change', () => csp.updateSettings({ viewFamily: el.setViewFamily.value }));
+  }
 
   el.setUiScale.addEventListener('input', () => {
     // One update per frame: each step persists settings and re-zooms both windows.
@@ -1598,6 +1656,12 @@ async function init() {
   if (csp.onModuleChanged) csp.onModuleChanged(({ id } = {}) => invalidateModule(id));
   fitWindow();
   setTimeout(fitWindow, 80);
+  // Opening a menu (or any settings section) changes the content height; keep the
+  // window fitted to it, or the list is clipped at the window edge.
+  if (typeof ResizeObserver === 'function') {
+    const body = document.getElementById('settings-body');
+    if (body) new ResizeObserver(() => requestAnimationFrame(fitWindow)).observe(body);
+  }
 }
 
 init();

@@ -85,8 +85,7 @@ function resolveRoot({ documents = defaultDocuments(), exists = fs.existsSync, D
 }
 
 /** The versioned folder under the materials root (`CLIPStudioPaintVer1_5_0`). */
-function settingsRoot(root, { exists = fs.existsSync, readdir = fs.readdirSync } = {}) {
-  if (!root || !exists(root)) return '';
+function settingsRoot(root, { exists = fs.existsSync, readdir = fs.readdirSync } = {}) {  if (!root || !exists(root)) return '';
   try {
     // A materials root can hold several versions (1_1_0 beside 1_5_0). The
     // newest is the one CSP is running; picking the first readdir entry read the
@@ -246,17 +245,43 @@ function workspaceMeta(workspace, deps = {}) {
 }
 
 /**
+ * Resolve the CSP settings folder, honouring an explicit pick from the settings.
+ * The pick may be the CELSYS materials root (contains `CLIPStudioPaintVer…`) or
+ * the version folder itself; anything else is reported as invalid rather than
+ * silently falling back, so the row can explain what it expects.
+ */
+function resolveFolder(chosen, { documents, ...deps } = {}) {
+  const exists = deps.exists || fs.existsSync;
+  if (!chosen) {
+    const root = resolveRoot({ documents, ...deps });
+    return { root, settings: settingsRoot(root, deps), override: false, invalid: false };
+  }
+  const dir = String(chosen);
+  if (!exists(dir)) return { root: dir, settings: '', override: true, invalid: true };
+  const direct = settingsRoot(dir, deps);
+  if (direct) return { root: dir, settings: direct, override: true, invalid: false };
+  if (VERSION_DIR.test(path.basename(dir))) {
+    return { root: path.dirname(dir), settings: dir, override: true, invalid: false };
+  }
+  return { root: dir, settings: '', override: true, invalid: true };
+}
+
+/**
  * Everything the module needs in one call.
  * @returns {{ok:boolean, root:string, settings:string, reason:string, commands:Array, tools:Array}}
  */
-function list({ documents, ...deps } = {}) {
-  const root = resolveRoot({ documents, ...deps });
-  const settings = settingsRoot(root, deps);
+function list({ root: chosenRoot, documents, ...deps } = {}) {
+  const resolved = resolveFolder(chosenRoot, { documents, ...deps });
+  const root = resolved.root;
+  const settings = resolved.settings;
   if (!settings) {
+    const expected = 'the CELSYS folder (it contains CLIPStudioPaintVer…) or a CLIPStudioPaintVer… folder';
     return {
-      ok: false, root, settings: '',
+      ok: false, root, settings: '', override: Boolean(chosenRoot), invalid: resolved.invalid,
       workspace: { file: '', name: '', path: '', savedAt: '', savedMs: 0 },
-      reason: `CSP settings not found at ${path.join(documents || '', 'CELSYS')}`,
+      reason: chosenRoot
+        ? `CSP settings not found in ${root} — choose ${expected}.`
+        : `CSP settings not found at ${path.join(documents || '', 'CELSYS')}`,
       commands: [], tools: [],
     };
   }
@@ -281,6 +306,7 @@ module.exports = {
   letterKey,
   defaultDocuments,
   resolveRoot,
+  resolveFolder,
   settingsRoot,
   listCommands,
   listToolShortcuts,

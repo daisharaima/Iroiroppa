@@ -14,7 +14,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node --test",
+    "test": "node --test \"test/*.test.js\"",
     "probe": "node scripts/probe.js",
     "icon": "node scripts/make-icon.js",
     "icc": "node scripts/make-icc.js",

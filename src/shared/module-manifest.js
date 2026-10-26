@@ -34,7 +34,7 @@
    *   or a column share.
    */
   const MODULES = [
-    { id: 'color-disc', name: 'Color Disc', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 1.25 },
+    { id: 'color-disc', name: 'Color Disc', autoHeight: true, instanceable: true, group: 'picker' },
     { id: 'color-history', name: 'Color History', autoHeight: false, instanceable: true, group: 'utility', defaultRatio: 0.36 },
     { id: 'color-slices', name: 'Color Slices', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 1.42 },
     { id: 'color-slider', name: 'Color Slider', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 0.33 },

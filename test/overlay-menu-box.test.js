@@ -14,6 +14,16 @@ test('a short menu sizes to its rows', () => {
   assert.equal(box.scrolls, false);
 });
 
+test('an invalid anchor never produces a non-finite box', () => {
+  for (const anchor of [{ x: NaN, y: 0 }, { x: 0, y: Infinity }, { x: -Infinity, y: -Infinity }]) {
+    const box = menuBox({ items: items(4), anchor, area });
+    assert.ok(Number.isFinite(box.x));
+    assert.ok(Number.isFinite(box.y));
+    assert.ok(Number.isFinite(box.width));
+    assert.ok(Number.isFinite(box.height));
+  }
+});
+
 test('a long menu shows ten rows and scrolls', () => {
   const box = menuBox({ items: items(200), anchor: { x: 1870, y: 546 }, area: { x: 0, y: 0, width: 3840, height: 1552 } });
   assert.equal(box.visibleRows, 10);

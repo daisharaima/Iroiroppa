@@ -2,7 +2,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { trackStops, fullStops } = require('../src/shared/slider-gamut');
+const Gamut = require('../src/shared/slider-gamut');
+const Models = require('../src/shared/color-models');
+const { trackStops, fullStops } = Gamut;
 
 const sample = (t, inside, color = `rgb(${Math.round(t * 255)},0,0)`) => ({ t, inside, color });
 const pcts = (stops) => stops.map((s) => s.pct);
@@ -38,4 +40,23 @@ test('the full-track variant ignores the mask', () => {
 test('empty input is empty, not a throw', () => {
   assert.deepEqual(trackStops([]), []);
   assert.deepEqual(fullStops(null), []);
+});
+
+test('gradientFor samples a full track and can blank the out-of-gamut part', () => {
+  const model = Models.get('oklch');
+  const axes = [0.6, 0.1, 30];
+  const store = { cmax: () => 0.4, inGamut: () => true };
+  const full = Gamut.gradientFor(model, 0, store, { axes, samples: 4, markOut: false });
+  assert.match(full, /^linear-gradient\(90deg, /);
+  assert.equal(full.split('%,').length, 5, 'five stops for four samples');
+  const blank = Gamut.gradientFor(model, 0, { cmax: () => 0.4, inGamut: () => false }, { axes, samples: 4 });
+  assert.match(blank, /var\(--blank\)/);
+});
+
+test('nearestInGamut holds the other axes and finds an in-gamut value', () => {
+  const model = Models.get('oklch');
+  const axes = [0.6, 0.1, 30];
+  const store = { cmax: () => 0.4, inGamut: (L) => L >= 0.5 };
+  const near = Gamut.nearestInGamut(model, 0, store, axes, 0.1);
+  assert.ok(near >= 0.5 - 1e-9);
 });

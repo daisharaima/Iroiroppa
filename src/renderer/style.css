@@ -335,10 +335,23 @@ html, body {
 .pop-range-input:focus { border-bottom-color: var(--accent); }
 .pop-range-suffix { flex: 0 0 auto; color: var(--text-dim); font-size: var(--font-size); }
 /* A slice's show/hide checkbox plus its rotate/flip controls. */
+.slice-rows { display: flex; flex-direction: column; gap: 2px; }
 .slice-view-row { display: flex; align-items: center; gap: 4px; }
 .slice-view-row > span { flex: 1 1 auto; }
+.slice-view-row.dragging { background: var(--hover); border-radius: 4px; }
 .slice-view-btn { flex: 0 0 auto; width: 20px; height: 20px; font-size: 13px; line-height: 1; }
 .slice-view-btn.active { color: var(--accent); background: var(--hover); }
+/* The reorder gripper is a real button (keyboard: ArrowUp/ArrowDown). */
+.slice-grip {
+  flex: 0 0 auto; width: 16px; height: 20px; padding: 0; line-height: 1;
+  color: var(--text-faint);
+  cursor: grab; touch-action: none;
+}
+.slice-grip svg { width: 13px; height: 13px; fill: currentColor; display: block; margin: auto; }
+.slice-grip:active { cursor: grabbing; }
+.slice-name { flex: 1 1 auto; font-family: var(--mono); font-size: calc(var(--font-size) - 0.5px); }
+/* A one-line explanation under a module setting. */
+.pop-hint { font-size: calc(var(--font-size) - 1px); color: var(--text-dim); line-height: 1.3; }
 /* --- color wheel ------------------------------------------------------------ */
 /* The wheel body takes the free space and keeps the canvas square-ish: the
    module is locked-ratio, so the box is sized before this ever measures. */
@@ -350,12 +363,13 @@ html, body {
   flex: 1 1 auto; display: flex; min-height: 0; min-width: 0; margin: 0 auto;
 }
 .disc-plot {
-  flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; display: block;
-  cursor: crosshair; touch-action: none;
+  flex: 1 1 auto; width: 100%; aspect-ratio: 1; height: auto; min-width: 0; min-height: 0;
+  display: block; cursor: crosshair; touch-action: none;
 }
-.disc-range {
-  flex: 0 0 auto; width: 100%; margin: 2px 0 0; accent-color: var(--accent);
-}
+/* The Disc has one held-axis row; it must not flex-grow like the Slider module's
+   stack, or the row would eat half the module. */
+.disc-sliders { flex: 0 0 auto; }
+.disc-sliders .slider-row { flex: 0 0 auto; min-height: 18px; }
 .wheel-plot {
   flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; display: block;
   cursor: crosshair; touch-action: none;
@@ -445,6 +459,30 @@ html, body {
 }
 .module-split:hover::before { opacity: 0.7; }
 
+/* The last module's bottom edge: its own height drag. The hit area lies INSIDE
+   the card (the card's bottom is at the window's edge, where the OS owns the
+   resize border), so the module wins where the two would overlap. */
+.module-edge {
+  flex: 0 0 0;
+  height: 0;
+  position: relative;
+  z-index: 5;
+  cursor: row-resize;
+}
+.module-edge::after {
+  content: '';
+  position: absolute; left: 0; right: 0; top: -9px;
+  height: 9px;
+}
+.module-edge::before {
+  content: '';
+  position: absolute; left: 50%; top: -1px;
+  width: 34px; height: 2px; margin-left: -17px;
+  border-radius: 1px; background: var(--accent);
+  opacity: 0; transition: opacity 0.1s;
+}
+.module-edge:hover::before { opacity: 0.85; }
+
 /* While the transparent colour is active, the colour modules recede; CSP Color
    keeps full strength so the eraser state is obvious. */
 #board[data-transparent="true"] .module:not([data-module="csp-color"]) {
@@ -458,6 +496,37 @@ html, body {
   border: 1px solid var(--line); background: var(--input-bg); color: var(--text);
   font-size: var(--font-size); cursor: pointer;
 }
+/* The in-page model dropdown (kernel/model-options.js). A native <select> popup is an
+   OS window outside our topmost band, so in the module-settings popup and the Settings
+   window it opened behind the page; this list lives in the page. */
+.menu-picker { position: relative; flex: 0 1 auto; min-width: 0; }
+.menu-btn { display: flex; align-items: center; gap: 4px; }
+.menu-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.menu-chev { display: inline-flex; }
+.menu-chev svg {
+  width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.menu-list {
+  display: block; margin: 2px 0 6px; padding: 3px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg-3); max-height: 200px; overflow-y: auto;
+}
+.menu-list[hidden] { display: none; }
+.menu-group {
+  margin-top: 4px; padding: 4px 6px 2px;
+  font-size: 0.7em; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--text-dim); opacity: 0.75; user-select: none;
+}
+.menu-group:first-child { margin-top: 0; }
+.menu-group + .menu-item { margin-top: 1px; }
+.menu-item {
+  display: block; width: 100%; text-align: left; padding: 3px 8px;
+  border: 0; border-radius: 4px; background: none; color: var(--text);
+  font: inherit; cursor: pointer;
+}
+.menu-item:hover, .menu-item.active { background: var(--bg-2); }
+.menu-item.active { font-weight: 600; }
 .pop-action {
   width: 100%; padding: 4px 8px; border-radius: 6px;
   border: 1px solid var(--line); background: var(--bg-3); color: var(--text);
@@ -712,6 +781,14 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
   border-bottom-color: var(--line); color: var(--text); outline: none;
 }
 
+.rng-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  position: relative;
+  align-items: stretch;
+}
+.rng-wrap .rng { flex: 1 1 auto; width: 100%; }
 .rng {
   -webkit-app-region: no-drag;
   appearance: none; -webkit-appearance: none;
@@ -723,17 +800,17 @@ body.dragging, body.dragging * { cursor: grabbing !important; }
      scales with the row above this floor. */
   min-height: 12px;
   border-radius: 5px;
-  background: var(--bg-3);
+  background: var(--blank);
   outline: none;
   border: 1px solid var(--line);
   cursor: pointer;
 }
 .rng::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 13px; height: 13px; border-radius: 50%;
-  background: #ffffff;
-  border: 1px solid #6b7280;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  width: 11px; height: 11px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1.5px solid #111;
+  box-shadow: inset 0 0 0 1px #fff, 0 1px 2px rgba(0, 0, 0, 0.24);
   cursor: grab;
 }
 .rng::-webkit-slider-thumb:active { cursor: grabbing; }
@@ -912,9 +989,15 @@ body.locked #resize-grip { display: none; }
 }
 .sliders[data-orientation="vertical"] .slider-label { width: auto; }
 .sliders[data-orientation="vertical"] .slider-value { width: auto; text-align: center; }
-.sliders[data-orientation="vertical"] .rng {
+.sliders[data-orientation="vertical"] .rng-wrap {
   flex: 1 1 auto;
   width: calc(var(--slider-pct, 0.7) * 100%);
+  min-width: 12px;
+  display: flex;
+}
+.sliders[data-orientation="vertical"] .rng {
+  flex: 1 1 auto;
+  width: 100%;
   min-width: 12px;
   height: auto;
   min-height: 24px;
@@ -1135,6 +1218,12 @@ body.locked #resize-grip { display: none; }
 .csp-shortcut-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .csp-shortcut-accel { opacity: 0.7; white-space: nowrap; }
 .csp-shortcuts-empty { font-size: 0.82em; opacity: 0.6; padding: 4px; }
+.csp-shortcuts-locate {
+  align-self: flex-start; margin: 2px 0 5px; padding: 2px 7px;
+  font: inherit; font-size: 0.82em; color: var(--text);
+  background: var(--hover); border: 1px solid var(--line); border-radius: 5px; cursor: pointer;
+}
+.csp-shortcuts-locate:hover { border-color: var(--accent); }
 
 /* Picky Palette: a palette-territory map on the L x C
    plane at the current hue; a click takes that colour, a seed swatch commits it. */

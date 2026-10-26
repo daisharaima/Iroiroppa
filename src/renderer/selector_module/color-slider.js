@@ -18,6 +18,7 @@
   const reg = (window.Iro = window.Iro || {});
   reg.modules = reg.modules || {};
   const Models = window.IroColorModels;
+  const G = window.IroSliceGeometry;
 
   const MIN_ROW = 14; // the smallest usable base-line pitch
   const AXIS_IDS = ['L', 'C', 'H']; // DOM ids stay L/C/H in every model (the shot reads them)
@@ -30,7 +31,7 @@
   const ARROW_RIGHT = '<svg viewBox="0 0 10 10"><path d="M2.5 2 6 5l-3.5 3"/></svg>';
 
   /** The slider settings UI, shared by the popover and the Settings window. */
-  const settingsUI = (api, root) => {
+  const settingsUI = (api, root, store) => {
     const model = Models.get(api.get().model) || Models.get(Models.DEFAULT_ID);
     const addToggle = (key, label) => {
       const row = document.createElement('label');
@@ -72,17 +73,14 @@
     modelRow.className = 'pop-row';
     const modelName = document.createElement('span');
     modelName.textContent = window.Iro.t('module.settings.model');
-    const sel = document.createElement('select');
-    sel.className = 'pop-select';
-    for (const m of Models.list()) {
-      const opt = document.createElement('option');
-      opt.value = m.id;
-      opt.textContent = m.name;
-      sel.append(opt);
-    }
-    sel.value = Models.has(api.get().model) ? api.get().model : Models.DEFAULT_ID;
-    sel.addEventListener('change', () => api.patch({ model: sel.value }));
-    modelRow.append(modelName, sel);
+    modelRow.append(modelName);
+    window.IroModelOptions.menu(modelRow, {
+      groups: window.IroModelOptions.groups(Models.listForFamily(store.viewFamily || 'all')),
+      value: Models.inFamily(Models.get(api.get().model) || Models.get(Models.DEFAULT_ID), store.viewFamily || 'all')
+        ? api.get().model
+        : Models.defaultForFamily(store.viewFamily || 'all'),
+      onChange: (id) => api.patch({ model: id }),
+    });
     root.append(modelRow);
 
     addToggle('showL', 'Show 1st channel');
@@ -101,20 +99,19 @@
       row.className = 'pop-row';
       const name = document.createElement('span');
       name.textContent = label;
-      const s = document.createElement('select');
-      s.className = 'pop-select';
-      for (const [value, text] of options) {
-        const opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = text;
-        s.append(opt);
-      }
-      s.value = api.get()[key] === 'vertical' ? 'vertical' : 'horizontal';
-      s.addEventListener('change', () => api.patch({ [key]: s.value }));
-      row.append(name, s);
+      row.append(name);
+      window.IroModelOptions.menu(row, {
+        items: options.map(([value, text]) => ({ value, label: text })),
+        value: api.get()[key] === 'vertical' ? 'vertical' : 'horizontal',
+        onChange: (v) => api.patch({ [key]: v }),
+      });
       root.append(row);
     };
     addSelect('orientation', 'Orientation', [['horizontal', 'Horizontal'], ['vertical', 'Vertical']]);
+    const hint = document.createElement('div');
+    hint.className = 'pop-hint';
+    hint.textContent = window.Iro.t('module.slices.guideLock');
+    root.append(hint);
   };
 
   reg.modules['color-slider'] = {
@@ -186,9 +183,12 @@
         // vertical row that reads up/down, and with a horizontal row left/right.
         steppers.append(down, up);
         field.append(box, steppers);
-        row.append(name, rng, field);
+        const track = document.createElement('div');
+        track.className = 'rng-wrap';
+        track.append(rng);
+        row.append(name, track, field);
         wrap.append(row);
-        rows.push({ row, rng, box, name, up, down, steppers });
+        rows.push({ row, rng, box, name, up, down, steppers, track });
       };
       makeRow(0);
       makeRow(1);
@@ -199,76 +199,37 @@
       let vertical = false;
       let current = {};
       let draggingRow = -1;
+      let lockLight = null;
+      let resetCleanup = null;
       const raw = [0, 0, 0]; // the marker's position (may sit in the blank past the gamut)
+      const trackCache = [0, 1, 2].map(() => ({
+        key: '', css: '', lastAt: 0,
+      }));
       wrap.dataset.orientation = 'horizontal';
 
-      const model = () => Models.get(modelId) || Models.get(Models.DEFAULT_ID);
+      const model = () => {
+        const chosen = Models.get(modelId);
+        if (chosen && Models.inFamily(chosen, store.viewFamily || 'all')) return chosen;
+        return Models.get(Models.defaultForFamily(store.viewFamily || 'all')) || Models.get(Models.DEFAULT_ID);
+      };
 
       /** The axis range; OKLCH's chroma spans the working gamut. */
-      const range = (m, i) => {
-        if (m.id === 'oklch' && i === 1) return { min: 0, max: Math.max(1e-6, store.cmax()) };
-        const a = m.axes[i];
-        return { min: a.min, max: a.max };
-      };
-
-      const inGamutAt = (m, axes, i, v) => {
-        const tmp = axes.slice();
-        tmp[i] = v;
-        const lab = m.toLab(tmp);
-        const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-        return store.inGamut(lch.L, lch.C, lch.H);
-      };
-
-      /** Nearest value on axis i that is in gamut, holding the other axes. */
-      const nearestInGamut = (m, i, desired, axes) => {
-        const r = range(m, i);
-        const v = clamp(desired, r.min, r.max);
-        if (m.dense) return v;
-        if (inGamutAt(m, axes, i, v)) return v;
-        let best = v;
-        let bestD = Infinity;
-        const N = 96;
-        for (let k = 0; k <= N; k++) {
-          const s = r.min + (k / N) * (r.max - r.min);
-          if (inGamutAt(m, axes, i, s)) {
-            const d = Math.abs(s - v);
-            if (d < bestD) { bestD = d; best = s; }
-          }
-        }
-        return bestD === Infinity ? v : best;
-      };
+      const range = (m, i) => G.range(m, i, store);
+      const Gamut = window.IroSliderGamut;
+      const inGamutAt = (m, axes, i, v) => Gamut.inGamutAt(m, axes, i, v, store);
+      const nearestInGamut = (m, i, desired, axes) => Gamut.nearestInGamut(m, i, store, axes, desired);
 
       /** A row's track: coloured only where this axis is in gamut, blank elsewhere. */
-      const rowGradient = (m, i, dir) => {
-        const axes = Models.axesFor(m, store);
-        const r = range(m, i);
-        const tmp = axes.slice();
-        const N = 64;
-        const showOut = current['showOut' + AXIS_IDS[i]] !== false;
-        const samples = [];
-        for (let k = 0; k <= N; k++) {
-          const t = k / N;
-          const v = r.min + t * (r.max - r.min);
-          tmp[i] = v;
-          const lab = m.toLab(tmp);
-          const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-          const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
-          const inside = m.dense || (typeof m.inGamut === 'function'
-            ? m.inGamut(tmp)
-            : store.inGamut(lch.L, lch.C, lch.H));
-          samples.push({
-            t,
-            // With the mark off the whole track is colour, so the row has no
-            // hard edge at all for that axis.
-            inside: showOut ? inside : true,
-            color: `rgb(${clamp(f.r * 255, 0, 255)},${clamp(f.g * 255, 0, 255)},${clamp(f.b * 255, 0, 255)})`,
-          });
-        }
-        const Gamut = window.IroSliderGamut;
-        const stops = Gamut
-          ? (showOut ? Gamut.trackStops(samples, 'var(--blank)') : Gamut.fullStops(samples))
-          : samples.map((s) => ({ pct: s.t, color: s.inside ? s.color : 'var(--blank)' }));
-        return `linear-gradient(${dir}, ${stops.map((s) => `${s.color} ${(s.pct * 100).toFixed(2)}%`).join(',')})`;
+      const rowGradient = (m, i, dir, axes) => Gamut.gradientFor(m, i, store, {
+        axes,
+        direction: dir,
+        markOut: current['showOut' + AXIS_IDS[i]] !== false,
+      });
+
+      /** Key ignoring the dragged axis: a track does not depend on its own value. */
+      const trackKey = (m, i, axes, dir) => {
+        const others = [0, 1, 2].map((k) => (k === i ? '-' : axes[k].toFixed(5))).join(',');
+        return `${m.id}:${i}:${dir}:${others}:${store.plotKeyTag()}:${current['showOut' + AXIS_IDS[i]] !== false}`;
       };
 
       /** The precision the readout shows; the nudge arrows are the only quantised input. */
@@ -278,16 +239,14 @@
         const m = model();
         const axes = Models.axesFor(m, store);
         const dir = vertical ? '0deg' : '90deg';
+        const now = performance.now();
         for (let i = 0; i < 3; i++) {
           const a = m.axes[i];
           const r = range(m, i);
-          // If the stored value no longer matches clamping our marker, a change
-          // came from elsewhere: adopt it. Otherwise keep the marker where it is
-          // (so it stays in the blank past the gamut).
-          const clampedRaw = nearestInGamut(m, i, raw[i], axes);
-          if (draggingRow !== i && Math.abs(axes[i] - clampedRaw) > (r.max - r.min) * 1e-6) {
-            raw[i] = axes[i];
-          }
+          // If the stored value no longer matches the dragged marker, a change
+          // came from elsewhere: adopt it. While this row is being dragged the
+          // marker owns the value and is left where the user put it.
+          if (draggingRow !== i) raw[i] = axes[i];
           rows[i].name.textContent = a.label;
           rows[i].rng.min = String(r.min);
           rows[i].rng.max = String(r.max);
@@ -295,7 +254,23 @@
           rows[i].rng.step = 'any';
           rows[i].rng.value = String(clamp(raw[i], r.min, r.max));
           rows[i].box.value = Models.formatAxis(a, axes[i]);
-          rows[i].rng.style.background = rowGradient(m, i, dir);
+          const key = trackKey(m, i, axes, dir);
+          const cache = trackCache[i];
+          // The dragged row's track is independent of its own value, so it need
+          // not rebuild. Other rows change with the dragged axis; defer their
+          // secondary gradients to a ~100 ms cadence.
+          const due = !store.interactive || i === draggingRow || now - cache.lastAt > 100;
+          if (due && cache.key !== key) {
+            cache.key = key;
+            cache.css = rowGradient(m, i, dir, axes);
+            cache.lastAt = now;
+            rows[i].rng.style.background = cache.css;
+          } else if (!cache.css) {
+            cache.css = rowGradient(m, i, dir, axes);
+            cache.key = key;
+            cache.lastAt = now;
+            rows[i].rng.style.background = cache.css;
+          }
         }
       };
 
@@ -318,12 +293,40 @@
       };
 
       for (let i = 0; i < 3; i++) {
-        rows[i].rng.addEventListener('pointerdown', () => { draggingRow = i; store.dragging = true; });
+        rows[i].rng.addEventListener('pointerdown', (ev) => {
+          draggingRow = i;
+          store.dragging = true;
+          // Shift on a non-light row holds canonical lightness; the light row is
+          // solved automatically. Shift on the light row itself just drags L.
+          lockLight = ev.shiftKey && i !== Models.lightAxis(model())
+            ? G.lightnessOf(model(), Models.axesFor(model(), store))
+            : null;
+        });
+        rows[i].rng.addEventListener('pointermove', (ev) => {
+          if (draggingRow !== i) return;
+          if (i === Models.lightAxis(model())) return;
+          if (ev.shiftKey && lockLight === null) {
+            lockLight = G.lightnessOf(model(), Models.axesFor(model(), store));
+          } else if (!ev.shiftKey && lockLight !== null) {
+            lockLight = null;
+          }
+        });
         rows[i].rng.addEventListener('input', () => {
           draggingRow = i;
           store.dragging = true;
           const m = model();
-          raw[i] = Number(rows[i].rng.value);
+          const li = Models.lightAxis(m);
+          const value = Number(rows[i].rng.value);
+          raw[i] = value;
+          if (lockLight !== null && i !== li) {
+            const axes = Models.axesFor(m, store);
+            axes[i] = value;
+            const held = G.setLightness(m, axes, lockLight, store);
+            if (!G.lightnessReached(m, held, lockLight)) return;
+            raw[li] = held[li];
+            store.setLab(m.toLab(held), { notify: 'live' });
+            return;
+          }
           // The slider is allowed to leave the gamut: that is what moves the Slices'
           // crosshair into their out-of-gamut (hatched) area. Only recorded values
           // and slice drags snap; this pick is neither.
@@ -331,6 +334,7 @@
         });
         const release = () => {
           if (draggingRow === i) draggingRow = -1;
+          lockLight = null;
           store.dragging = false;
           store.setLab(store.lab(), { notify: 'commit' });
         };
@@ -368,6 +372,13 @@
 
       const unsubscribe = store.subscribe(render);
       render();
+      const onReset = () => {
+        draggingRow = -1;
+        lockLight = null;
+        store.dragging = false;
+      };
+      window.addEventListener('iro:input-reset', onReset);
+      resetCleanup = () => window.removeEventListener('iro:input-reset', onReset);
 
       return {
         onResize({ width }) {
@@ -382,6 +393,7 @@
           const nextModel = Models.has(settings.model) ? settings.model : Models.DEFAULT_ID;
           if (nextModel !== modelId) {
             modelId = nextModel;
+            lockLight = null;
             const m = model();
             for (let i = 0; i < 3; i++) raw[i] = Models.axesFor(m, store)[i];
           }
@@ -412,8 +424,8 @@
             ? { width: cross + 10, height: 84 }
             : { width: 96, height: 24 + cross };
         },
-        settings(root) { settingsUI(ctx.settings, root); },
-        destroy() { if (rafId) cancelAnimationFrame(rafId); unsubscribe(); },
+        settings(root) { settingsUI(ctx.settings, root, ctx.color); },
+        destroy() { if (resetCleanup) resetCleanup(); if (rafId) cancelAnimationFrame(rafId); unsubscribe(); },
       };
     },
   };

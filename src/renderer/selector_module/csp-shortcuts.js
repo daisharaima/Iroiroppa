@@ -120,9 +120,24 @@
       const status = document.createElement('div');
       status.className = 'csp-shortcuts-empty';
 
+      // Shown only when CSP's folder cannot be found: pick it once, globally.
+      const locate = document.createElement('button');
+      locate.type = 'button';
+      locate.className = 'csp-shortcuts-locate hidden';
+      locate.textContent = window.Iro.t('module.shortcuts.locate');
+      locate.title = window.Iro.t('module.shortcuts.locateHint');
+      locate.addEventListener('click', async () => {
+        try {
+          const picked = await csp.browseCspRoot();
+          if (!picked) return;
+          await csp.updateSettings({ cspDataDir: picked.path || '' });
+          load();
+        } catch { /* dialog cancelled */ }
+      });
+
       const list = document.createElement('div');
       list.className = 'csp-shortcuts-list';
-      root.append(tabs, chips, searchRow, source, sourceHint, status, list);
+      root.append(tabs, chips, searchRow, source, sourceHint, status, locate, list);
       ctx.el.append(root);
 
       const cspRows = () => {
@@ -228,6 +243,7 @@
         cspTab.classList.toggle('active', mode === 'csp');
         appTab.classList.toggle('active', mode === 'app');
         chips.classList.toggle('hidden', mode === 'app');
+        locate.classList.toggle('hidden', mode === 'app' || data.ok);
         const q = search.value.trim().toLowerCase();
         list.textContent = '';
         status.textContent = '';

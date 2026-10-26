@@ -111,6 +111,14 @@ function register(ctx, h) {
   // overlay reports which item was clicked, and main forwards the choice back to the window that asked.
   ipcMain.on('palette:menu', (event, spec) => ctx.showOverlayMenu(event.sender, spec || {}));
   ipcMain.on('overlay:menu:close', () => ctx.closeOverlayMenu());
+  ipcMain.on('module-settings:close', () => ctx.closeModuleSettingsWindow());
+  // `--trace-input`: every pointer event a page receives, plus the state of the
+  // window it arrived in, so a palette that paints but takes no clicks can say
+  // where the press stopped (docs/DEV.md).
+  ipcMain.on('input:trace', (_event, rec) => { if (ctx.traceInput && rec) ctx.traceInput(rec); });
+  // A press rewrites the window's extended style (Chromium tries to activate it and
+  // drops WS_EX_TOPMOST), so the band is re-asserted from the window that pressed.
+  ipcMain.on('input:press', (event) => { if (ctx.reassertBand) ctx.reassertBand(event.sender); });
   ipcMain.on('overlay:menu:pick', (_event, spec = {}) => {
     const menu = ctx.overlayMenu;
     if (!menu) return;
@@ -193,6 +201,9 @@ function register(ctx, h) {
     const [w] = ctx.moduleSettingsWin.getContentSize();
     const h = Math.max(60, Math.min(maxH, Math.round((Number(height) || 0) * z)));
     ctx.moduleSettingsWin.setContentSize(w, h);
+    // The popout is measured and resized right after it opens; a resize drops the
+    // topmost bit here, and the palette's band watchdog then put the palette over it.
+    if (ctx.reassertTopmost) ctx.reassertTopmost(ctx.moduleSettingsWin);
   });
 
 }

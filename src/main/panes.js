@@ -9,7 +9,8 @@
 const path = require('node:path');
 const { app, BrowserWindow, screen } = require('electron');
 const { resolveWindowBounds } = require('./window-bounds');
-const { ensureTopmost } = require('./topmost');
+const { attachRendererRecovery } = require('./renderer-recovery');
+const { ensureBand } = require('./topmost');
 
 function createPanes(ctx) {
 
@@ -93,7 +94,10 @@ function openFloatWindow(entry) {
     resizable: true,
     minWidth: 90,
     minHeight: 60,
-    focusable: false,
+    // Activatable on purpose — the window is kept out of the activation path
+    // natively instead (WS_EX_NOACTIVATE, topmost.js): on Windows 26300 a press on
+    // a non-activatable window never reaches the page.
+    focusable: true,
     maximizable: false,
     minimizable: false,
     fullscreenable: false,
@@ -104,11 +108,13 @@ function openFloatWindow(entry) {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
       additionalArguments: [...(ctx.windowArgs || []), '--palette-id=' + entry.floatId],
       sandbox: false,
     },
   });
   win.setAlwaysOnTop(true, 'floating');
+  attachRendererRecovery(win, `float:${entry.floatId}`);
   // This window is not in ctx.floatWins yet, so set its own locked state.
   win.setResizable(ctx.settings.get().locked !== true);
   win.loadFile(path.join(__dirname, '..', 'renderer', 'float.html'), {
@@ -117,7 +123,7 @@ function openFloatWindow(entry) {
   win.webContents.on('did-finish-load', () => {
     ctx.applyZoom(win);
     win.showInactive();
-    ensureTopmost(win).catch(() => {});
+    ensureBand(win, { noActivate: true }).catch(() => {});
     // A window is not "moved onto the palette" by being opened: the placement below
     // emits 'move', and the dock-armed timer would otherwise dock a float the instant
     // it appears (over the palette, which is where duplicates land).
@@ -455,7 +461,7 @@ function showFloats(show) {
     if (win.isDestroyed()) continue;
     if (show) {
       win.showInactive();
-      ensureTopmost(win).catch(() => {});
+      ensureBand(win, { noActivate: true }).catch(() => {});
     } else {
       win.hide();
     }

@@ -80,6 +80,8 @@ class CompanionService extends EventEmitter {
     this._scanToken = 0;
     this._writeTimer = null;
     this._pendingWrite = null;
+    this._previewTimer = null;
+    this._preview = null;
     this._suppressUntil = 0;
     this._pollTimer = null;
     this._pollBusy = false;
@@ -603,11 +605,32 @@ class CompanionService extends EventEmitter {
   }
 
   /**
+   * Broadcast a display-only live preview from one palette to its siblings.
+   * Deliberately does not touch lastColor, history or the CSP write queue.
+   */
+  previewColor(lab, { sourceId = 0, active = null } = {}) {
+    if (!lab || ![lab.L, lab.a, lab.b].every(Number.isFinite)) return;
+    this._preview = { lab: { L: lab.L, a: lab.a, b: lab.b }, sourceId, active };
+    if (this._previewTimer) return;
+    this._previewTimer = setTimeout(() => {
+      this._previewTimer = null;
+      const p = this._preview;
+      this._preview = null;
+      if (p) this.emit('preview', p);
+    }, 16);
+  }
+
+  /**
    * Push a color to CSP. Updates are coalesced so dragging the picker emits at
    * most one SetCurrentColor per WRITE_INTERVAL_MS; pass immediate for the final
    * value on pointer-up.
    */
   writeColor(rgb, { immediate = false } = {}) {
+    if (immediate) {
+      if (this._previewTimer) clearTimeout(this._previewTimer);
+      this._previewTimer = null;
+      this._preview = null;
+    }
     this._pendingWrite = { r: rgb.r | 0, g: rgb.g | 0, b: rgb.b | 0 };
     this._suppressUntil = Date.now() + SUPPRESS_PUSH_MS;
     // If we are mid-reconnect, keep the value and flush it once authenticated.

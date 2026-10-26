@@ -48,6 +48,36 @@ test('re-selecting a recorded colour moves it to the head', () => {
   assert.deepEqual(pushed, [store.lastStored]);
 });
 
+test('a sibling preview applies exact OKLab without writing or recording', () => {
+  const writes = [];
+  const store = loadStore({ writeColor: (...a) => writes.push(a) });
+  store.applyPreview({ lab: { L: 0.42, a: 0.03, b: -0.04 } });
+  assert.ok(Math.abs(store.L - 0.42) < 1e-12);
+  assert.ok(Math.abs(store.a - 0.03) < 1e-12);
+  assert.ok(Math.abs(store.b + 0.04) < 1e-12);
+  assert.equal(store.history.length, 0);
+  assert.deepEqual(writes, []);
+});
+
+test('local changes coalesce into at most one preview frame', async () => {
+  const previews = [];
+  const store = loadStore({ previewColor: (lab) => previews.push(lab) });
+  store.setLCH({ L: 0.6, C: 0.1, H: 30 }, { notify: 'live' });
+  store.setLCH({ L: 0.61, C: 0.1, H: 30 }, { notify: 'live' });
+  await new Promise((r) => setTimeout(r, 35));
+  assert.equal(previews.length, 1);
+  assert.ok(Math.abs(previews[0].L - 0.61) < 1e-12);
+});
+
+test('a commit cancels a queued preview so it cannot overwrite the final value', async () => {
+  const previews = [];
+  const store = loadStore({ previewColor: (lab) => previews.push(lab) });
+  store.setLCH({ L: 0.6, C: 0.1, H: 30 }, { notify: 'live' });
+  store.push(true);
+  await new Promise((r) => setTimeout(r, 35));
+  assert.equal(previews.length, 0);
+});
+
 test('setHistory mirrors main, head first, capped at 100', () => {
   const store = loadStore();
   const list = Array.from({ length: 105 }, (_, i) => rgb(i, i + 1, i + 2));
@@ -95,4 +125,45 @@ test('a genuinely different host colour is still applied', () => {
   const rec = { r: 10, g: 200, b: 30 };
   store.applyIncoming({ active: 'main', main: { rgb: rec }, rgb: rec });
   assert.ok(Math.abs(store.lch().H - before) > 5, 'the host colour wins');
+});
+
+// --- a sibling palette's preview stream is a gesture --------------------------
+
+test('a preview makes the window interactive, then settles', async () => {
+  const store = loadStore();
+  assert.equal(store.interactive, false);
+  store.applyPreview({ lab: { L: 0.5, a: 0.02, b: -0.03 } });
+  assert.equal(store.interactive, true, 'the stream marks a gesture in flight');
+  assert.equal(store.dragging, false, 'a preview is not a local drag');
+  await new Promise((r) => setTimeout(r, 260));
+  assert.equal(store.interactive, false, 'the stream has ended');
+});
+
+test('a preview never writes, records or suppresses a local drag state', () => {
+  const writes = [];
+  const pushed = [];
+  const store = loadStore({ writeColor: (rgb) => writes.push(rgb), pushHistory: (c) => pushed.push(c) });
+  store.applyPreview({ lab: { L: 0.5, a: 0.02, b: -0.03 } });
+  assert.deepEqual(writes, []);
+  assert.deepEqual(pushed, []);
+  assert.equal(store.dragging, false);
+  // A local drag still ignores an incoming preview, and `interactive` stays true.
+  store.dragging = true;
+  const before = store.lch();
+  store.applyPreview({ lab: { L: 0.9, a: 0, b: 0 } });
+  assert.deepEqual(store.lch(), before);
+  assert.equal(store.interactive, true);
+});
+
+// --- the hue anchor can be named (a grey still carries a hue) ----------------
+
+test('setLab can name the hue of a grey, so the Wheel ring can turn it', () => {
+  const store = loadStore();
+  store.setLCH({ L: 0.5, C: 0, H: 10 }, { notify: 'none' });
+  assert.equal(store.H, 10);
+  store.setLab({ L: 0.5, a: 0, b: 0 }, { hue: 200 });
+  assert.equal(store.H, 200, 'a grey keeps the hue it was turned to');
+  assert.ok(store.C < 1e-9, 'the colour itself is still grey');
+  store.setLab({ L: 0.5, a: 0, b: 0 });
+  assert.equal(store.H, 200, 'without a name the anchor is preserved');
 });

@@ -74,8 +74,9 @@
       window.Iro.i18n.use(language);
     }
     store.liveSync = s.liveSync !== false;
-    store.crosshair = s.crosshair !== false;
-    store.historyGate = s.historyGate === true;
+  store.crosshair = s.crosshair !== false;
+  store.setViewFamily(s.viewFamily);
+  store.historyGate = s.historyGate === true;
     store.mode = modeOf(s);
     themeRegistry.apply(s.theme, s.accents || {});
     const proofChanged = (s.proofProfile || '') !== (prev.proofProfile || '')
@@ -101,8 +102,9 @@
   try { await window.Iro.i18n.use(appliedLanguage); } catch { /* English fallback */ }
     applyNameSetting(settings);
     store.liveSync = settings.liveSync !== false;
-    store.crosshair = settings.crosshair !== false;
-    store.historyGate = settings.historyGate === true;
+  store.crosshair = settings.crosshair !== false;
+  store.setViewFamily(settings.viewFamily);
+  store.historyGate = settings.historyGate === true;
     store.mode = modeOf(settings);
     store.connected = Boolean(snapshot.status && snapshot.status.state === 'connected');
     themeRegistry.apply(settings.theme, settings.accents || {});
@@ -177,8 +179,20 @@
     // the store "dragging" (applyIncoming would stop following CSP), and a click
     // anywhere in this window closes an open module-settings popout.
     window.addEventListener('pointerup', () => { store.dragging = false; });
-    window.addEventListener('blur', () => { store.dragging = false; });
+    window.addEventListener('blur', () => { store.dragging = false; window.dispatchEvent(new Event('iro:input-reset')); });
     document.addEventListener('pointerdown', () => csp.closeModuleSettings(), true);
+    if (csp.onInputReset) {
+      csp.onInputReset(() => {
+        if (document.exitPointerLock) document.exitPointerLock();
+        window.dispatchEvent(new Event('iro:input-reset'));
+      });
+    }
+    // `--trace-input`: log what this page receives (docs/DEV.md).
+    if (window.IroInputReset && window.IroInputReset.trace) window.IroInputReset.trace(csp);
+    window.addEventListener('pointerdown', () => { if (csp.inputPress) csp.inputPress(); }, true);
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') window.dispatchEvent(new Event('iro:input-reset'));
+    }, true);
     // A collapsed float stays collapsed across a restart. Asking (rather than
     // being pushed to) keeps a push from arriving before the board exists.
     if (csp.paletteState) {
@@ -211,6 +225,7 @@
       // Main keeps the shared history, so a module floated out keeps it.
       if (csp.onHistoryChanged) csp.onHistoryChanged((list) => store.setHistory(list));
     }
+    if (csp.onColorPreview) csp.onColorPreview((color) => store.applyPreview(color));
     csp.onSettings((s) => { applySettings(s); board.setLocked(s.locked === true); });
     try { store.setHistory(await csp.getHistory()); } catch { /* start empty */ }
   }

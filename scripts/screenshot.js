@@ -96,6 +96,7 @@ function main() {
     proofProfiles: [adobe],
     proofModel: 'working',
     proofMode: 'proof',
+    cspDataDir: '',
     uiScale: 1,
     theme: 'default-light',
     accents: {},

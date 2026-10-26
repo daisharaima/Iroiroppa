@@ -14,6 +14,10 @@
 
   const TRANSPARENT_CSS = 'repeating-conic-gradient(#d9dde7 0 25%, #ffffff 0 50%) 50% / 8px 8px';
   const HISTORY_MAX = 100;
+  // A sibling preview stream is treated as one gesture: modules render it like a
+  // local drag, then do one full-quality pass when the stream has been quiet for
+  // this long (src/renderer/kernel/color-store.js, `interactive`).
+  const PREVIEW_IDLE_MS = 140;
 
   class ColorStore {
     constructor({ csp }) {
@@ -37,11 +41,20 @@
       // and, past the gamut, already clipped (docs/COLOR.md).
       this._ownWrites = [];
       this.pendingSend = false;
+      this._previewLab = null;
+      this._previewFrame = 0;
+      // A sibling palette's preview stream is a display-only gesture: modules render
+      // it like a local drag (overlays every frame, one raster per frame) instead of
+      // rebuilding every map on every message (src/renderer/kernel/color-store.js).
+      this._inPreviewUntil = 0;
+      this._inPreviewEmit = 0;
+      this._inPreviewTimer = null;
       // Flags the rest of the app keeps in sync.
       this.connected = false;
       this.dragging = false;
       this.liveSync = true;
       this.crosshair = true;
+      this.viewFamily = 'all';
       this.history = []; // recently stored colours, newest first
       // Main enforces the drawing-only gate; the store skips its optimistic add
       // while the gate is on and only mirrors the shared list.
@@ -55,16 +68,32 @@
     /** Hue anchor — the last meaningful hue (docs/COLOR.md). */
     get H() { return this.hue; }
 
+    /**
+     * A colour gesture is in flight: a local drag, or a sibling palette streaming a
+     * live preview. Modules use this for render *cadence* only; `dragging` keeps its
+     * write/echo meaning (a preview must never suppress incoming colours).
+     */
+    get interactive() {
+      return this.dragging || (this._inPreviewUntil > 0 && Date.now() < this._inPreviewUntil);
+    }
+
     /** The canonical value every module shares. */
     lab() { return { L: this.L, a: this.a, b: this.b }; }
 
-    /** Set the canonical value from OKLab (used by the model adapters). */
+    /**
+     * Set the canonical value from OKLab (used by the model adapters).
+     *
+     * `opts.hue` names the hue the caller knows the coarse value carries even when
+     * it is grey (the Wheel's ring): without it a grey keeps the previous anchor and
+     * the ring cannot be turned. It is an OKLCH hue angle, like the anchor itself.
+     */
     setLab(lab, opts) {
       const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
       // A rectangular value carries no hue for a grey: keep the anchor there. The
       // threshold matches the slices (1e-6): an RGB grey arrives with C ≈ 2e-8, so
       // a 1e-9 gate never engaged and the hue read ~90° instead of the anchor.
-      const H = lch.C > 1e-6 ? lch.H : this.hue;
+      const named = opts && opts.hue != null;
+      const H = named ? opts.hue : (lch.C > 1e-6 ? lch.H : this.hue);
       this.setLCH({ L: lab.L, C: lch.C, H }, opts);
     }
 
@@ -95,7 +124,31 @@
       this._emit();
     }
 
+    setViewFamily(value) {
+      const next = window.IroColorModels
+        ? window.IroColorModels.normalizeFamily(value)
+        : (value || 'all');
+      if (next === this.viewFamily) return;
+      this.viewFamily = next;
+      this._emit();
+    }
+
     // --- proof / gamut ----------------------------------------------------
+
+    /** The active proof, and the model reference it implies. */
+    get proof() { return this._proof || null; }
+
+    set proof(next) {
+      this._proof = next || null;
+      // OKHSV/OKHSL/OKHWB are shaped by an RGB cube: hand them the document's cube
+      // (matrix/TRC profile) so every colour the document holds is reachable, or keep
+      // Ottosson's sRGB reference when there is no RGB profile.
+      const Models = window.IroColorModels;
+      const Ref = window.IroModelReference;
+      const reference = Ref ? Ref.create(this._proof) : null;
+      this._referenceKey = Ref ? Ref.keyOf(reference) : 'srgb';
+      if (Models && typeof Models.setReference === 'function') Models.setReference(reference);
+    }
 
     proofOn() {
       return this.mode !== 'default' && Boolean(this.proof);
@@ -106,7 +159,18 @@
     }
 
     plotKeyTag() {
-      return this.useWorkingGamut() ? `w:${(this.proofInfo && this.proofInfo.path) || ''}` : 's';
+      const scope = this.useWorkingGamut() ? `w:${(this.proofInfo && this.proofInfo.path) || ''}` : 's';
+      // The RGB-referenced models are built on the document's cube, so their axes depend
+      // on the profile even when the picker is *not* in working-gamut mode: a map drawn
+      // under one profile must not be reused under another.
+      return `${scope}:${this._referenceKey || 'srgb'}`;
+    }
+
+    modelLimited(model) {
+      // True while the RGB-referenced spaces can only name sRGB colours (the notice).
+      return window.IroColorModels
+        ? window.IroColorModels.referenceLimited(model)
+        : false;
     }
 
     inGamut(L, C, H) {
@@ -335,12 +399,75 @@
 
     /** Remember a pick made while disconnected, so it can be flushed later. */
     _write(immediate) {
+      if (immediate) this._cancelPreview();
+      else this._queuePreview();
       if (!this.connected) {
         this.pendingSend = true;
         return;
       }
       if (!immediate && !this.liveSync) return;
       this.csp.writeColor(this.lastStored, immediate);
+    }
+
+    _cancelPreview() {
+      if (!this._previewFrame) return;
+      if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this._previewFrame);
+      else clearTimeout(this._previewFrame);
+      this._previewFrame = 0;
+      this._previewLab = null;
+    }
+
+    /**
+     * A display-only preview for sibling palettes. It carries exact OKLab, so a
+     * peer does not re-derive the value from the 8-bit CSP record (that rotates
+     * the hue at low chroma). One frame per animation; it never writes or
+     * records history.
+     */
+    _queuePreview() {
+      if (!this.csp || typeof this.csp.previewColor !== 'function') return;
+      this._previewLab = this.lab();
+      if (this._previewFrame) return;
+      const fire = () => {
+        this._previewFrame = 0;
+        const lab = this._previewLab;
+        this._previewLab = null;
+        if (!lab) return;
+        this.csp.previewColor(lab, this.slots.active);
+      };
+      this._previewFrame = typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame(fire)
+        : setTimeout(fire, 16);
+    }
+
+    /** Apply a sibling palette's exact-OKLab preview without writing or recording. */
+    applyPreview(color) {
+      if (!color || !color.lab || this.dragging) return;
+      const lab = color.lab;
+      if (![lab.L, lab.a, lab.b].every(Number.isFinite)) return;
+      this.L = clamp01(lab.L);
+      this.a = lab.a;
+      this.b = lab.b;
+      if (typeof color.active === 'string') this.slots.active = color.active;
+      const lch = Color.oklabToOklch(this.L, this.a, this.b);
+      if (lch.C > 1e-6) this.hue = lch.H;
+      this.lastStored = this.contentRgb();
+      this._markActiveSlot(this.lastStored);
+      // Mark the stream: the whole window renders like a gesture for the next few
+      // frames, and one trailing emit gives every module its full-quality rebuild.
+      this._inPreviewUntil = Date.now() + PREVIEW_IDLE_MS;
+      if (!this._inPreviewEmit) {
+        const fire = () => { this._inPreviewEmit = 0; this._emit(); };
+        this._inPreviewEmit = typeof requestAnimationFrame === 'function'
+          ? requestAnimationFrame(fire)
+          : setTimeout(fire, 16);
+      }
+      if (this._inPreviewTimer) clearTimeout(this._inPreviewTimer);
+      this._inPreviewTimer = setTimeout(() => {
+        this._inPreviewTimer = null;
+        this._inPreviewUntil = 0;
+        this._emit();
+      }, PREVIEW_IDLE_MS + 60);
+      if (this._inPreviewTimer && this._inPreviewTimer.unref) this._inPreviewTimer.unref();
     }
 
     flushPending() {

@@ -9,6 +9,50 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **Smooth sibling-palette dragging.** While one palette is dragged, the others
+  receive an exact-OKLab display preview once per frame; the authoritative CSP write
+  and history still happen only on the normal commit path.
+- **Named, reorderable slices.** Each Color Slices row is named by its two channels
+  (`L × C`, `H × C`, `H × L`; `V × S` for OKHSV) and has a reorder gripper (drag, or
+  ArrowUp/ArrowDown); the fixed-hue slice is always first and the order persists.
+- **Model-native lightness guide and Lightness-locked dragging.** The guide and
+  Shift-lock now use each model's own light axis: OKLab `L` for the OK views, native
+  `L` for HelmGen, `L*` for CIELAB/CIELCH, and the model's own axis for future spaces.
+  There is no global guide-source setting. The guide is exactly **one** thin contour
+  through the current colour — no grid and no guide-step setting — and Color Slices,
+  Wheel and Disc each have a show/hide toggle. Holding Shift holds that lightness
+  before or during a drag; a fixed-light plane is projected onto its contour through
+  the chroma axis, so the plane does not move. The line turns red while locked, and a
+  target the panel cannot reach stops at the real edge instead of drawing a flat line
+  along it. Color Slider has no guide line but still locks the native lightness.
+- **CIELAB and CIELCH views, plus a model-family filter.** Appearance → Color model
+  family limits the lists to OKLab, CIELAB or HelmGen; every model is still a view
+  over the canonical OKLab value. CIELAB uses `L*`, `a*`, `b*`; CIELCH is its standard
+  cylindrical form. No CIELAB-HSL/HSV or HelmGen HSL/HSV is invented.
+- **The disc has a real slider.** Its held-light control is now a Slider-style row:
+  full-colour gamut gradient, label, numeric field and steppers, ring thumb. The disc
+  itself draws the single selected contour and locks it on Shift.
+- **Live Slices during a drag.** Every visible slice follows the drag while it is held
+  (one panel per frame on a native 1× CSS canvas, overlays every frame), then all are
+  rebuilt at full device resolution on release. No downscaled/blocky map is shown.
+- **Quiet, consistent pointers and the old crosshair.** Slices/Wheel/Disc share a
+  small ring (no arms/centre dot); the Hue ring thumb is a small white capsule; the
+  Slider thumb is an 11 px ring. Color Slices draws the separate old full-width/height
+  crosshair hairlines under the pointer.
+- **Color Wheel orientation controls.** A hue-rotation slider turns both ring bands
+  and their picking; the inner shape gets rotate and flip-H/flip-V buttons (display
+  only, with picking inverted).
+- **A CSP data-folder setting.** Settings → General and the CSP Shortcuts module can
+  point at a non-default `CELSYS` / `CLIPStudioPaintVer…` folder (Auto restores the
+  default), for a redirected or moved Documents folder.
+- **Drag a module's bottom edge to size it.** The drag writes the same height:width
+  ratio as the Module Size slider; the last module has its own edge handle, placed
+  inside the card so it wins over the palette's window-resize border, and a ratio
+  drag now fits the parent palette height as well.
+- **A two-band color wheel.** The outer band is a fixed-lightness gamut-edge
+  reference (no blue-primary seam); the inner band is the same continuous hue edge at
+  the current lightness/value and follows the selection. The hue pointer sits on the
+  outer band and uses the Color Slider ring style.
 - **Two Helmlab GenSpace views.** **HelmGen LCH** (polar) and **HelmGen**
   (rectangular) join the colour-model list in Color Slices, Color Slider and Color
   Disc, with HelmGen LCH also in Color Wheel. They draw against the same document
@@ -31,8 +75,40 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   gamut for OKLCH/OKLab (absolute chroma).
 - **The model lineup is the OK family**: OKLCH, OKLab, OKHSV, OKHSL and OKHWB.
 
+### Fixed
+
+- **Color-selector settings are populated again.** The module `settingsUI` now
+  receives the shared colour store (or its family filter) instead of reading an
+  undefined `store` binding, so the model list and all module controls render.
+- **Full-resolution drags.** Slices and the Wheel no longer drop their backing
+  canvases to 1× while a pointer is down; sibling panels keep their full-resolution
+  caches and only the rebuild cadence is throttled.
+- **Sibling palettes update during a drag.** Palette and float windows disable
+  Chromium background throttling, so the OKLab preview reaches the other window's
+  frame loop instead of waiting for the 60 ms CSP write.
+- **Color Slider drags are cheaper.** Track gradients are cached by model, axis,
+  the other two axes and gamut; the dragged row no longer rebuilds its own gradient,
+  and secondary tracks refresh at a lower cadence.
+- **Disc pointer stays on the gamut.** The pointer is clamped to the current-L
+  silhouette rather than the fixed global rim, so an out-of-gamut chroma cannot
+  leave it on the transparent area.
+- **Palette input recovers after popovers and lost drags.** Showing the palette now
+  closes transient overlay/module-settings owners, resets focusable/input state and
+  releases tracked pointer captures; an unresponsive renderer is reloaded instead of
+  leaving a painted, inert window.
+
 ### Changed
 
+- **Color Slices names and order follow the model's axis roles.** `L × C` is first for
+  every hue model (OKHSV's `V × S` was previously third), and the settings rows say
+  the same as the panels. The slices themselves stay flat.
+- **The wheel's triangles follow the two frames.** Okhsv's fixed triangle is the
+  equilateral triangle inscribed in the ring (all three corners on it); Okhsl's cusp
+  frame keeps the **square mode's black-white side** and moves the cusp on x = 0.9,
+  so the black-white side is where the square put it. Both map the whole square (no
+  colour lost).
+- **The OKLCH wheel slice uses the working gamut's chroma axis**, so high-chroma
+  green is not cropped when proofing a wide document.
 - **Wide slices no longer show a lightness step.** Colours past sRGB are drawn as
   the sRGB-edge colour at the same lightness (`Color.fitToSrgb`), so a
   constant-lightness row stays even instead of stepping where the sRGB boundary
@@ -55,6 +131,171 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Palette clicks and drags work again on Windows 11 26H2.** Windows build 26300
+  drops the button-down for a window Chromium considers non-activatable: the move and
+  the release still arrive, so the palette kept painting and following CSP while no
+  click or drag did anything. Palette and float windows are now created activatable
+  and kept out of the activation path with a native `WS_EX_NOACTIVATE` bit. That band —
+  with the topmost bit Chromium drops when it tries to activate on a click — is applied
+  by one long-lived helper after every show and every press, with a half-second watchdog
+  for any other drop, so a click can no longer make a palette disappear behind another
+  always-on-top window. Text fields drop the bit while editing so they still take
+  keyboard focus.
+- **A sibling palette's live preview is a gesture, not a colour storm.** While one
+  palette is dragged, the other window used to take its idle render path for every
+  preview frame (all three slice maps, every slider gradient). It now renders like a
+  local drag — overlays every frame, one raster per frame — and does one full-quality
+  pass when the stream ends.
+- **The model maps are ~6× cheaper, and a slow one never stalls the pointer.** The
+  per-pixel plane loop converted axes→OKLab→OKLCH→gamut→sRGB with several objects per
+  pixel; `src/shared/raster-plane.js` does one chain (axes→OKLab→linear→LUT gamma→sRGB
+  bounds). CIELAB and CIELCH maps are now interactive; HelmGen (whose vendored
+  conversion is ~1.3 µs/pixel) builds at native device pixels while a gesture is in
+  flight and only rebuilds once the pointer pauses, so dragging never blocks a frame.
+  The trailing rebuild restores full supersampled quality.
+- **The Color Wheel is usable with an expensive model.** Its inner map was keyed on
+  every axis, so dragging lightness or chroma re-rastered it on every frame — with
+  HelmGen that is ~a hundred milliseconds per frame. It now rebuilds only when the
+  fixed-hue axis (or the model, gamut, view or size) changes, uses the same fast
+  per-pixel chain as the slices, and a **ring drag never rebuilds it at all** (once, on
+  release). The interactive build now really uses native device pixels — the scale
+  factor was inverted, so it used to build at 2× during drags. The ring's inner band is
+  held for 200 ms. Full supersampled quality returns on release.
+- **The Color Wheel's settings open again.** They threw "sel is not defined" because the
+  model picker conversion left a stale reference behind in the shape-row check.
+- **The Model menu is never clipped.** It renders in the page flow under its row and the
+  settings windows re-fit themselves when it opens, instead of being cut at the popup edge
+  or the Modules tab's column.
+- **No more soft-lock to the lightness guide.** Without Shift the pointer is the cursor
+  again in every picker; only a Shift (locked) drag projects onto the guide.
+- **Every model reaches every document colour.** OKHSV/OKHSL/OKHWB are built on the
+  active document's RGB cube when the profile has one (Adobe RGB, P3, ProPhoto), so their
+  S/V/W/B axes span the whole document gamut; the "sRGB reference" notice only shows for a
+  document without an RGB cube (none, or a LUT/CMYK proof).
+- **Every model reaches every document colour, with Ottosson's behaviour.** OKHSV/OKHSL/
+  OKHWB are now Ottosson's own construction computed inside the active document's RGB
+  cube (cusp, boundary and control points from the profile), so a wide-gamut document
+  gets the perceptual S/V curves instead of plain HSV. CMYK/LUT documents (no RGB cube)
+  get a gamut-relative S: 100% is the document gamut's own limit at that hue and
+  lightness, so every pick is a colour the document holds.
+- **No white holes in a map.** The Disc is always a full disc and a dense model's plane is
+  total: an out-of-gamut pixel is drawn as the sRGB stand-in at reduced opacity, not left
+  transparent.
+- **The model dropdown switches the model again.** Its outside-click guard now covers the
+  list as well as the row; family headings are smaller, spaced and dimmer than the rows.
+- **The Disc's nudge arrows are left/right**, following its horizontal slider row.
+- **A Color Wheel inner drag never changes the hue** and, when the cursor leaves the
+  slice, picks the nearest point of the slice instead of sliding along one edge.
+- **The lightness guide no longer flashes or misses the pointer**: it is traced from the
+  map it is drawn on (that map's own light), not from the live colour across a paced map.
+- **The module settings popup works again, and so does the Settings window's Modules
+  tab.** Both pages render a module's `settingsUI`, and both now load
+  `kernel/model-options.js`; a failing settings UI is shown instead of leaving an empty
+  section behind. A renderer-HTML test pins the helper in both pages.
+- **The Model dropdown is drawn inside the page.** A native `<select>` opens its list in
+  a separate OS window that is not in our topmost band, so in the settings popup it
+  appeared behind the page; the model control is now a button with an in-page grouped
+  list (OKLab / CIELAB / HelmGen), as are the other selects in picker settings.
+- **A lightness-locked drag sits on the drawn guide.** Slices and the Disc always project
+  the pointer onto the guide while Shift is held, instead of solving the axis (which could
+  jump to a far branch on a non-monotone lightness curve); the Disc keeps the drawn guide
+  in disc coordinates for that projection.
+- **The module settings popup works again.** Every picker module's settings were empty
+  because the popup page did not load `kernel/model-options.js`; a failing `settingsUI`
+  is now shown instead of blanking the popup, and a renderer-HTML test resolves every
+  page's script tags.
+- **The popup and the Settings window stay above the palette.** The band watchdog raises
+  the palette every half second on this build, so a tool window that was only topmost at
+  creation ended up behind it ("the 3 dots do nothing") and the Settings window vanished
+  after a tab switch; tool windows are now raised last and re-asserted after every resize.
+  The popout also no longer dies on a transient blur.
+- **The Disc's pointer shows the picked colour again** (the locked point on the line), not
+  the raw cursor, and **the disc no longer flashes** while the lightness changes: it keeps
+  the last image on screen until the paced replacement lands.
+- **The wheel's two hue bands touch**, with no separator between them; only the inner
+  slice keeps a gap from the ring. A ring drag updates the inner slice live, paced by the
+  measured interactive build.
+- **The disc's model list offers one entry per space** (OKLab, CIELAB, HelmGen plus
+  OKHSV/OKHSL): the disc draws the polar form, so an a/b model and its LCH twin are the
+  same picture. A saved LCH id resolves to its twin.
+- **The disc is content-sized and no longer leaves an empty band** under it: the canvas
+  follows the palette width at a 1:1 aspect and the card ends under the footer.
+- **A lightness-locked disc drag keeps following the cursor** after it leaves the disc —
+  the ring clamps to the rim and is drawn from the event, not from the stored colour.
+- **The lightness guide is also the pick**: a pointer within ~6 px of the drawn line is
+  projected onto it, so dragging along the guide selects its colours smoothly all the way
+  to the slice boundary, and the line no longer arrives in pieces (every cell is sampled
+  and one-cell holes are bridged).
+- **Every model dropdown is grouped by family**: OKLab, then CIELAB, then HelmGen.
+- **The Color Disc's pointer can no longer snap to the centre.** Its radius is the exact
+  inverse of the pick mapping (`src/shared/disc-map.js`), not a chroma re-derived at the
+  max-chroma colour's lightness. The disc box is squared before the backing store is
+  sized, so a model switch cannot leave a stretched disc, and the light row under the
+  disc now updates the disc live instead of holding it.
+- **The Color Disc lists one model per space.** The disc draws the polar form, so an a/b
+  model (OKLab/CIELAB/HelmGen) and its LCH twin draw the identical picture — only the
+  footer numbers differ. The disc keeps the LCH entries; Slices, Slider and Settings
+  still offer every model.
+- **The wheel's lightness guide no longer stops in mid-air.** It is clipped to the
+  shape the projection actually draws (a cusp triangle covers only part of the plot
+  plane), so it ends on the triangle's edge instead of running out over the page and
+  appearing to be cut short.
+- **The Color Wheel's model and shape settings work.** `WHEEL` is a list of model
+  *objects*, so the settings guard has to compare ids (`WHEEL.some((m) => m.id === id)`);
+  comparing the string against the list silently forced every choice back to OKLCH, which
+  also made the triangle/square buttons look dead (OKLCH has no frame).
+- **The lightness guide is the contour of the map's own lightness field.** Slices and the
+  Disc extract it with `src/shared/contour.js` (marching squares) from `raster-plane`'s
+  `luma`, so every point is iso-light and the line ends at the painted edge. The field is in
+  the model's **own** light units — CIELAB L*, HelmGen L, OKLab L for OKHSV/OKHSL/OKHWB.
+- **`--trace-input`** records every pointer event a page receives, plus the window's
+  state and every hide/show, to `input-trace.log` — the tool that found the dropped
+  press (docs/DEV.md).
+- **Slices keep updating while you drag.** The other constant-L/C/H maps are no
+  longer frozen until pointerup: they rebuild round-robin while the drag is held, and
+  their crosshairs/guides move every frame. This also removes the cross-module cost
+  that made Wheel/Disc drags stutter with the Slices visible.
+- **The Slices crosshair is the old full guide again.** The pointer is a small
+  ring; the vertical + horizontal hairlines run across the whole slice under it. The
+  previous pass had replaced the cross with a tiny ring/arms, which is why it looked
+  like the crosshair had disappeared.
+- **Wheel and Disc drags are crisp.** Disc draws at full 2× even while dragging; while
+  its L row is held the last full-resolution disc stays and only the pointer/guide
+  move, so the row is smooth without jagged edges. Wheel uses native 1× during a drag
+  (full 2× on release); Slices build one panel per frame. The Wheel/Disc rasters are
+  capped at ~90/150 ms, and the Disc's rim/raster are cacheable across the selected
+  hue/chroma. The overlay is always full resolution.
+- **Wheel rotate/flip is draw==pick.** The canvas transform now applies flip before
+  rotate (matching `SV.forward()`), so a rotated+flipped inner slice no longer reads a
+  different colour than the other modules. The inner raster cache also keys the fixed
+  S/L axes, so picking at the same hue updates the slice.
+- **The blue hue seam is gone.** The old outer band traced OKHSV S=1/V=1, whose sRGB
+  blue fin jumps from green 61 to 0 in one step. Both bands now use a fixed-lightness
+  max-chroma edge, which is continuous across blue.
+- **Disc pointer no longer slides on the L row.** The disc rim is fixed at one
+  reference lightness instead of being recomputed per L; the in-gamut silhouette
+  grows/shrinks inside it and the selected hue/chroma pointer stays put.
+- **The Disc's held-light control is no longer a bare range.** It now matches a Color
+  Slider row (full-colour gradient, value, steppers, ring thumb).
+- **Every slice pick lands under the pointer.** The pick now uses the canvas's content
+  box (not its border box), and the same axis mapping draws the raster and reads the
+  pointer, so the crosshair tracks the mouse at 1× and at a scaled UI.
+- **A slice drag no longer changes the plane.** The fixed axes are pinned for the whole
+  gesture; dragging HelmGen LCH's `L × C` past the gamut snaps the colour but keeps
+  the hue.
+- **Non-OKLCH slices show only what can be picked.** `dense` no longer skips the
+  working-gamut test, so a shown pixel is reachable; a colour outside an sRGB-limited
+  model (a saturated Adobe RGB red, `S ≈ 1.24` in OKHSV) is clamped to the panel edge
+  with a dashed ring instead of making the crosshair disappear.
+- **The OKLCH Hue slice draws again.** `buildHuePlot` referenced undefined channels
+  and threw on its first pixel.
+- **Slice drags are smooth.** The raster cache is keyed on the plane's fixed axis, not
+  the selected colour, so a drag inside a plane is a cache-hit overlay update; the
+  other planes now follow live (round-robin) instead of catching up only on release.
+- **The ring-width slider redraws immediately**, and the OKLCH wheel crosshair no
+  longer leaves the box at high chroma.
+- **`--board-size` works again** (its `Board.resize` had been swallowed by a stray
+  block comment).
 - **A pick no longer rotates the hue when you release the slider.** The app
   broadcast every write back to its own window and re-read the 8-bit record as a
   new colour, moving H by up to a few degrees (worst at low chroma) and adopting

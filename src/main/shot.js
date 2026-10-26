@@ -574,9 +574,26 @@ function runShot(ctx) {
           fs.writeFileSync(popoverShot, img.toPNG());
           console.log('popover screenshot written to', popoverShot);
         }
+        // Drive the popup like a user would — the ⋯ panel has no other way in.
+        const popoverClick = argValue('--popover-click');
+        if (popoverClick && ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed()) {
+          const clicked = await ctx.moduleSettingsWin.webContents.executeJavaScript(
+            `(() => { const el = document.querySelector(${JSON.stringify(popoverClick)});
+               if (!el) return { found: false };
+               el.click();
+               return { found: true, text: el.textContent }; })()`,
+          );
+          console.log('[popover-click]', popoverClick, JSON.stringify(clicked));
+          await new Promise((r) => setTimeout(r, 900));
+        }
+        const popoverShotLate = argValue('--popover-shot-late');
+        if (popoverShotLate && ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed()) {
+          const img = await ctx.moduleSettingsWin.webContents.capturePage();
+          fs.writeFileSync(popoverShotLate, img.toPNG());
+          console.log('popover-late screenshot written to', popoverShotLate);
+        }
         if (process.argv.includes('--palette-menu')) {
-          // Click the palette's ☰ and report where the menu landed. The menu is drawn by the
-          // **overlay** window now — it has to be, since a renderer cannot paint outside its own
+          // Click the palette's ☰ and report where the menu landed. The menu is drawn by the          // **overlay** window now — it has to be, since a renderer cannot paint outside its own
           // window — so this reports the overlay's real bounds (proof it is outside the palette)
           // and saves a picture.
           await popup.webContents.executeJavaScript(`document.getElementById('btn-menu')?.click()`);

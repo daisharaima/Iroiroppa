@@ -386,6 +386,10 @@ plausible refactor silently breaks it (that is the test for the core list).
 - **Privileged IPC channels validate their sender** (`src/main/ipc-sender.js`):
   colour writes, layout/settings/module changes act only for a live window the handler
   resolves from the event, never a window id taken from the payload.
+- **A sibling-palette preview is display-only and exact.** `color:preview` carries
+  OKLab, excludes the source window, and never enters the CSP write queue, history or
+  `lastColor`. The authoritative `companion:color` still lands on commit; a peer uses
+  `ColorStore.applyPreview` without writing or recording.
 - **A broadcast failure must never abort a state update.** `state-hub.set` swallows an
   emit error, and every window send goes through `src/main/broadcast.js`, which checks
   both the window **and its webContents** and never throws — a window destroyed between
@@ -460,6 +464,12 @@ plausible refactor silently breaks it (that is the test for the core list).
 - **The profile picker and the palette menu are overlay menus.** An in-window popup is
   clipped by the palette's `overflow`; both go through `kernel/overlay-menu.js`, which
   owns the one outside-click close so they cannot fight.
+- **Showing the palette resets transient input owners.** Tray/hotkey show closes the
+  overlay menu and module-settings popout, re-enables each palette/float, and sends
+  `input:reset`; the renderer releases tracked pointer captures and clears drag/lock
+  state without touching the colour. A palette click also closes the module-settings
+  popout, because the non-activating palette does not blur it. A dead renderer is
+  reloaded once (twice at most) rather than leaving a painted, inert window.
 - **A removed module's hidden instance is dropped too.** A module the manifest no
   longer knows cannot be shown again, so `normalise` drops both placed and hidden
   entries when a registry is given.
@@ -486,14 +496,77 @@ plausible refactor silently breaks it (that is the test for the core list).
   `forward` and `inverse`; `color-slices` paints through the forward transform and
   every `attach` picker maps pointer coordinates through the inverse before applying
   the axis mapping. The colour maths and the plot cache never see the transform.
+- **A slice's plane ordering is by axis role, not by model index.**
+  `color-models.js#planesFor` derives the three planes from each axis's `role`
+  (`hue`/`chroma`/`lightness`): the fixed-hue plane is always first, then
+  fixed-lightness, then fixed-chroma. Names are the two free channel labels in display
+  order (`L × C`, `H × C`, `H × L`; OKHSV's first is `V × S`).
+- **A slice drag pins its plane.** The pointerdown snapshots the fixed axes and every
+  move uses them; a gamut snap may move the colour along the boundary but never feeds
+  a new fixed axis back into the plane. That feedback loop was the HelmGen LCH hue
+  drift while dragging LC.
+- **Shown == pickable.** The raster and the pointer share
+  `slice-geometry.js#inside` (the model's `inGamut` if it has one, else
+  `store.inGamut`); `dense` never skips the test. A value the slice cannot show is
+  clamped at the edge (a dashed crosshair ring), never silently dropped.
+- **The lightness guide is model-native, one source and one line.**
+  `slice-geometry.js#lightnessOf` uses the model's own light axis when
+  `lightSource: 'native'` (OKLCH/OKLab, CIELCH, HelmGen, future CIELAB/HCT/CAM16),
+  and canonical OKLab L for the sRGB-relative OKHSV/OKHSL/OKHWB views. There is no
+  global source setting. The guide is exactly one iso-L contour (`guideCurve`); it is
+  absent only when the fixed axis already carries the native light axis. Shift holds
+  that value for the gesture (before or during the drag): a free light axis is solved;
+  in a fixed-light plane the vertical free axis is solved, which projects the press onto
+  the contour **without moving the plane**. A sample whose target cannot be reached is
+  dropped, never drawn as a line along the panel edge. The guide is a thin overlay
+  hairline, not a raster pixel; it is red while locked. Slices/Wheel/Disc each have a
+  show/hide toggle; the Slider has no guide. The crosshair is separate: full-width/height
+  hairlines under the small ring
+  pointer.
+- **Slice rasters follow a drag live without freezing it.** During any drag, the
+  visible panels are rebuilt round-robin (one panel per frame) at the **full backing
+  resolution**, with the crosshair/guide overlay redrawn on every panel every frame;
+  sibling panels reuse their full-resolution cached raster. No downscaled or
+  block-filled map is ever shown. The active panel's fixed axes stay pinned; a
+  dragged slice's other panels use the live axes. Freezing the other panels until
+  release was the "slices don't update" bug; dropping the backing canvas to 1× was
+  the jagged-edge regression. The same "one panel per frame" rule covers a
+  Wheel/Disc/Slider drag, so those modules do not make the Slices rasterise three
+  full maps per pointer move. Palette and float windows disable Chromium background
+  throttling so a sibling palette keeps its frame loop while another window is
+  dragged.
+- **The wheel's hue ring is a fixed-lightness gamut edge, not OKHSV max-sat.**
+  OKHSV S=1/V=1 follows the sRGB blue fin and jumps at the primary (a visible blue
+  seam). Both bands sample a constant-OKLab-L max-chroma edge; the outer is fixed at
+  L=0.70, the inner uses the selected L. The hue pointer sits on the outer band and is
+  the Color Slider ring; the inner shape has the separate small pointer. Inner
+  rotate/flip is display-only, and the canvas transform must apply flip before rotate
+  to match `SV.forward()`.
+- **The disc rim is fixed across lightness.** For absolute-chroma views it is the
+  global in-gamut extent over reference lightnesses, not recomputed at the selected L;
+  the silhouette changes inside a stable radius, so the hue/chroma pointer does not
+  slide when the L row moves. The disc is always full 2×; while the L row is held, the
+  last full raster is reused and only the overlay moves.
+- **The last module's bottom edge outranks the palette's.** `_makeEdge` places its hit
+  area inside the card (the OS owns the window's outermost pixels), and `_dragRatio`
+  writes the same height:width ratio as the Module Size slider. A ratio drag also
+  fits the parent window (`_fitNaturalWindow`), growing or shrinking it to the cards
+  while `_moduleEdgeDrag` suppresses the window-edge aspect-ratio heuristic.
+- **A module edge drag writes a ratio height** (the same value as the Module Size
+  slider), capped at 2.5 and floored at the module's minimum. The shared edge resizes
+  the ratio module above it, or the one below when the above is a fill.
 - **A projection is display-only and invertible too** (`src/shared/projection.js`).
   `flat` is the unrolled rectangle, `polar` puts hue on the angle and chroma on the
-  radius (mask = outside the disc), and `triangle` is the **cusp frame**: black,
-  white and the hue's cusp are the corners, so the apex slides with the hue by
-  design. The raster inverts the map per pixel and the picker maps the press
-  forward; a press the map cannot express is clamped, never dropped. Only a panel
-  whose axes can carry the shape offers it (`supports`), so a hand-edited settings
-  file cannot produce an all-mask panel.
+  radius (mask = outside the disc), `triangle` is the **cusp frame** (black, white and
+  the hue's cusp are the corners; the whole lightness×chroma square is mapped onto it,
+  so no colour is lost and the cusp is always the apex) and `triangleFixed` is the
+  Okhsv frame. The cusp frame keeps the square mode's black-white side (the inscribed
+  square's left corners) and its cusp slides on the vertical line x = 0.9. The Okhsv
+  fixed frame is the **equilateral triangle inscribed in the inner circle** (all three
+  corners on it; its base is that triangle's own black-white side, not the square's).
+  The raster inverts the map per pixel and the picker maps the press forward; a point
+  the triangle cannot express is clamped, never dropped. Only a panel whose axes can
+  carry the shape offers it (`supports`).
 - **The gamut silhouette stays the union of `chromaIntervals` in every projection.**
   A binary search from zero (or a first-crossing scan) under-fills at blue's fin, and
   smoothing the boundary to hide it is the bug, not the fix.

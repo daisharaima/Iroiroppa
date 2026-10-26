@@ -33,6 +33,12 @@ function register(ctx, h) {
     if (!(isChannel255(r) && isChannel255(g) && isChannel255(b))) return;
     ctx.service.writeColor({ r, g, b }, { immediate });
   });
+  ipcMain.on('color:preview', (e, { L, a, b, active } = {}) => {
+    if (!trusted(e)) return;
+    if (![L, a, b].every(Number.isFinite)) return;
+    if (!(L >= 0 && L <= 1) || Math.abs(a) > 1 || Math.abs(b) > 1) return;
+    ctx.service.previewColor({ L, a, b }, { sourceId: e.sender.id, active });
+  });
   ipcMain.on('window:hide', () => ctx.hidePopup());
   ipcMain.on('window:move-by', (_e, { dx, dy } = {}) => {
     if (!ctx.popup || ctx.popup.isDestroyed()) return;
@@ -89,15 +95,17 @@ function register(ctx, h) {
     const h = Math.max(200, Math.min(maxH, Math.round((Number(height) || 0) * z)));
     const [w] = ctx.settingsWin.getContentSize();
     ctx.settingsWin.setContentSize(w, h);
+    // A content resize can drop the topmost bit on this build, which buried the
+    // Settings window behind the palette on the next band tick (the "it disappears
+    // when I switch tabs" report).
+    if (ctx.reassertTopmost) ctx.reassertTopmost(ctx.settingsWin);
   });
   ipcMain.on('window:editable', (_e, on) => {
     if (!ctx.popup) return;
-    try {
-      // Toggling focusability can deactivate the window; ignore that blur.
-      ctx.focusGraceUntil = Date.now() + 900;
-      ctx.popup.setFocusable(Boolean(on));
-      if (on) ctx.popup.focus();
-    } catch { /* window already gone */ }
+    // A text field needs real keyboard focus, which a non-activating window cannot
+    // take: drop the native WS_EX_NOACTIVATE bit while the field is open and restore
+    // it afterwards (topmost.js owns the band).
+    if (ctx.setPaletteEditable) ctx.setPaletteEditable(Boolean(on));
   });
   ipcMain.on('window:resize', (_e, { width, height } = {}) => {
     if (!ctx.popup || ctx.popup.isDestroyed()) return;

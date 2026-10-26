@@ -48,8 +48,8 @@ Why OKLab rather than OKLCH:
 
 - OKLCH is **polar**: hue is undefined at `C = 0`, so a grey has no hue and
   polar interpolation is wrong. OKLab is the rectangular parent.
-- It is **perceptually uniform**, so gamut mapping, snapping, ΔE and the
-  lightness guide lines are native to it.
+- It is **perceptually uniform**, so gamut mapping, snapping and ΔE use it; it is
+  also the canonical value behind every picker view.
 - It is **unbounded**, so exploring past the gamut needs no special case.
 - It is **already the internal transform** (`oklabToLinearRgb`), so no new maths
   is added to the picker's hot path.
@@ -82,18 +82,21 @@ far:
 | --- | --- | --- |
 | `oklch` | L, C, H | the reference view; the default |
 | `oklab` | L, a, b | the canonical value itself; no hue axis |
+| `cielab` | L*, a*, b* | CIELAB (D65) view; no hue axis |
+| `cielch` | L*, C*, H | CIELCH, the standard cylindrical CIELAB form |
 | `okhsv` | H, S, V | Ottosson's Okhsv; S/V are **sRGB-relative**, so it is only meaningful inside sRGB |
 | `okhsl` | H, S, L | Ottosson's Okhsl (L is the *toe* of Oklab's L); S/L are sRGB-relative too |
 | `okhwb` | H, W, B | Ottosson's Okhwb, derived here from Okhsv: `w = v(1-s)`, `b = 1-v` |
 | `helmgenlch` | L, C, H | Helmlab's GenSpace in polar form: its own L/C scale (0–1, chroma 0–~0.5), hue 0–360 |
 | `helmgen` | L, a, b | the same GenSpace, rectangular; no hue axis |
 
-The first five are the OK family: OkLab is the value the store holds, and the
-three sRGB-relative pickers are Ottosson's. The last two are the **Helmlab
-GenSpace** views, added on request: they round-trip through XYZ and own no
-colour, so the canonical value, the proof, the records and history are untouched.
-The picker's gamut still comes from the document's ICC profile — a model never
-decides what is displayable.
+The OK family is `oklch`, `oklab`, `okhsv`, `okhsl`, `okhwb`: OkLab is the value
+the store holds, and the three sRGB-relative pickers are Ottosson's. `cielab` and
+`cielch` are CIELAB views, not a second canonical value. `helmgenlch` and `helmgen`
+are the **Helmlab GenSpace** views, added on request: they round-trip through XYZ and
+own no colour, so the canonical value, the proof, the records and history are
+untouched. The picker's gamut still comes from the document's ICC profile — a model
+never decides what is displayable.
 
 The GenSpace transform is well conditioned inside any real display gamut (worst
 1.1e-7 measured over sRGB) but degrades for colours no RGB gamut holds — OKLCH
@@ -114,11 +117,62 @@ untouched. `setLab` keeps the hue anchor when the value is achromatic.
 A model may declare `hueIndex` (where the anchor is substituted at zero
 chroma/saturation), `isAchromatic(axes)` (where that *is* for a model whose
 neutral axis is not its second axis at its minimum — Okhwb), `domain` (limits the
-round-trip test — the sRGB-relative three and the GenSpace pair) and `tol`
-(loosens it where the maths is lossy). Adding a model is one `register()` call
-plus a round-trip test; `test/color-models.test.js` covers every registered model
-automatically, and its lineup test pins the seven ids so an eighth is a
-deliberate decision.
+round-trip test — the sRGB-relative three and the GenSpace pair), `lightSource`
+(`native` for OKLCH/OKLab and both HelmGen views, `oklab` for OKHSV/OKHSL/OKHWB)
+and `tol` (loosens the round-trip where the maths is lossy). Adding a model is one
+`register()` call plus a round-trip test; `test/color-models.test.js` covers every
+registered model automatically, and its lineup test pins the seven ids so an eighth
+is a deliberate decision.
+
+Every axis also carries a `role` — `lightness`, `chroma` or `hue` — and the three
+slice planes are derived from it (`planesFor`): the fixed-hue plane first, then
+fixed-lightness, then fixed-chroma. That is what keeps OKHSV's `V × S` slice in the
+same position as OKLCH's `L × C`; a rectangular model keeps the legacy order. Slice
+labels are the two free channel names in display order. `axisRange(model, i, store)`
+lets OKLCH's chroma axis reach `store.cmax()`; every other axis is the declared
+range.
+
+The sRGB-referenced models (`okhsv`, `okhsl`, `okhwb`) are shaped by an **RGB cube**: S is
+how far from the neutral axis toward the cube's surface, V/L is the axis position. That
+cube is the *document's* when the active proof is a matrix/TRC RGB profile
+(`src/shared/model-reference.js`), and the conversion is **Ottosson's own construction**
+evaluated on that cube (`src/shared/ottosson.js`): the cusp is the cube's wall found by
+bisection (cached per 0.05° of hue), the gamut intersection uses the cube's channel rows,
+and Okhsl's control points come from the boundary. So an Adobe RGB document gets
+Ottosson's perceptual Okhsv/Okhsl/Okhwb *inside its own gamut* — S, V/W, B stay in 0..1
+— instead of the sRGB-limited version. A cube corner measures S ≈ 1.0003 (the triangle
+approximation puts it a few 1e-4 past the wall; the axis clamps), so the round-trip is
+exact at the gamut level.
+
+A LUT/CMYK proof has **no cube** (recorded values are ink, not RGB corners), so those
+documents use the **gamut-relative** mode (`ottosson.gamutRelative`): S = C ÷ the
+document gamut's chroma limit at that hue and lightness (cached on a 1° × 1/96 grid), so
+every S in 0..1 is a colour the document can hold. Without any profile the sRGB path is
+byte-identical to the old implementation and the "sRGB reference" notice is shown
+(`store.modelLimited`). The value itself is untouched in the store, and OKLCH / HelmGen
+LCH are the document-gamut views. No `dense` flag may skip the working-gamut test — the
+raster and the pick use the same predicate (`slice-geometry.js#inside`).
+
+The sRGB equivalence gate lives in `test/ottosson.test.js`: on an sRGB cube the
+generalised Okhsv reproduces `color.js` to 3e-3 (Ottosson's own `computeMaxSaturation` is
+a fit of the wall, so the exact cusp differs slightly), the cusp equals the true boundary,
+and Okhsl is monotone and round-trips. Okhsl's `Cmid` is boundary-derived rather than
+Ottosson's sRGB polynomial, which is the deliberate trade for generality.
+
+**Guide lightness is native to the model.** There is no global source setting.
+`slice-geometry.js#lightnessOf` returns the model's own light axis for
+`lightSource: 'native'` (OKLCH/OKLab, CIELCH, HelmGen, future CIELAB/HCT/CAM16
+models) and canonical OKLab `L` for the sRGB-relative OKHSV/OKHSL/OKHWB views.
+`setLightness`, `applyLightness` and `guideCurve` use the same rule: a free light
+axis is solved by bisection; in a fixed-light plane the vertical free axis is
+solved, which projects the press onto the iso-L contour without changing the
+plane. A guide sample whose target cannot be reached within tolerance is dropped
+rather than drawn along the panel edge; a drag onto that unreachable region keeps the
+last reachable pointer position instead of moving past the contour. A plane/disc has no distinct line only
+when its fixed axis already carries the native lightness. The module's show/hide
+toggle controls whether the line is drawn; Shift uses the same native lightness.
+`axisRange` lets an absolute-chroma axis reach `store.cmax()`; every other axis is
+the declared range.
 
 ### Distance (MetricSpace, GenSpace's sibling)
 

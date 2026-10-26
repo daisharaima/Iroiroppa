@@ -111,7 +111,15 @@ CSP stores its shortcuts as SQLite, not in the registry (verified CSP 5.0.4,
 Oct 2026). The user-settings root is the CLIP STUDIO "materials location"
 (`<Documents>\CELSYS`, or a custom path from
 `CLIPStudioCommon\Preference\Config.sqlite` →
-`CategoryFolderPath.DataFolderPath`), then `CLIPStudioPaintVer1_5_0\`:
+`CategoryFolderPath.DataFolderPath`), then `CLIPStudioPaintVer1_5_0\`.
+
+That default is only a guess: a profile whose Documents folder was redirected
+(OneDrive, a moved Windows profile) or a custom materials location makes it miss.
+The global setting `cspDataDir` (Settings → General, or the Shortcuts module's
+**Locate CSP data folder…**) overrides it; the value may be the `CELSYS` root or a
+`CLIPStudioPaintVer…` folder, and empty means Auto. `cspShortcuts.resolveFolder`
+is the one resolver; `shortcut:resolve` / `shortcut:browseRoot` are the read-only
+IPC calls, and `shortcutList` passes the setting into `list()`.
 
 - command shortcuts — `Shortcut\default.khc`
   (`shortcutmenu(menucommandtype, menucommand, shortcut, modifier)` +

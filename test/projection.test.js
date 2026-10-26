@@ -12,6 +12,27 @@ const P = require('../src/shared/projection');
 
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
+test('pickInside keeps a drag inside the drawn triangle and never freezes', () => {
+  const tri = P.triangleFixed();
+  const inside = P.pickInside(tri, 0.5, 0.5);
+  assert.ok(inside.inside, 'a point in the shape keeps its own coordinates');
+
+  // Far outside every edge: the nearest in-shape point, with both coordinates
+  // responding — not one axis clamped while the other slides.
+  const out = P.pickInside(tri, 0.2, 0.95);
+  assert.strictEqual(out.inside, false);
+  assert.ok(out.u >= 0 && out.u <= 1 && out.v >= 0 && out.v <= 1);
+  const corner = P.pickInside(tri, -1, 2);
+  assert.ok(corner.u >= 0 && corner.u <= 1 && corner.v >= 0 && corner.v <= 1);
+  // Two points left of the shape at different heights must not map to the same pick
+  // (that is the "only follows the horizontal position" symptom). Outside the left
+  // edge the nearest points differ along the zero-saturation edge, so the lightness (u)
+  // is what moves.
+  const a = P.pickInside(tri, 0.1, 0.8);
+  const b = P.pickInside(tri, 0.1, 0.2);
+  assert.ok(Math.abs(a.u - b.u) > 1e-6, 'vertical movement still changes the pick');
+});
+
 test('flat is the identity with y up', () => {
   const s = P.flat.toScreen(0.25, 0.75);
   assert.ok(near(s.x, 0.25) && near(s.y, 0.25));
@@ -42,12 +63,12 @@ test('the polar mask rejects points outside the disc', () => {
 });
 
 test('the cusp frame moves its apex with the hue and round-trips', () => {
-  const low = P.triangle({ a: 0.2, b: 0.9 }); // blue-ish cusp: dark
-  const high = P.triangle({ a: 0.9, b: 0.9 }); // yellow-ish cusp: light
-  const lowApex = low.toScreen(low.cusp.a, low.cusp.b);
-  const highApex = high.toScreen(high.cusp.a, high.cusp.b);
+  const low = P.triangle({ a: 0.2, b: 1 }); // blue-ish cusp: dark
+  const high = P.triangle({ a: 0.9, b: 1 }); // yellow-ish cusp: light
+  const lowApex = low.toScreen(low.cusp.a, 1);
+  const highApex = high.toScreen(high.cusp.a, 1);
   assert.ok(lowApex.y > highApex.y, 'the apex sits lower for a dark cusp');
-  assert.ok(near(lowApex.x, 0.9) && near(highApex.x, 0.9));
+  assert.ok(near(lowApex.x, 0.9) && near(highApex.x, 0.9), 'every cusp shares the vertical line');
 
   for (let i = 1; i < 8; i += 1) {
     for (let j = 1; j < 8; j += 1) {
@@ -60,13 +81,36 @@ test('the cusp frame moves its apex with the hue and round-trips', () => {
   }
 });
 
-test('the cusp frame is affine in its three corners', () => {
+test('the cusp frame puts black, white and the cusp on the triangle vertices', () => {
   const t = P.triangle({ a: 0.5, b: 1 });
   const k = t.toScreen(0, 0);
   const w = t.toScreen(1, 0);
+  const cusp = t.toScreen(0.5, 1);
   assert.ok(near(k.x, P.TRI_K.x) && near(k.y, P.TRI_K.y), 'a=0,b=0 is black');
   assert.ok(near(w.x, P.TRI_W.x) && near(w.y, P.TRI_W.y), 'a=1,b=0 is white');
-  assert.ok(near(k.y - w.y, 0.8), 'black and white are one edge apart');
+  assert.ok(near(cusp.x, P.TRI_APEX_X) && near(cusp.y, 0.5), 'the cusp is the apex');
+});
+
+test('black and white sit on the square mode\u2019s left edge, on the circle', () => {
+  const r = (p) => Math.hypot(p.x - 0.5, p.y - 0.5);
+  assert.ok(near(r(P.TRI_K), 0.5) && near(r(P.TRI_W), 0.5), 'K/W are on the circle');
+  assert.ok(near(P.TRI_K.x, 0.1464466094) && near(P.TRI_W.x, 0.1464466094),
+    'the cusp frame keeps the square mode\u2019s black-white side');
+  const f = P.triangleFixed();
+  assert.ok(near(r(f.toScreen(0, 0)), 0.5), 'the fixed black corner is on the circle');
+  assert.ok(near(r(f.toScreen(1, 0)), 0.5), 'the fixed white corner is on the circle');
+  assert.ok(near(r(f.toScreen(1, 1)), 0.5), 'the fixed pure hue is on the circle');
+});
+
+test('the fixed triangle is equilateral', () => {
+  const t = P.triangleFixed();
+  const K = t.toScreen(0, 0);
+  const W = t.toScreen(1, 0);
+  const A = t.toScreen(1, 1);
+  const d = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+  const base = d(K, W);
+  assert.ok(near(d(K, A), base, 1e-9), 'black-to-apex equals the base');
+  assert.ok(near(d(W, A), base, 1e-9), 'white-to-apex equals the base');
 });
 
 test('a chroma-less slice has no cusp frame', () => {
@@ -125,9 +169,9 @@ test('supports() gates by axis shape', () => {
 test('the fixed triangle puts white, black and the pure hue on fixed corners', () => {
   const t = P.triangleFixed();
   const corner = (u, v) => t.toScreen(u, v);
-  assert.deepEqual(corner(1, 0), { x: 0.1, y: 0.1 }, 'u=1, s=0 is white');
-  assert.deepEqual(corner(0, 0.4), { x: 0.1, y: 0.9 }, 'v=0 is black at any saturation');
-  assert.deepEqual(corner(1, 1), { x: 0.9, y: 0.5 }, 'u=1, s=1 is the pure hue');
+  assert.deepEqual(corner(1, 0), { x: P.TRI_FIXED_W.x, y: P.TRI_FIXED_W.y }, 'u=1, s=0 is white');
+  assert.deepEqual(corner(0, 0.4), { x: P.TRI_FIXED_K.x, y: P.TRI_FIXED_K.y }, 'v=0 is black at any saturation');
+  assert.deepEqual(corner(1, 1), { x: P.TRI_FIXED_APEX.x, y: P.TRI_FIXED_APEX.y }, 'u=1, s=1 is the pure hue');
   // Same geometry for every hue: the corners do not depend on a cusp.
   assert.deepEqual(t.toScreen(1, 1), t.toScreen(1, 1));
 });

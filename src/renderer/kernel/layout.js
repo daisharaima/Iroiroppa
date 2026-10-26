@@ -64,6 +64,10 @@
       // columns; the titlebar's Unsnap icon and its name come from here.
       this._palette = null;
       this._unsnapBtn = null;
+      // A module-edge drag changes a ratio; unlike a window resize it must be
+      // followed by a content fit, or the palette keeps its old height.
+      this._moduleEdgeDrag = false;
+      this._fitFrame = 0;
     }
 
     async init() {
@@ -621,6 +625,26 @@
     }
 
     /**
+     * Follow a module-edge drag with a window height change. `_fitToContent` only
+     * shrinks and `_enforceWindowMin` only grows; this one does both, and avoids
+     * `_handleUserDrag` mistaking the programmatic fit for a window-edge drag.
+     */
+    _fitNaturalWindow() {
+      if (this.locked) return;
+      if (document.body.classList.contains('collapsed')
+        || document.body.classList.contains('float-collapsed')) return;
+      if (!this.layout.columns.length || !this._allNatural()) return;
+      const natural = this._naturalHeight();
+      if (!natural) return;
+      const min = this.minWindowSize();
+      const floor = this.float ? Math.max(60, min.height) : PALETTE_MIN_H;
+      const want = Math.max(floor, Math.round(natural));
+      if (Math.abs(want - window.innerHeight) <= 1) return;
+      this._fitUntil = Date.now() + 300;
+      this._applyWindowSize(window.innerWidth, want);
+    }
+
+    /**
      * Shrink this board's window to its content when nothing in it wants the
      * slack — i.e. every module in every column is rigid or natural, so no
      * module fills its column. A palette holding a single one-row module
@@ -642,6 +666,7 @@
      */
     _handleUserDrag() {
       if (this.float || this.locked) return false;
+      if (this._moduleEdgeDrag) return false;
       if (document.body.classList.contains('collapsed')
         || document.body.classList.contains('float-collapsed')
         || document.body.classList.contains('dragging')) return false;
@@ -800,21 +825,104 @@
 
     /** Put a drag handle between each pair of adjacent modules. */
     _syncSplits(colEl) {
-      colEl.querySelectorAll('.module-split').forEach((node) => node.remove());
+      colEl.querySelectorAll('.module-split, .module-edge').forEach((node) => node.remove());
       const cards = [...colEl.children].filter((node) => node.classList.contains('module'));
       for (let i = 0; i < cards.length - 1; i++) {
         const above = this.modules.get(cards[i].dataset.instance);
         const below = this.modules.get(cards[i + 1].dataset.instance);
-        // A splitter only resizes a module that trades weight or sizes from its
-        // settings; between two locked-ratio modules there is nothing to drag.
+        // The shared edge resizes a ratio-sized module above it (its own bottom
+        // edge), a ratio-sized module below it (its own top edge), or trades
+        // weights between fill modules. No module to resize, no handle.
         const a = above && above.model;
         const b = below && below.model;
         const resizable = Boolean(
-          (a && (a.weight != null || this._isUnitSized(a)))
+          (a && this._ratioOf(a)) || (b && this._ratioOf(b))
+          || (a && (a.weight != null || this._isUnitSized(a)))
           || (b && (b.weight != null || this._isUnitSized(b))),
         );
         if (above && below && resizable) colEl.insertBefore(this._makeSplit(above, below), cards[i + 1]);
       }
+      // The last module's bottom edge is its own resize handle. Its hit area is
+      // INSIDE the card (see `.module-edge` in style.css) so it wins over the OS
+      // window-resize border, which owns the outermost pixels of the window.
+      const last = cards[cards.length - 1];
+      const lastEntry = last && this.modules.get(last.dataset.instance);
+      if (lastEntry && this._ratioOf(lastEntry.model)) colEl.append(this._makeEdge(lastEntry));
+    }
+
+    /** The column model that owns an entry's card (for alone/stretchLast opts). */
+    _columnModelFor(entry) {
+      const el = entry && entry.el && entry.el.parentElement;
+      if (!el) return null;
+      for (const c of this.columns.values()) if (c.el === el) return c.model;
+      return null;
+    }
+
+    /** A ratio drag's start state: which module, from which edge, and its box. */
+    _ratioDragState(entry, fromAbove) {
+      const rect = entry.el.getBoundingClientRect();
+      const col = this._columnModelFor(entry);
+      return {
+        ratioEntry: entry,
+        fromAbove,
+        top: rect.top,
+        bottom: rect.bottom,
+        width: Math.max(1, entry.el.offsetWidth),
+        col,
+      };
+    }
+
+    /** Drag a module's edge: its height/width ratio, the same value the slider sets. */
+    _dragRatio(drag, clientY) {
+      const entry = drag.ratioEntry;
+      const mod = entry.model;
+      const raw = drag.fromAbove ? clientY - drag.top : drag.bottom - clientY;
+      const min = this._minHeightOf(mod);
+      const LM = window.IroLayoutModel;
+      const ratio = LM && typeof LM.ratioFromDrag === 'function'
+        ? LM.ratioFromDrag(raw, drag.width, min)
+        : clamp(Math.max(min, raw) / drag.width, 0.05, 2.5);
+      if (ratio === null || mod.ratio === ratio) return;
+      mod.ratio = ratio;
+      mod.weight = null;
+      this._applyModuleWeight(entry.el, mod, this._moduleWeightOpts(drag.col, mod));
+      if (!this._fitFrame) {
+        this._fitFrame = requestAnimationFrame(() => {
+          this._fitFrame = 0;
+          this._fitNaturalWindow();
+        });
+      }
+    }
+
+    /** The last module's bottom edge (a zero-height flex item, like the splitter). */
+    _makeEdge(entry) {
+      const edge = document.createElement('div');
+      edge.className = 'module-edge';
+      edge.title = window.Iro.t('ui.layout.dragResize');
+      let drag = null;
+      const move = (ev) => { if (drag) this._dragRatio(drag, ev.clientY); };
+      const end = () => {
+        if (!drag) return;
+        drag = null;
+        this._moduleEdgeDrag = false;
+        if (this._fitFrame) {
+          cancelAnimationFrame(this._fitFrame);
+          this._fitFrame = 0;
+        }
+        this._fitNaturalWindow();
+        this._save();
+      };
+      edge.addEventListener('pointerdown', (ev) => {
+        if (ev.button !== 0 || this.locked) return;
+        drag = this._ratioDragState(entry, true);
+        this._moduleEdgeDrag = true;
+        try { edge.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
+        ev.preventDefault();
+      });
+      edge.addEventListener('pointermove', move);
+      edge.addEventListener('pointerup', end);
+      edge.addEventListener('pointercancel', end);
+      return edge;
     }
 
     async _mountModule(col, mod, colEl, owns) {
@@ -1099,6 +1207,10 @@
 
       const move = (ev) => {
         if (!drag) return;
+        if (drag.ratioEntry) {
+          this._dragRatio(drag, ev.clientY);
+          return;
+        }
         const dy = ev.clientY - drag.startY;
         // A module whose size comes from its own settings (the slider) is sized
         // by the split's position: its gap changes, and the rest of the column
@@ -1131,6 +1243,16 @@
       };
       split.addEventListener('pointerdown', (ev) => {
         if (ev.button !== 0 || this.locked) return;
+        // A ratio-sized module's own bottom edge is the Module Size slider: drag
+        // it directly. Only a pair with no ratio falls back to trading weights.
+        const ratioEntry = this._ratioOf(aboveEntry.model) ? aboveEntry
+          : (this._ratioOf(belowEntry.model) ? belowEntry : null);
+        if (ratioEntry) {
+          drag = this._ratioDragState(ratioEntry, ratioEntry === aboveEntry);
+          try { split.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
+          ev.preventDefault();
+          return;
+        }
         const colEl = aboveEntry.el.parentElement;
         const cards = [...colEl.children].filter((node) => node.classList.contains('module'));
         const px = cards.reduce((sum, card) => sum + card.offsetHeight, 0);
@@ -1821,7 +1943,7 @@
       this._save();
     }
 
-    /**
+    /** Resize a column or a module by px (the dev flag `--board-size`). */
     resize(id, px) {
       const column = this.columns.get(id);
       if (column) {
@@ -1837,13 +1959,30 @@
       }
       const mod = this.modules.get(id);
       if (mod) {
+        const colEntry = [...this.columns.values()].find((c) => c.el === mod.el.parentElement);
+        const colModel = colEntry && colEntry.model;
+        // A ratio-sized module's height is width x ratio; the dev flag sets the
+        // ratio so it exercises the same path the edge drag and slider use.
+        if (this._ratioOf(mod.model)) {
+          const width = Math.max(1, mod.el.offsetWidth);
+          const LM = window.IroLayoutModel;
+          const ratio = LM && typeof LM.ratioFromDrag === 'function'
+            ? LM.ratioFromDrag(px, width, this._minHeightOf(mod.model))
+            : clamp(px / width, 0.05, 2.5);
+          if (ratio === null) return false;
+          mod.model.ratio = ratio;
+          mod.model.weight = null;
+          this._applyModuleWeight(mod.el, mod.model, this._moduleWeightOpts(colModel, mod.model));
+          this._save();
+          return true;
+        }
         // A settings-sized module (the slider) gets its gap from the size.
         if (this._isUnitSized(mod.model)) {
           this._applyModuleUnit(mod, { height: Math.max(1, Math.round(px)) });
           return true;
         }
         mod.model.weight = Math.max(1, Math.round(px));
-        this._applyModuleWeight(mod.el, mod.model, this._moduleWeightOpts(column && column.model, mod.model));
+        this._applyModuleWeight(mod.el, mod.model, this._moduleWeightOpts(colModel, mod.model));
         this._save();
         return true;
       }

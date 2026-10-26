@@ -128,16 +128,148 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
 - **Slice rotate/flip is display-only.** `slice-view.js` transforms the drawn plot and
   picking applies its exact inverse; the colour maths, cache and recorded values stay
   canonical. A transform that only moves the bitmap but not the picker is a bug.
-  **Projections** (`projection.js`: flat / polar / triangle) follow the same rule —
-  the raster inverts the map per pixel and the picker maps the press forward — and
-  the triangle's apex *moves with the hue* on purpose: it is the cusp frame.
+  **Projections** (`projection.js`: flat / polar / triangle / triangleFixed) follow the
+  same rule — the raster inverts the map per pixel and the picker maps the press
+  forward. The cusp frame keeps the square-mode black-white side and moves its cusp on
+  x = 0.9; Okhsv's fixed frame is the equilateral triangle inscribed in the ring. The
+  Color Wheel's inner view uses the same `SV` transform; its canvas applies flip before
+  rotate, matching `SV.forward()` (the reverse order read the wrong colour).
+- **A slice shows only what it can pick, and a drag pins its plane.** The raster and
+  the pick share `slice-geometry.js#inside` (the working gamut, never a model
+  `dense` shortcut); a pointerdown snapshots the plane's fixed axes so a gamut snap
+  cannot feed a new hue/lightness back into the map. The pointer is a small ring;
+  Color Slices also draws the separate full-width/height crosshair under it. The guide
+  is one thin contour through the selected colour, using the **model's native lightness**
+  (OKLab L for the OK views, HelmGen L for HelmGen, and each future model's own light
+  axis). Shift locks that native value; `lightnessOf`/`applyLightness` solve it, and in a
+  fixed-light plane the chroma axis is solved so the plane does not move. Unreachable
+  target samples are dropped, never drawn along the panel edge; the pointer keeps its last
+  reachable position instead of moving past the contour. **The guide is the contour of the
+  map's own lightness field** (`raster-plane`'s `luma`, extracted by `contour.js` marching
+  squares), not a solved polyline: every point on the line is at the target lightness, and
+  it ends exactly where the painted shape ends. The field carries the model's **own** light
+  in its own units — CIELAB L* (0…100), HelmGen L, and OKLab L for OKHSV/OKHSL/OKHWB
+  (`Models.usesNativeLight` is the one predicate). The Color Disc derives its plane from the
+  model's roles (`planesFor` entry whose fixed axis is the light axis, `disc-map.js#discPlane`)
+  for the guide, the raster and the Shift-lock. **Index the field with its own width and
+  height**, never the current canvas size: the interactive map is native-pixel while the
+  canvas is 2×, and mixing them scrambles the contour into stacked lines. During any gesture (a local
+  drag or a sibling palette's preview stream) the visible Slices rebuild round-robin,
+  one panel per frame at **native device pixels**, with overlays every frame — never a
+  soft or block-filled map, and never a stalled pointer. The budget is measured in the
+  **interactive** build (`src/shared/render-cadence.js#holdFor`): a plane that fits a
+  frame never waits, a heavy one (HelmGen class) is spaced out, and the trailing emit
+  after the gesture rebuilds everything at full (supersampled) quality. Never measure it
+  from the trailing dpr-2 plane — that is ~4× the pixels and it used to mark every model
+  "expensive", freezing the maps for the whole next gesture (the "other slices don't
+  update" report). The plane itself is built by `src/shared/raster-plane.js`, one
+  conversion chain per pixel — the old five-chain loop was what made HelmGen/CIELAB lag.
+  See docs/PERF.md.
+- **Module planes are derived from axis roles, not a global index order.**
+  `color-models.js#planesFor` puts the fixed-hue plane first (`L × C`, `V × S`, …);
+  slice names are the two free channels. A module's height edge writes the same
+  `ratio` as the Module Size slider; a ratio drag also fits the parent window height,
+  and the last module's edge outranks the palette's.
 - **A non-activating window must be *in* the topmost band, or it can never come forward.**
-  The palette and floats are `focusable: false`, so a click does not activate them; if
-  the always-on-top request is dropped the window sits at the bottom for good. Electron
-  on Windows 11 build 26300 (Oct 2026 updates) drops it — `setAlwaysOnTop(true)` leaves
-  `isAlwaysOnTop()` false — so `src/main/topmost.js` falls back to a one-shot
-  `SetWindowPos(HWND_TOPMOST)` (`topmost.ps1`, asar-unpacked) after every show, and is a
-  no-op wherever the runtime did its job.
+  The palette and floats are kept out of the activation path (`WS_EX_NOACTIVATE`), so
+  a click does not activate them; if the always-on-top request is dropped the window
+  sits at the bottom for good. Electron on Windows 11 build 26300 (Oct 2026 updates)
+  drops it — `setAlwaysOnTop(true)` leaves `isAlwaysOnTop()` false — so
+  `src/main/topmost.js` applies both bits with `SetWindowPos`/`SetWindowLong`
+  (`topmost.ps1`, asar-unpacked) after every show and after every press — one
+  long-lived `topmost.ps1 -Watch` process fed on stdin, because a PowerShell spawn per
+  press was slow and its hidden console could flash the foreground. Chromium rewrites
+  the extended style when it tries to activate the window, which drops the topmost bit
+  mid-session (the "palette disappears on click" report), so a 500 ms watchdog repairs
+  it while visible and the press path repairs it at once. `moveTop()` is never used to
+  "put it back": `SetWindowPos(HWND_TOP)` itself removes the topmost band. No-op wherever
+  the runtime did its job.
+- **The wheel's inner shape is keyed on its fixed axis, and its guide is clipped to the
+  shape the projection shows.** Plane 0 is the fixed-hue plane, so its pixels depend on
+  that one axis — keying the raster cache on all three axes rebuilt a HelmGen inner
+  (~a hundred ms per frame) on every lightness drag, which was the "very laggy wheel"
+  report. It builds at native device pixels while a gesture is in flight and back at
+  full supersampling on release, and the lightness guide is clipped to the projection's
+  own `inside` region so it cannot stop in mid-air over the page (the "guide gets cut
+  off" report). The ring's inner band is held for 200 ms while interacting.
+- **The Color Wheel's gap, its bands, and its ring-at-grey.** The inner shape is
+  inscribed in a smaller concentric circle (`geometry().gap`) so it never touches the hue
+  ring; the *two hue bands* meet exactly (`outer - outerW === inner + innerW`) and no
+  separator is drawn between them — they are one ring. A grey has no hue of its own, so a
+  ring drag must *name* the hue anchor (`ColorStore.setLab` takes `{ hue }`) or the store
+  keeps the previous one and the ring cannot turn; at zero chroma `Models.axesFor`
+  converts that anchor with a tiny-chroma probe into the model's own hue units. A ring
+  drag updates the inner slice live: the build is paced by its own measured interactive
+  cost (`Cadence.holdFor`), and the interactive build uses the real device scale (native
+  pixels, not 2×). See docs/PERF.md.
+- **The Color Disc's pointer is the exact inverse of its pick.** `disc-map.js#pointFromAxes`
+  is `chroma / rim` in the *same* frame `axesAt` uses; deriving it from the max-chroma
+  colour at another lightness made it collapse to the centre for some hues. The module is
+  content-sized (`autoHeight`) and its canvas is width-driven with `aspect-ratio: 1`, so
+  the card ends under the footer and the backing store can never be sized from a stale
+  height (the "stretched disc" report). The light row updates the disc live, paced by the
+  measured interactive build. A drag that leaves the disc clamps to the rim; with a
+  locked lightness it projects onto the drawn guide (see the next bullet), never onto a
+  solver branch far from the cursor. The model list is one entry per space
+  — the a/b forms — because the disc draws the polar form, so a space and its LCH twin are
+  the same picture; a saved LCH id resolves to the twin.
+- **The guide is also the pick, but only while the lightness is locked.** A Shift drag
+  projects the pointer onto the drawn guide (`contour.js#nearestOnLines`), unbounded: the
+  guide *is* the set of points at that lightness, and the axis solver brackets from the low
+  end, so on a non-monotone curve it could land on a far branch. Without Shift nothing is
+  projected — an always-on ~6 px magnet made the pointer stick to the line near it, which
+  reads as a soft-lock. The polyline is extracted at every cell (stride 1) and one-cell
+  holes are bridged, or the guide arrives in pieces and cannot be dragged as one path. The
+  Disc keeps the drawn guide in disc coordinates and projects onto the same line. **The
+  contour's target comes from the map's own fixed light** (`off.__fixed` in Slices,
+  `off.__target` in the Disc), never the live colour: a paced or stale map traced at a
+  newer target made the guide flash, jump and miss the pointer (the OKHSV HxS report).
+- **A model dropdown is grouped by family and drawn in the page**
+  (`kernel/model-options.js`): one group per family, in the order OKLab, CIELAB, HelmGen,
+  using the `settings.family.*` labels. It is a button plus an in-page list, **not a
+  native `<select>`**: a select's list is a separate OS window outside our topmost band,
+  so inside a tool window it was drawn *behind* the page. The list renders **in the page
+  flow, after its row** — positioned absolutely it was clipped by the content-fitted
+  popup window and by the Settings tab's column — and both settings hosts re-fit their
+  window with a `ResizeObserver` when the page grows. A module still filters the list to
+  the models it can draw, and the within-family order is the module's own.
+- **A tool window is raised *after* the palette, or the palette buries it.** On this
+  build `isAlwaysOnTop()` reports false, so the band watchdog re-raises the palette every
+  500 ms; a module-settings popout or a Settings window that was only topmost at creation
+  ended up behind it ("clicking the 3 dots does nothing", "the settings window disappears
+  when I switch tabs"). The watchdog now raises the palette and floats first and any
+  visible tool window last, every content resize (`moduleSettings:resize`,
+  `settings:resize`, `applyUiScale`) re-asserts `ensureTopmost`, and the popout's blur
+  close is deferred 150 ms so a transient blur cannot kill it between open and pointer.
+- **A module's `settingsUI` must never blank its popup — in either host.** Two pages
+  render it (`module-settings.html`, and the Settings window's Modules tab), and both
+  `try/catch` it and load every global a settingsUI may touch (`kernel/model-options.js`
+  was missing from both at different times, which emptied every picker's settings).
+  `test/renderer-html.test.js` resolves every page's script tags and pins the helper in
+  both settings hosts.
+- **The RGB-shaped picker models are Ottosson's, computed on the document's own cube.**
+  OKHSV/OKHSL/OKHWB are HSV/HSL/HWB shapes, and those are defined by an RGB cube: S is
+  the distance to the cube's surface. Ottosson's versions are the sRGB-specific ones, so
+  they cannot name a colour outside sRGB. `src/shared/ottosson.js` generalises the
+  formulas — the cusp is found by bisection on the cube's wall (cached per 0.05° of hue),
+  the gamut intersection uses the cube's channel rows, and Okhsl's control points are
+  derived from the boundary — and `model-reference.js` gives it the active matrix/TRC
+  profile's linear RGB. Adobe RGB primaries then measure S ≈ 1.000 (the triangle
+  approximation puts a cube corner a few 1e-4 past the wall; the axis clamps) and
+  round-trip to 1e-6. For a LUT/CMYK proof there is no cube: `gamutRelative` makes S the
+  fraction of the document gamut's chroma limit at that hue and lightness (cached on a
+  1° × 1/96 grid), so every CMYK pick is a colour the document holds. Without a profile
+  the sRGB path is byte-identical (`color-models.js#setReference`), and the maps' cache
+  keys include the reference (`ColorStore#plotKeyTag`). `test/ottosson.test.js` is the
+  gate: on an sRGB cube the generalised Okhsv reproduces `color.js` to 3e-3 (Ottosson's
+  own cusp fit is approximate), the cusp equals the true wall, and Okhsl is monotone and
+  round-trips (its `Cmid` is boundary-derived rather than his sRGB polynomial).
+- **A map must never be cleared before its replacement exists, and never leaves
+  transparent holes.** The Disc used to clear the canvas and return while it waited for
+  its paced rebuild, which flashed white on every lightness change; it now keeps the last
+  image until the new one lands. And a map that is a *shape* (the Disc is a disc, a dense
+  model's plane is total) paints an out-of-gamut pixel as the sRGB stand-in at reduced
+  opacity instead of leaving it transparent — a hole reads as a bite out of the shape.
 - **A snap group's shared edge is a splitter, and group membership is derived.** A
   resize of a touching edge resizes/moves the neighbour so the pair stays flush; the
   graph comes from the document's `snap`/`snapTo`, never a parallel map. The drag
@@ -181,9 +313,14 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   lose each other's layout change. Reads and writes go through the service (the old
   store, `board-store.js`, is gone); the v1 view in `layout-view.js` is
   transitional and shrinks as each interaction becomes an intent.
-- **The window is non-activating** (`focusable: false`) so clicking the palette
-  never steals focus from CSP. Text fields temporarily enable focus; both hide
-  paths ignore the resulting blur/foreground change for ~900 ms.
+- **The window must never take focus from CSP, and must still take clicks.** Windows 11
+  build 26300 drops the button-down for a window Chromium considers *non-activatable*:
+  moves and releases still arrive, so the palette paints and follows CSP but cannot be
+  clicked or dragged. The palette and floats are therefore created activatable
+  (`focusable: true`, so Chromium delivers the press) and kept out of the activation
+  path natively (`WS_EX_NOACTIVATE` via `src/main/topmost.js`); a text field drops that
+  bit while editing so it can take keyboard focus, and both hide paths ignore the
+  resulting blur/foreground change for ~900 ms.
 - **The UI scale zooms the web contents; both windows grow with it.** Keep a
   CSS-pixel layout size × the scale (so the remembered size does not compound),
   re-apply `setZoomFactor` on `did-finish-load` (Electron drops an early one),
@@ -237,7 +374,7 @@ app can run side by side.
 
 ## How to verify a change
 
-1. `npm test` (82 test files, 592 tests; protocol, colour, proof, layout, state, release-notes and i18n layers).
+1. `npm test` (the full `node:test` suite; protocol, colour, proof, layout, state, release-notes and i18n layers).
 2. A `--shot` at 260 px and at 200 px; check the dumped JSON and the image.
 3. When it touches the connection or writes: a live check against CSP. Remember
    only one controller can connect, so quit the app first if you use the probe.

@@ -22,9 +22,17 @@
 
   <script src="../shared/color.js"></script>
   <script src="vendor/helmlab/helmlab.umd.js"></script>
-<script src="../shared/color-models.js"></script>
-<script src="../shared/slider-gamut.js"></script>
+  <script src="../shared/color-models.js"></script>
+<script src="../shared/ottosson.js"></script>
+<script src="../shared/model-reference.js"></script>
+  <script src="../shared/raster-plane.js"></script>
+  <script src="../shared/contour.js"></script>
+  <script src="../shared/render-cadence.js"></script>
+  <script src="../shared/disc-map.js"></script>
+  <script src="../shared/slider-gamut.js"></script>
 <script src="../shared/slice-view.js"></script>
+<script src="../shared/slice-geometry.js"></script>
+<script src="../shared/picker-overlay.js"></script>
 <script src="../shared/projection.js"></script>
 <script src="../shared/shortcut-match.js"></script>
   <script src="../shared/i18n.js"></script>
@@ -32,9 +40,13 @@
 <script src="../shared/proof.js"></script>
   <script src="../shared/module-manifest.js"></script>
   <script src="../shared/theme-tokens.js"></script>
-<script src="kernel/themes.js"></script>
+  <script src="kernel/themes.js"></script>
   <script src="kernel/settings-transfer.js"></script>
   <script src="kernel/i18n.js"></script>
+  <!-- A module's settingsUI builds its model list through the same grouped helper the
+       palette uses; without it the whole settings section throws and the popup opens
+       empty (the "module settings disappeared" report). -->
+  <script src="kernel/model-options.js"></script>
 <script src="module-settings.js"></script>
 </body>
 </html>

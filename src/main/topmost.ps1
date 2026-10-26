@@ -1,29 +1,74 @@
 param(
-  [Parameter(Mandatory = $true)][string]$Hwnd
+  [Parameter(Mandatory = $true)][string]$Hwnd,
+  [int]$NoActivate = 1,
+  [int]$Topmost = 1,
+  [int]$Watch = 0
 )
 
-# Put one of our windows into the WS_EX_TOPMOST band, without moving, resizing or
-# activating it.
+# Apply the two window bits a non-activating palette needs, in one native call:
 #
-# Why this exists: on some Windows 11 builds (seen on 10.0.26300 after the
-# 21 Oct 2026 updates) Chromium's own always-on-top request never reaches
-# SetWindowPos — `win.setAlwaysOnTop(true)` leaves `isAlwaysOnTop()` false and the
-# window sits at the bottom of the z-order, which for a non-activating palette
-# looks like "it is stuck behind everything". A direct SetWindowPos still works,
-# so main calls this as a fallback (src/main/topmost.js) only when the runtime
-# says the window is not on top.
+#   WS_EX_NOACTIVATE  the window never takes the foreground, so clicking the
+#                     palette leaves Clip Studio Paint focused;
+#   WS_EX_TOPMOST     it floats above Clip Studio Paint.
+#
+# Why this exists at all: on Windows 11 build 26300 (the Oct 2026 updates) the
+# runtime drops Chromium's own always-on-top request *and* — the second half of the
+# same breakage — a click on a window Chromium considers non-activatable never
+# reaches the page (moves and releases do; only the press is lost). The palette is
+# therefore created activatable (Electron `focusable: true`, so Chromium delivers
+# the press) and kept out of the activation path with WS_EX_NOACTIVATE instead of
+# with `focusable: false`.
+#
+# Chromium rewrites the extended style when it tries to activate the window on a
+# click, which drops the topmost bit; so src/main/topmost.js re-applies the band
+# after every show and after every press. With `-Watch` this script stays alive and
+# applies one `hwnd|noActivate|topmost` line from stdin at a time, because spawning
+# a PowerShell per press was both slow and a way for its hidden console to flash the
+# foreground (which made the auto-hide watcher hide the palette).
 
 Add-Type -Language CSharp @'
 using System;
 using System.Runtime.InteropServices;
-public class IroTopmost {
+public class IroBand {
+  [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+  public static extern IntPtr GetWindowLongPtr(IntPtr h, int i);
+  [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+  public static extern IntPtr SetWindowLongPtr(IntPtr h, int i, IntPtr v);
   [DllImport("user32.dll")]
   public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);
-  public static bool Raise(long hwnd) {
-    // HWND_TOPMOST (-1); SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
-    return SetWindowPos(new IntPtr(hwnd), new IntPtr(-1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010);
+
+  const int GWL_EXSTYLE = -20;
+  const long WS_EX_TOPMOST = 0x8;
+  const long WS_EX_NOACTIVATE = 0x08000000;
+  // HWND_TOPMOST(-1) / HWND_NOTOPMOST(-2) as the insert-after handle.
+  // SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE — no SWP_FRAMECHANGED: a frame recalc
+  // on every band call is what made the palette flash when a press repaired the band.
+  const uint FLAGS = 0x0001 | 0x0002 | 0x0010;
+
+  public static bool Apply(long hwnd, bool noActivate, bool topmost) {
+    IntPtr h = new IntPtr(hwnd);
+    if (h == IntPtr.Zero) return false;
+    long ex = GetWindowLongPtr(h, GWL_EXSTYLE).ToInt64();
+    long want = ex;
+    if (noActivate) want |= WS_EX_NOACTIVATE;
+    else want &= ~WS_EX_NOACTIVATE;
+    if (topmost) want |= WS_EX_TOPMOST;
+    else want &= ~WS_EX_TOPMOST;
+    if (want != ex) SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(want));
+    return SetWindowPos(h, new IntPtr(topmost ? -1 : -2), 0, 0, 0, 0, FLAGS);
   }
 }
 '@
 
-[void][IroTopmost]::Raise([long]$Hwnd)
+if ($Watch -ne 0) {
+  # One line per request: <hwnd>|<noActivate>|<topmost>. The parent writes to our
+  # stdin and never waits; when it closes stdin we exit.
+  $reader = [Console]::In
+  while ($null -ne ($line = $reader.ReadLine())) {
+    $parts = $line.Trim().Split('|')
+    if ($parts.Length -lt 3) { continue }
+    [void][IroBand]::Apply([long]$parts[0], ($parts[1] -ne '0'), ($parts[2] -ne '0'))
+  }
+} else {
+  [void][IroBand]::Apply([long]$Hwnd, ($NoActivate -ne 0), ($Topmost -ne 0))
+}

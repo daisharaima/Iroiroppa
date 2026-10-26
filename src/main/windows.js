@@ -8,13 +8,14 @@
 const path = require('node:path');
 const { app, BrowserWindow, Tray, Menu, screen, nativeImage, globalShortcut } = require('electron');
 const { resolveWindowBounds } = require('./window-bounds');
+const { attachRendererRecovery } = require('./renderer-recovery');
 const { ForegroundWatcher } = require('./foreground');
 const { focusAction } = require('./focus-policy');
 const { overlayBounds } = require('./overlay-bounds');
 const { menuBox } = require('./overlay-menu-box');
 const { drawIcon, rgbaToBgra } = require('../shared/icon-art');
 const { sendTo } = require('./broadcast');
-const { ensureTopmost } = require('./topmost');
+const { ensureBand, ensureTopmost } = require('./topmost');
 
 const SETTINGS_WIDTH = 360;
 
@@ -26,6 +27,61 @@ function createWindows(ctx) {
    * a no-op once the window reports itself on top.
    */
   const raiseTopmost = (win) => { ensureTopmost(win).catch(() => {}); };
+  // The palette/float band: topmost *and* out of the activation path (topmost.js).
+  const raiseBand = (win) => { ensureBand(win, { noActivate: true }).catch(() => {}); };
+
+  // --- the band watchdog + visibility trace ----------------------------------
+
+  let bandTimer = null;
+
+  /**
+   * Chromium rewrites a window's extended style when it tries to activate it on a
+   * click, which drops WS_EX_TOPMOST; the press path repairs that at once, and this
+   * half-second check catches any other drop (a show, a DPI change, a runtime
+   * hiccup). Without it a palette that left the topmost band stayed behind another
+   * always-on-top tool until the next show — the "randomly disappears" report.
+   */
+  function startBandWatch() {
+    if (bandTimer) return;
+    bandTimer = setInterval(() => {
+      const wins = [];
+      if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.isVisible()) wins.push(ctx.popup);
+      for (const win of (ctx.floatWins ? ctx.floatWins.values() : [])) {
+        if (win && !win.isDestroyed() && win.isVisible()) wins.push(win);
+      }
+      for (const win of wins) raiseBand(win);
+      // Our own tool windows are raised *last*, so pressing the palette cannot bury
+      // them: on this build `isAlwaysOnTop()` lies, the palette is re-raised here every
+      // half second, and a popout that was not re-asserted ended up behind it
+      // ("clicking the 3 dots does nothing", "the settings window disappears").
+      for (const tool of [ctx.moduleSettingsWin, ctx.settingsWin]) {
+        if (tool && !tool.isDestroyed() && tool.isVisible()) raiseTopmost(tool);
+      }
+      if (!wins.length) stopBandWatch();
+    }, 500);
+    if (bandTimer.unref) bandTimer.unref();
+  }
+
+  function stopBandWatch() {
+    if (!bandTimer) return;
+    clearInterval(bandTimer);
+    bandTimer = null;
+  }
+
+  /** `--trace-input`: record every visibility change with its reason, so a
+   *  "disappeared" report can be told apart from one that was only covered. */
+  function traceVisibility(action) {
+    if (!ctx.traceInput) return;
+    try {
+      ctx.traceInput({
+        type: 'visibility',
+        action,
+        visible: Boolean(ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.isVisible()),
+        foreground: ctx.fgName || '',
+        autoHide: ctx.settings.get().autoHide !== false,
+      });
+    } catch { /* tracing only */ }
+  }
 // --- window -----------------------------------------------------------------
 
 // Auto-hide diagnostics (`--trace-focus`): the foreground stream, the decision,
@@ -85,7 +141,11 @@ function createPopup() {
     minHeight: 340,
     // A non-activating window: clicking the palette must not take focus away
     // from Clip Studio Paint. Text fields re-enable focus while editing.
-    focusable: false,
+    // Activatable on purpose: on Windows 26300 a press on a window Chromium
+    // considers non-activatable never reaches the page (only the move and the
+    // release do). The window is kept out of the activation path natively instead
+    // — WS_EX_NOACTIVATE from topmost.ps1 — so a click still leaves CSP focused.
+    focusable: true,
     maximizable: false,
     minimizable: false,
     fullscreenable: false,
@@ -96,12 +156,14 @@ function createPopup() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
       additionalArguments: [...(ctx.windowArgs || []), '--palette-id=' + (ctx.primaryPaletteId() || '')],
       sandbox: false,
     },
   });
 
   ctx.popup.setAlwaysOnTop(true, 'floating');
+  attachRendererRecovery(ctx.popup, 'palette');
   ctx.popup.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   // Electron drops a zoom applied before the page loads; re-apply it once loaded.
   ctx.popup.webContents.on('did-finish-load', () => applyZoom(ctx.popup));
@@ -326,14 +388,20 @@ function createSettingsWindow() {
  * clicking it does not pull focus away from Clip Studio Paint.
  */
 function showPopup() {
+  resetInputState();
   if (!ctx.popup) createPopup();
+  if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.webContents.isCrashed()) {
+    try { ctx.popup.webContents.reload(); } catch { /* recovery already scheduled */ }
+  }
   // Position only the first time; afterwards remember where the user put it.
   if (!ctx.hasPositioned) {
     positionPopup();
     ctx.hasPositioned = true;
   }
   if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.showInactive();
-  raiseTopmost(ctx.popup);
+  raiseBand(ctx.popup);
+  startBandWatch();
+  traceVisibility('show');
   ctx.showFloats(true);
   if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.showInactive();
   raiseTopmost(ctx.settingsWin);
@@ -343,14 +411,20 @@ function showPopup() {
 
 /** Show without marking as a manual show (used by focus-follow). */
 function showPopupAuto() {
+  resetInputState();
   if (!ctx.popup) createPopup();
+  if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.webContents.isCrashed()) {
+    try { ctx.popup.webContents.reload(); } catch { /* recovery already scheduled */ }
+  }
   // Keep wherever the user last put it; only place it the first time.
   if (!ctx.hasPositioned) {
     positionPopup();
     ctx.hasPositioned = true;
   }
   if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.showInactive();
-  raiseTopmost(ctx.popup);
+  raiseBand(ctx.popup);
+  startBandWatch();
+  traceVisibility('show');
   ctx.showFloats(true);
   if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.showInactive();
   raiseTopmost(ctx.settingsWin);
@@ -360,10 +434,13 @@ function showPopupAuto() {
 function hidePopup() {
   // The palette menu is drawn by the overlay: it must not outlive the palette.
   closeOverlayMenu();
+  closeModuleSettingsWindow();
   ctx.showFloats(false);
   // The Settings window goes away with the palette and returns with it.
   if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.hide();
   if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.hide();
+  stopBandWatch();
+  traceVisibility('hide');
 }
 
 /**
@@ -384,6 +461,90 @@ function positionPopup() {
 function togglePopup() {
   if (ctx.popup && ctx.popup.isVisible()) hidePopup();
   else showPopup();
+}
+
+/**
+ * Clear every transient input owner before showing the palette: a menu, the
+ * module-settings popout, or a pointer capture left over from a drag can
+ * otherwise swallow the next click. This is deliberately separate from colour
+ * state; it only restores the input layer.
+ */
+function resetInputState() {
+  closeOverlayMenu();
+  hideOverlay();
+  closeModuleSettingsWindow();
+  const wins = [];
+  if (ctx.popup && !ctx.popup.isDestroyed()) wins.push(ctx.popup);
+  for (const win of (ctx.floatWins ? ctx.floatWins.values() : [])) {
+    if (win && !win.isDestroyed()) wins.push(win);
+  }
+  for (const win of wins) {
+    try { win.setEnabled(true); } catch { /* closing */ }
+    // The band is re-applied on every show: the window may have been hidden and
+    // re-shown, and Chromium drops the topmost bit when it rewrites the style.
+    raiseBand(win);
+    sendTo(win, 'input:reset');
+  }
+  if (process.argv.includes('--trace-input') || ctx.traceInput) {
+    for (const win of wins) {
+      try {
+        if (ctx.traceInput) {
+          ctx.traceInput({
+            type: 'window',
+            label: win === ctx.popup ? 'palette' : 'float',
+            visible: win.isVisible(),
+            focused: win.isFocused(),
+            enabled: win.isEnabled(),
+            focusable: win.isFocusable(),
+            alwaysOnTop: win.isAlwaysOnTop(),
+            bounds: win.getBounds(),
+          });
+        }
+      } catch { /* closing */ }
+    }
+    console.log('[input] reset', { windows: wins.length, overlay: Boolean(ctx.overlayWin && !ctx.overlayWin.isDestroyed()) });
+  }
+}
+
+// --- the native band (topmost + non-activating) -------------------------------
+
+/**
+ * Repair the band after a press. Chromium rewrites the window's extended style when
+ * it tries to activate on a click, and that drops WS_EX_TOPMOST — the palette then
+ * sits behind any other topmost window until the next show (the "it disappears"
+ * report). The repair goes through the long-lived helper (topmost.js), so it costs a
+ * few microseconds: no PowerShell spawn, no foreground flash, no frame recalc.
+ * `moveTop()` is never used here — SetWindowPos(HWND_TOP) itself removes the
+ * topmost bit.
+ */
+function reassertBand(webContents) {
+  const wins = [];
+  if (ctx.popup && !ctx.popup.isDestroyed()) wins.push(ctx.popup);
+  for (const win of (ctx.floatWins ? ctx.floatWins.values() : [])) {
+    if (win && !win.isDestroyed()) wins.push(win);
+  }
+  for (const win of wins) {
+    // Only for the window that sent the press: a privileged channel acts for a live
+    // window it resolves, never for a window id from the payload.
+    if (webContents && win.webContents !== webContents) continue;
+    raiseBand(win);
+  }
+}
+
+/**
+ * A text field needs real keyboard focus, which a WS_EX_NOACTIVATE window can never
+ * take. Drop the native bit while the field is open (`on`) and restore it after, so
+ * the palette is non-activating again as soon as editing ends.
+ */
+async function setPaletteEditable(on) {
+  if (!ctx.popup || ctx.popup.isDestroyed()) return;
+  // Toggling the band can deactivate the window; ignore that blur.
+  ctx.focusGraceUntil = Date.now() + 900;
+  forgetBand(ctx.popup);
+  await ensureBand(ctx.popup, { noActivate: !on, topmost: true }).catch(() => {});
+  if (on && ctx.popup && !ctx.popup.isDestroyed()) {
+    try { ctx.popup.focus(); } catch { /* closing */ }
+  }
 }
 
 // --- the summon hotkey -------------------------------------------------------
@@ -531,7 +692,9 @@ function applyUiScale() {
     }
     const [, h] = ctx.settingsWin.getContentSize();
     ctx.settingsWin.setContentSize(Math.round(cssW * scale), Math.max(1, Math.round(h)));
+    raiseTopmost(ctx.settingsWin);
   }
+  if (ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed()) raiseTopmost(ctx.moduleSettingsWin);
 }
 
 /** Keep the Settings window's OS background in step with the theme. */
@@ -692,8 +855,12 @@ function showOverlayMenu(sender, spec = {}) {
   // the rest; the CSS completes the fix by refusing to shrink the rows.
   const items = Array.isArray(spec.items) ? spec.items.slice(0, 200) : [];
   if (!items.length) return;
-  const win = ensureOverlayWin();
   const anchor = spec.anchor || { x: 0, y: 0 };
+  if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) {
+    closeOverlayMenu();
+    return;
+  }
+  const win = ensureOverlayWin();
   const display = screen.getDisplayNearestPoint({ x: Math.round(anchor.x), y: Math.round(anchor.y) });
   const area = display.workArea;
   const box = menuBox({
@@ -826,6 +993,9 @@ function openModuleSettingsWindow(spec = {}) {
     if (!win.isDestroyed()) {
       applyZoom(win);
       win.show();
+      // The runtime's always-on-top request is dropped on this build, so the popout
+      // would open under the palette: assert the band now, and again on every resize.
+      raiseTopmost(win);
       win.focus();
     }
   });
@@ -834,7 +1004,19 @@ function openModuleSettingsWindow(spec = {}) {
       console.log('[module-settings]', message ?? (_e && _e.message));
     });
   }
-  win.on('blur', () => { if (ctx.moduleSettingsWin === win) closeModuleSettingsWindow(); });
+  // Close when the user really clicks away, but not on the transient blur a palette
+  // band repair can cause: an instant close made the popup look like it never opened.
+  let blurTimer = null;
+  win.on('blur', () => {
+    if (blurTimer) clearTimeout(blurTimer);
+    blurTimer = setTimeout(() => {
+      blurTimer = null;
+      if (ctx.moduleSettingsWin === win) closeModuleSettingsWindow();
+    }, 150);
+  });
+  win.on('focus', () => {
+    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
+  });
   win.on('closed', () => { if (ctx.moduleSettingsWin === win) ctx.moduleSettingsWin = null; });
   return true;
 }
@@ -1058,8 +1240,7 @@ function refreshTray() {
 }
 
   return {
-    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),
-    createPopup, createSettingsWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayMenu, closeOverlayMenu, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
+    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, resetInputState, reassertBand, reassertTopmost: raiseTopmost, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayMenu, closeOverlayMenu, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
   };
 }
 

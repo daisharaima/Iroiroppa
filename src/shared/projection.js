@@ -67,70 +67,103 @@
     },
   };
 
-  // The panel corners of the cusp frame, in normalized panel coordinates.
-  const TRI_K = { x: 0.10, y: 0.90 }; // black
-  const TRI_W = { x: 0.10, y: 0.10 }; // white
+  // The cusp frame's black/white side is the square mode's left edge: the two
+  // left corners of the inscribed square (both on the ring's inner circle). The
+  // moving cusp slides on the vertical line x = 0.9, so every hue's apex shares
+  // that line while the black-white side stays put.
+  const TRI_K = { x: 0.1464466094, y: 0.8535533906 }; // black, bottom-left
+  const TRI_W = { x: 0.1464466094, y: 0.1464466094 }; // white, top-left
   const TRI_APEX_X = 0.90; // the cusp; its height follows the cusp's lightness
-
+  // Okhsv's fixed triangle is equilateral and inscribed in the ring: all three
+  // corners are on the circle, so its black/white side is that triangle's base
+  // (not the square mode's edge; the user asked for square parity on Okhsl).
+  const TRI_FIXED_K = { x: 0.25, y: 0.9330127019 };
+  const TRI_FIXED_W = { x: 0.25, y: 0.0669872981 };
+  const TRI_FIXED_APEX = { x: 1, y: 0.5 };
   /**
-   * The cusp frame for one slice. `cusp` is the slice-space point
-   * `{ a, b }` (a 0..1 along the horizontal/lightness axis, b 0..1 normalized
-   * chroma). Returns null when the cusp is degenerate (a slice with no chroma
-   * anywhere), so the caller can fall back to `flat`.
+   * The cusp frame: the whole (lightness x chroma) square is mapped onto the
+   * triangle black -> white -> cusp, so no colour is lost and the cusp always
+   * sits at the apex. `cusp` is the slice-space point `{ a, b }` (a 0..1 along
+   * the horizontal/lightness axis, b 0..1 normalized chroma).
+   *
+   * The grey axis is `G(v) = (1-v)K + vW`; the s = 1 boundary is
+   * `B(v) = K + (v/ac)(A-K)` below the cusp and `A + ((v-ac)/(1-ac))(W-A)` above;
+   * a point is `P(v,s) = G(v) + s(B(v)-G(v))`. Returns null when the cusp is
+   * degenerate, so the caller can fall back to `flat`.
    */
   function triangle(cusp) {
     if (!cusp) return null;
     const ac = clamp01(cusp.a);
     const bc = clamp01(cusp.b);
     if (!(bc > 1e-3)) return null;
-    const apex = { x: TRI_APEX_X, y: TRI_K.y - 0.8 * ac };
-    const e1 = { x: TRI_W.x - TRI_K.x, y: TRI_W.y - TRI_K.y };
-    const e2 = { x: apex.x - TRI_K.x, y: apex.y - TRI_K.y };
-    const det = e1.x * e2.y - e1.y * e2.x; // 0.64 for the fixed corners above
-    if (!det) return null;
+    const a = Math.min(0.999, Math.max(0.001, ac)); // keep the pieces non-singular
+    const K = TRI_K;
+    const W = TRI_W;
+    const apex = { x: TRI_APEX_X, y: K.y + (W.y - K.y) * a };
+    const gx = W.x - K.x, gy = W.y - K.y;
+    const ax = apex.x - K.x, ay = apex.y - K.y;
+    const wx = W.x - apex.x, wy = W.y - apex.y;
+    const p = (v, s) => {
+      const gxp = K.x + v * gx, gyp = K.y + v * gy;
+      let bxp, byp;
+      if (v <= a) {
+        const t = v / a;
+        bxp = K.x + t * ax; byp = K.y + t * ay;
+      } else {
+        const t = (v - a) / (1 - a);
+        bxp = apex.x + t * wx; byp = apex.y + t * wy;
+      }
+      return { x: gxp + s * (bxp - gxp), y: gyp + s * (byp - gyp) };
+    };
     return {
       id: 'triangle',
       cusp: { a: ac, b: bc },
-      toScreen(a, b) {
-        // Express the slice point in the frame's basis: along black->white (alpha)
-        // and black->cusp (beta). The whole slice is drawn; the canvas clips.
-        const beta = b / bc;
-        const alpha = a - beta * ac;
-        return {
-          x: TRI_K.x + alpha * e1.x + beta * e2.x,
-          y: TRI_K.y + alpha * e1.y + beta * e2.y,
-        };
+      toScreen(u, v) {
+        return p(clamp01(u), clamp01(v));
       },
       fromScreen(x, y) {
-        const dx = x - TRI_K.x;
-        const dy = y - TRI_K.y;
-        const alpha = (dx * e2.y - dy * e2.x) / det;
-        const beta = (e1.x * dy - e1.y * dx) / det;
-        // Raw slice coordinates: the raster rejects anything outside 0..1 (so the
-        // canvas outside the slice stays clear) and a pick clamps instead.
-        return { u: alpha + beta * ac, v: beta * bc };
+        // Barycentric weights (white, cusp, black) of the triangle.
+        const dx = x - K.x, dy = y - K.y;
+        const det = gx * ay - gy * ax;
+        if (!det) return null;
+        const wW = (dx * ay - dy * ax) / det;
+        const wA = (gx * dy - gy * dx) / det;
+        const wK = 1 - wW - wA;
+        const inside = wW >= -1e-9 && wA >= -1e-9 && wK >= -1e-9;
+        // Piece 1 (v <= a): v = wW + wA*a, s = wA*a / v.
+        const v1 = wW + wA * a;
+        const s1 = v1 > 1e-9 ? (wA * a) / v1 : 0;
+        if (v1 >= -1e-9 && v1 <= a + 1e-9 && s1 >= -1e-9 && s1 <= 1 + 1e-9) {
+          return { u: clamp01(v1), v: clamp01(s1), inside };
+        }
+        // Piece 2 (v >= a): q = 1 - wA - wK/(1-a), v = a + q(1-a), s = wA/(1-q).
+        const q = 1 - wA - wK / (1 - a);
+        const v2 = a + q * (1 - a);
+        const s2 = 1 - q > 1e-9 ? wA / (1 - q) : 1;
+        return { u: clamp01(v2), v: clamp01(s2), inside };
       },
     };
   }
 
-  // The vertices of the fixed (barycentric) triangle: the saturated corner never
-  // moves, because in Okhsv/Okhsl the slice square *is* the gamut — its s = 1 edge
-  // is the hue's own boundary, so no cusp has to be found. This is the classic
-  // picker: white top-left, black bottom-left, pure hue on the right.
-  const FIXED_APEX = { x: 0.90, y: 0.50 };
+  // The fixed (barycentric) triangle: the saturated corner never moves, because
+  // in Okhsv the slice square *is* the gamut. Its vertices are the largest
+  // equilateral triangle inscribed in the ring's inner circle, so all three
+  // corners touch it.
+  const FIXED_APEX = TRI_FIXED_APEX;
 
   /**
-   * The fixed triangle: (u, v) = (lightness/value, saturation) mapped by barycentric
-   * weights onto white, black and the pure-hue corner. `u` is the slice's horizontal
-   * axis and `v` its vertical one (the same convention as `triangle`). The inverse
-   * returns raw u/v, so the raster rejects anything off the slice and a pick clamps.
+   * The fixed triangle: (u, v) = (lightness/value, saturation) mapped by
+   * barycentric weights onto white, black and the pure-hue corner. `vertices`
+   * is optional ({K,W,A}) so a caller can seat the frame wherever it needs;
+   * the default is the ring's inscribed triangle.
    */
-  function triangleFixed() {
-    const W = TRI_W;
-    const K = TRI_K;
-    const S = FIXED_APEX;
+  function triangleFixed(vertices) {
+    const W = (vertices && vertices.W) || TRI_FIXED_W;
+    const K = (vertices && vertices.K) || TRI_FIXED_K;
+    const S = (vertices && vertices.A) || FIXED_APEX;
     return {
       id: 'triangle-fixed',
+      vertices: { K, W, A: S },
       toScreen(u, v) {
         const sat = clamp01(v);
         const val = clamp01(u);
@@ -152,7 +185,8 @@
         const wW = (dx * e2.y - dy * e2.x) / det;
         const wS = (e1.x * dy - e1.y * dx) / det;
         const u = wW + wS;
-        return { u, v: u > 1e-9 ? wS / u : 0 };
+        const inside = wW >= -1e-9 && wS >= -1e-9 && 1 - wW - wS >= -1e-9;
+        return { u: clamp01(u), v: u > 1e-9 ? clamp01(wS / u) : clamp01(wS), inside };
       },
     };
   }
@@ -195,6 +229,51 @@
 
   const byId = { flat, polar, triangle, triangleFixed };
 
+  /** Nearest point on a triangle (or the point itself when inside) in screen space. */
+  function nearestOnTriangle(verts, x, y) {
+    const [a, b, c] = verts;
+    const side = (p1, p2) => (x - p2.x) * (p1.y - p2.y) - (p1.x - p2.x) * (y - p2.y);
+    const d1 = side(a, b);
+    const d2 = side(b, c);
+    const d3 = side(c, a);
+    const hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+    const hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+    if (!(hasNeg && hasPos)) return { x, y };
+    let best = { x, y };
+    let bestD = Infinity;
+    for (const [p, q] of [[a, b], [b, c], [c, a]]) {
+      const dx = q.x - p.x;
+      const dy = q.y - p.y;
+      const len2 = dx * dx + dy * dy;
+      const t = len2 > 0 ? clamp01(((x - p.x) * dx + (y - p.y) * dy) / len2) : 0;
+      const px = p.x + t * dx;
+      const py = p.y + t * dy;
+      const d = (px - x) * (px - x) + (py - y) * (py - y);
+      if (d < bestD) { bestD = d; best = { x: px, y: py }; }
+    }
+    return best;
+  }
+
+  /**
+   * The (u,v) a drag should pick for a screen point, kept inside the shape the
+   * projection draws. Outside a triangle the affine inverse clamps its own axes, which
+   * slides the pointer along one edge; the nearest in-shape point follows the cursor in
+   * both axes instead.
+   */
+  function pickInside(proj, x, y) {
+    const fallback = { u: clamp01(x), v: clamp01(1 - y), inside: false };
+    if (!proj || typeof proj.fromScreen !== 'function') return fallback;
+    const hit = proj.fromScreen(x, y);
+    if (hit && hit.inside) return hit;
+    if (typeof proj.toScreen === 'function') {
+      const tri = [[0, 0], [1, 0], [1, 1]].map(([u, v]) => proj.toScreen(u, v));
+      const q = nearestOnTriangle(tri, x, y);
+      const back = proj.fromScreen(q.x, q.y);
+      if (back) return { u: clamp01(back.u), v: clamp01(back.v), inside: false };
+    }
+    return hit ? { ...hit, inside: false } : fallback;
+  }
+
   /**
    * Canvas-normalized -> the square a geometric projection lives in (a disc must
    * be a circle, not an ellipse). `aspect` is width / height; outside the square
@@ -213,5 +292,5 @@
     return { x, y: (y - 0.5) * a + 0.5 };
   }
 
-  return { PROJECTIONS, supports, flat, polar, triangle, triangleFixed, findCusp, byId, boxCoords, panelCoords, TRI_K, TRI_W };
+  return { PROJECTIONS, supports, flat, polar, triangle, triangleFixed, findCusp, byId, pickInside, boxCoords, panelCoords, TRI_K, TRI_W, TRI_APEX_X, TRI_FIXED_K, TRI_FIXED_W, TRI_FIXED_APEX };
 });

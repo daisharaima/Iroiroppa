@@ -164,3 +164,17 @@ test('fitToSrgb keeps the lightness of a colour outside sRGB', () => {
   assert.ok(Math.abs(back.C - Color.reduceChroma(L, C, H)) < 1e-6, 'chroma lands on the sRGB edge');
   assert.ok(Color.inGamut(back.L, back.C, back.H), 'the stand-in is displayable');
 });
+
+test('a fixed-lightness hue edge is continuous at the sRGB blue primary', () => {
+  // The wheel's hue ring uses this edge. The OKHSV S=1/V=1 path instead follows
+  // the blue fin and jumps (green 61 -> 0) in a fraction of a degree.
+  let prev = null;
+  let maxStep = 0;
+  for (let h = 250; h <= 290; h += 0.25) {
+    const C = Color.maxChroma(0.7, h);
+    const rgb = Color.oklchToRgb(0.7, C, h);
+    if (prev) maxStep = Math.max(maxStep, Math.hypot(rgb.r - prev.r, rgb.g - prev.g, rgb.b - prev.b));
+    prev = rgb;
+  }
+  assert.ok(maxStep < 0.1, `blue edge step ${maxStep.toFixed(3)} is a seam`);
+});

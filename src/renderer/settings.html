@@ -103,6 +103,17 @@
         </button>
         <div id="set-profile-list" class="profile-list settings-profile-list"></div>
 
+        <div class="section-title" data-i18n="settings.section.cspData">CSP data folder</div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.cspDataDir">Clip Studio Paint's settings folder<span class="info" title="The CSP Shortcuts module reads its shortcut and workspace files from here. Usually Documents\CELSYS (the folder that contains CLIPStudioPaintVer…); Auto uses the default location. A different Documents folder (OneDrive, a moved profile) is the usual reason the module finds nothing.">i</span></span>
+          <span class="row-actions">
+            <button id="btn-csp-browse" class="btn" data-i18n="settings.cspData.browse">Browse…</button>
+            <button id="btn-csp-auto" class="btn" data-i18n="settings.cspData.auto">Auto</button>
+          </span>
+        </div>
+        <div id="set-csp-path" class="text-input csp-path" role="status"></div>
+        <div id="set-csp-state" class="hint"></div>
+
         <div class="section-title" data-i18n="settings.section.settingsFile">Settings file</div>
         <div class="row">
           <span class="row-label" data-i18n-lead="settings.row.settingsFile">Back up or move your preferences<span class="info" title="Export writes settings.json to a JSON file; Import merges a previously exported file.">i</span></span>
@@ -128,6 +139,15 @@
         <div class="row">
           <span class="row-label" data-i18n-lead="settings.row.crosshair">Show crosshair guides<span class="info" title="Draw the crosshair and guide lines over the colour maps.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-cross" /><span class="tgl-track"></span></label>
+        </div>
+        <div class="row">
+          <span class="row-label" data-i18n-lead="settings.row.viewFamily">Color model family<span class="info" title="Limit the model lists in every picker to one family. All still uses the canonical OKLab value internally.">i</span></span>
+          <select id="set-view-family" class="select" data-i18n-aria-label="settings.row.viewFamily">
+            <option value="all" data-i18n="settings.family.all">All</option>
+            <option value="oklab" data-i18n="settings.family.oklab">OKLab</option>
+            <option value="cielab" data-i18n="settings.family.cielab">CIELAB</option>
+            <option value="helmgen" data-i18n="settings.family.helmgen">HelmGen</option>
+          </select>
         </div>
         <div class="row">
           <span class="row-label" data-i18n-lead="settings.row.uiScale">UI scale<span class="info" title="Scale the whole interface between 80% and 160%.">i</span></span>
@@ -209,8 +229,16 @@
   <script src="../shared/color.js"></script>
   <script src="vendor/helmlab/helmlab.umd.js"></script>
 <script src="../shared/color-models.js"></script>
+<script src="../shared/ottosson.js"></script>
+<script src="../shared/model-reference.js"></script>
+<script src="../shared/raster-plane.js"></script>
+<script src="../shared/contour.js"></script>
+<script src="../shared/render-cadence.js"></script>
+<script src="../shared/disc-map.js"></script>
 <script src="../shared/slider-gamut.js"></script>
 <script src="../shared/slice-view.js"></script>
+<script src="../shared/slice-geometry.js"></script>
+<script src="../shared/picker-overlay.js"></script>
 <script src="../shared/projection.js"></script>
 <script src="../shared/shortcut-match.js"></script>
   <script src="../shared/i18n.js"></script>
@@ -224,7 +252,11 @@
   <script src="kernel/color-store.js"></script>
   <script src="kernel/module-host.js"></script>
   <script src="kernel/settings-transfer.js"></script>
-  <script src="kernel/i18n.js"></script>
+<script src="kernel/i18n.js"></script>
+<!-- The Modules tab renders each module's own settingsUI, and a picker's builds its
+     Model control through this helper: without it the section throws and only the
+     Module Size slider is left (the "no settings" report). -->
+<script src="kernel/model-options.js"></script>
 <script src="settings.js"></script>
 </body>
 </html>

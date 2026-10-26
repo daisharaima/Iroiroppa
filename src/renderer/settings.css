@@ -363,6 +363,12 @@ body.settings-window #titlebar .icon-btn { -webkit-app-region: no-drag; }
 
 .section-title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .row-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+/* The effective CSP settings folder, read-only: it is a path, not an input. */
+.csp-path {
+  display: block; width: 100%; box-sizing: border-box;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  cursor: default; margin: 2px 0 4px;
+}
 
 .palette-list { display: flex; flex-direction: column; gap: 4px; }
 .palette-item { border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; }

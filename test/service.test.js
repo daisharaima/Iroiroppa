@@ -245,3 +245,16 @@ test('a queued write survives a dead socket instead of being recorded as sent', 
   assert.deepEqual(svc._pendingWrite, { r: 1, g: 2, b: 3 }, 'the value is kept for the reconnect');
   assert.equal(svc.lastColor, null, 'nothing is shown as written');
 });
+
+test('a sibling preview is coalesced and never touches the authoritative colour', async () => {
+  const svc = makeService();
+  const seen = [];
+  svc.on('preview', (p) => seen.push(p));
+  svc.previewColor({ L: 0.4, a: 0.01, b: -0.02 }, { sourceId: 7, active: 'main' });
+  svc.previewColor({ L: 0.5, a: 0.02, b: -0.03 }, { sourceId: 7, active: 'main' });
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(seen.length, 1, 'one preview per coalesce window');
+  assert.equal(seen[0].lab.L, 0.5);
+  assert.equal(seen[0].sourceId, 7);
+  assert.equal(svc.lastColor, null, 'preview is display-only');
+});
