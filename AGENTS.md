@@ -268,8 +268,14 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   transparent holes.** The Disc used to clear the canvas and return while it waited for
   its paced rebuild, which flashed white on every lightness change; it now keeps the last
   image until the new one lands. And a map that is a *shape* (the Disc is a disc, a dense
-  model's plane is total) paints an out-of-gamut pixel as the sRGB stand-in at reduced
-  opacity instead of leaving it transparent — a hole reads as a bite out of the shape.
+  model's plane is total) paints an out-of-document-gamut pixel as the sRGB stand-in at
+  reduced opacity instead of leaving it transparent — a hole reads as a bite out of the
+  shape. **A pixel the document can hold but the sRGB screen cannot** is a different
+  case: it is drawn as the nearest displayable colour (lightness and hue kept) at full
+  opacity — the plain soft-proof look — and only dimmed when the user turns on
+  **Settings → Mark colours this display can't show** (`markOutOfDisplay`). That setting
+  exists because a wide-gamut document makes this region large (the whole Rec.2020 cube
+  minus sRGB), and the nearest displayable colour looks like a washed pastel there.
 - **A snap group's shared edge is a splitter, and group membership is derived.** A
   resize of a touching edge resizes/moves the neighbour so the pair stays flush; the
   graph comes from the document's `snap`/`snapTo`, never a parallel map. The drag

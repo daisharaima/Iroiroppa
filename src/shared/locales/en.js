@@ -52,6 +52,7 @@
     'settings.section.mainPanel': 'Main Panel',
     'settings.row.liveSync': 'Live sync while dragging',
     'settings.row.autoHide': 'Auto-hide',
+    'settings.row.markOutOfDisplay': 'Mark colours this display can’t show',
     'settings.row.autoConnect': 'Connect automatically',
     'settings.row.startWithWindows': 'Start when Windows starts',
     'settings.row.summonHotkey': 'Summon hotkey',

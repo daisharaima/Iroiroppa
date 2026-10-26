@@ -255,12 +255,16 @@
             // The disc is a disc: a pixel the document cannot hold is still painted (the
             // sRGB stand-in at reduced opacity), never skipped into a bite out of the
             // circle. Its lightness is left out of the field so the guide stops there.
+            // A pixel the document *can* hold but the screen cannot is painted as the
+            // nearest displayable colour at full opacity, dimmed only when the user asks
+            // to see that region (`store.markOutOfDisplay`).
             const rgb = Color.fitToSrgb(lch.L, lch.C, lch.H);
+            const inSrgb = Color.inGamut(lch.L, lch.C, lch.H);
             const i = (y * w + x) * 4;
             data[i] = clamp255(rgb.r * 255);
             data[i + 1] = clamp255(rgb.g * 255);
             data[i + 2] = clamp255(rgb.b * 255);
-            data[i + 3] = inside ? 255 : 140;
+            data[i + 3] = !inside ? 140 : (inSrgb || !store.markOutOfDisplay ? 255 : 140);
             if (inside) luma[y * w + x] = nativeLight ? next[lIdx] : lab.L;
           }
         }

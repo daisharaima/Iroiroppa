@@ -119,7 +119,7 @@
    * @returns {Uint8ClampedArray}
    */
   function renderPlane(spec) {
-    const { model, plane, fixed, ranges, width, height, out = null, workingGamut = null, luma = null, fill = false } = spec;
+    const { model, plane, fixed, ranges, width, height, out = null, workingGamut = null, luma = null, fill = false, outAlpha = 255 } = spec;
     const data = out || new Uint8ClampedArray(width * height * 4);
     const [hi, vi] = Models.planesFor(model)[plane];
     const hr = ranges[hi];
@@ -190,13 +190,14 @@
 
         if (workingGamut && (r < 0 || r > 1 || g < 0 || g > 1 || bl < 0 || bl > 1)) {
           // Inside the working gamut but past sRGB: draw the lightness-preserving
-          // stand-in (docs/COLOR.md) rather than clipping.
+          // stand-in (docs/COLOR.md) rather than clipping. Full opacity (the plain
+          // soft-proof look) unless the caller asks to mark it (`outAlpha`).
           const lch = Color.oklabToOklch(L, a, b);
           const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
           data[i] = clamp255(f.r * 255);
           data[i + 1] = clamp255(f.g * 255);
           data[i + 2] = clamp255(f.b * 255);
-          data[i + 3] = 255;
+          data[i + 3] = outAlpha;
           if (luma) luma[y * width + x] = nativeLight ? axes[lightIdx] : L;
           continue;
         }
@@ -235,7 +236,7 @@
    * Alpha is 0 when the colour is outside the working gamut; `workingGamut` is null
    * when the working gamut is sRGB itself (the common case, and the fast one).
    */
-  function pixelFromLab(lab, out, workingGamut = null) {
+  function pixelFromLab(lab, out, workingGamut = null, outAlpha = 255) {
     const lin = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
     const r = gamma(lin.r);
     const g = gamma(lin.g);
@@ -250,7 +251,7 @@
       out[0] = clamp255(f.r * 255);
       out[1] = clamp255(f.g * 255);
       out[2] = clamp255(f.b * 255);
-      out[3] = 255;
+      out[3] = outAlpha;
       return out;
     }
     out[0] = r <= 0 ? 0 : r >= 1 ? 255 : (r * 255 + 0.5) | 0;

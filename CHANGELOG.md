@@ -180,7 +180,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   lightness, so every pick is a colour the document holds.
 - **No white holes in a map.** The Disc is always a full disc and a dense model's plane is
   total: an out-of-gamut pixel is drawn as the sRGB stand-in at reduced opacity, not left
-  transparent.
+  transparent. A colour the document holds but the display cannot show is drawn as the
+  nearest displayable colour at full opacity (the soft-proof look); **Settings → Mark
+  colours this display can't show** dims that region instead.
 - **The model dropdown switches the model again.** Its outside-click guard now covers the
   list as well as the row; family headings are smaller, spaced and dimmer than the rows.
 - **The Disc's nudge arrows are left/right**, following its horizontal slider row.

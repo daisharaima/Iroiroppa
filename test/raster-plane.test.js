@@ -116,6 +116,23 @@ test('fill paints out-of-gamut pixels instead of leaving holes', () => {
   }
 });
 
+test('a colour past sRGB is drawn dimmed only when asked (the out-of-display mark)', () => {
+  // A wide-gamut document colour: inside the working gamut, outside sRGB.
+  const lab = { L: 0.59, a: 0.25, b: -0.2 };
+  const keep = () => true;
+  const full = new Uint8ClampedArray(4);
+  Raster.pixelFromLab(lab, full, keep);
+  assert.strictEqual(full[3], 255, 'default: the nearest displayable colour at full opacity');
+  const dim = new Uint8ClampedArray(4);
+  Raster.pixelFromLab(lab, dim, keep, 140);
+  assert.strictEqual(dim[3], 140, 'marked: dimmed');
+  assert.deepStrictEqual([...dim.slice(0, 3)], [...full.slice(0, 3)], 'same colour, only the opacity marks it');
+  // Outside the document gamut it is still a hole (the slice shows what it can pick).
+  const hole = new Uint8ClampedArray(4);
+  Raster.pixelFromLab(lab, hole, () => false);
+  assert.strictEqual(hole[3], 0, 'out of the document gamut stays a hole');
+});
+
 test('the luma field carries the model\'s own lightness, in its own units', () => {
   const G = require('../src/shared/slice-geometry');
   for (const id of ['okhsv', 'cielab', 'helmgen']) {

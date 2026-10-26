@@ -77,6 +77,7 @@
   store.crosshair = s.crosshair !== false;
   store.setViewFamily(s.viewFamily);
   store.historyGate = s.historyGate === true;
+  store.markOutOfDisplay = s.markOutOfDisplay === true;
     store.mode = modeOf(s);
     themeRegistry.apply(s.theme, s.accents || {});
     const proofChanged = (s.proofProfile || '') !== (prev.proofProfile || '')
@@ -105,6 +106,7 @@
   store.crosshair = settings.crosshair !== false;
   store.setViewFamily(settings.viewFamily);
   store.historyGate = settings.historyGate === true;
+  store.markOutOfDisplay = settings.markOutOfDisplay === true;
     store.mode = modeOf(settings);
     store.connected = Boolean(snapshot.status && snapshot.status.state === 'connected');
     themeRegistry.apply(settings.theme, settings.accents || {});

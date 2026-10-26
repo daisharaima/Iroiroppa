@@ -59,6 +59,9 @@
       // Main enforces the drawing-only gate; the store skips its optimistic add
       // while the gate is on and only mirrors the shared list.
       this.historyGate = false;
+      // Paint colours the sRGB display cannot show as the nearest displayable colour
+      // (false) or dim them so the out-of-display region is visible (true).
+      this.markOutOfDisplay = false;
       this._subs = new Set();
     }
 

@@ -717,6 +717,9 @@
             // A dense model's map is total: out-of-gamut pixels are dimmed stand-ins,
             // never holes (the "white out of gamut" in OKHSV).
             fill: model.dense === true,
+            // Inside the document but beyond the display: full opacity by default (the
+            // nearest displayable colour), dimmed when the user asks to see the region.
+            outAlpha: store.markOutOfDisplay ? 140 : 255,
           });
         }
         // The interactive budget must come from the interactive build only: the

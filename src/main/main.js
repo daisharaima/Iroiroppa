@@ -813,6 +813,7 @@ let lastFollowAt = 0; // when the palette last moved a float with it
 const DEFAULT_SETTINGS = Object.freeze({
   liveSync: true,
   historyGate: false, // record a colour only when a canvas contact uses it
+  markOutOfDisplay: false, // dim the colours the display cannot show (off: nearest colour)
   autoHide: true,
   autoConnect: true,
   crosshair: true,

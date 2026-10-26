@@ -500,7 +500,7 @@
               px[3] = 255;
             } else if (Raster && typeof Raster.pixelFromLab === 'function') {
               labOut.L = lab.L; labOut.a = lab.a; labOut.b = lab.b;
-              Raster.pixelFromLab(labOut, px, workingGamut);
+              Raster.pixelFromLab(labOut, px, workingGamut, store.markOutOfDisplay ? 140 : 255);
               if (!px[3]) continue;
             } else {
               const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);

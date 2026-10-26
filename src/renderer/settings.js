@@ -22,6 +22,7 @@ const el = {
   qrUrl: $('qr-url'),
   setLive: $('set-live'),
   setAutoHide: $('set-autohide'),
+  setMarkOutOfDisplay: $('set-mark-out-of-display'),
   setCross: $('set-cross'),
   setViewFamily: $('set-view-family'),
   setLogin: $('set-login'),
@@ -225,6 +226,7 @@ function applySettings(s) {
   liveSettings = s;
   el.setLive.checked = s.liveSync !== false;
   el.setAutoHide.checked = s.autoHide !== false;
+  if (el.setMarkOutOfDisplay) el.setMarkOutOfDisplay.checked = s.markOutOfDisplay === true;
   el.setAutoConnect.checked = s.autoConnect !== false;
   el.setNames.checked = s.hideModuleNames === true;
   currentProfileValue = s.proofMode === 'default' ? '' : (s.proofProfile || '');
@@ -1561,6 +1563,9 @@ function wire() {
 
   el.setLive.addEventListener('change', () => csp.updateSettings({ liveSync: el.setLive.checked }));
   el.setAutoHide.addEventListener('change', () => csp.updateSettings({ autoHide: el.setAutoHide.checked }));
+  if (el.setMarkOutOfDisplay) {
+    el.setMarkOutOfDisplay.addEventListener('change', () => csp.updateSettings({ markOutOfDisplay: el.setMarkOutOfDisplay.checked }));
+  }
   el.setNames.addEventListener('change', () => csp.updateSettings({ hideModuleNames: el.setNames.checked }));
   el.setAutoConnect.addEventListener('change', () => csp.updateSettings({ autoConnect: el.setAutoConnect.checked }));
   el.setProfileDefault.addEventListener('click', () => chooseProfile(''));

@@ -157,6 +157,7 @@
     store.crosshair = s.crosshair !== false;
     store.setViewFamily(s.viewFamily);
     store.historyGate = s.historyGate === true;
+    store.markOutOfDisplay = s.markOutOfDisplay === true;
     themeRegistry.apply(s.theme, s.accents || {});
     const locked = s.locked === true;
     board.setLocked(locked);
