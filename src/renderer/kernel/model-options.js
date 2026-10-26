@@ -56,7 +56,11 @@
   let openMenu = null;
 
   /**
-   * An in-page dropdown. `host` gets the widget appended.
+   * A dropdown. The real menu is the desktop overlay (the same surface the Session
+   * profile picker and the palette menu use): a renderer cannot paint outside its own
+   * window, so an in-page list was clipped by the content-fitted popups, and a native
+   * <select> is buried because its OS list is not in the topmost band. Without an
+   * overlay (a bare page, the tests) it falls back to the in-page list.
    *
    * @param {HTMLElement} host
    * @param {{groups?: Array<{label: string, items: Array}>, items?: Array, value?: string,
@@ -79,6 +83,57 @@
     chev.className = 'menu-chev';
     chev.innerHTML = '<svg viewBox="0 0 10 10"><path d="M2 3.5 5 6.5l3-3"/></svg>';
     btn.append(valueEl, chev);
+    wrap.append(btn);
+    host.append(wrap);
+
+    let current = opts.value;
+    let markList = null; // the fallback list's active row, set once the list exists
+    const setValue = (value) => {
+      current = value;
+      const hit = flat.find((it) => it.value === value);
+      valueEl.textContent = hit ? hit.label : '';
+      if (markList) markList(value);
+    };
+    setValue(opts.value);
+
+    const change = (value) => {
+      if (value === current) return;
+      setValue(value);
+      if (typeof opts.onChange === 'function') opts.onChange(value);
+    };
+
+    const overlay = window.Iro && window.Iro.overlayMenu;
+    const hasOverlay = Boolean(overlay && typeof overlay.show === 'function'
+      && window.csp && typeof window.csp.showPaletteMenu === 'function');
+
+    // The overlay item list: one heading per family, every model a row.
+    const overlayItems = [];
+    for (const g of source) {
+      if (!g.items || !g.items.length) continue;
+      // A family with a single model named exactly like the family (CIELAB, HelmGen)
+      // needs no heading — it would just repeat the item line.
+      const repeat = g.items.length === 1 && g.items[0].label === g.label;
+      if (g.label && !repeat) overlayItems.push({ kind: 'heading', label: g.label });
+      for (const it of g.items) overlayItems.push({ id: it.value, label: it.label });
+    }
+
+    if (hasOverlay) {
+      overlay.onPick('model', (id) => { if (id) change(id); });
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const rect = btn.getBoundingClientRect();
+        overlay.show('model', btn, {
+          items: overlayItems,
+          anchor: {
+            x: Math.round(window.screenX + rect.left),
+            y: Math.round(window.screenY + rect.bottom + 2),
+          },
+          width: Math.round(rect.width + 80),
+          maxRows: 12,
+        });
+      });
+      return { el: wrap, set: setValue, close: () => {} };
+    }
 
     const list = document.createElement('div');
     list.className = 'menu-list';
@@ -117,16 +172,16 @@
     // content-fitted popup window and by the Settings tab's column.
     const listHost = () => host.parentElement || host;
 
-    const setValue = (value) => {
-      const hit = flat.find((it) => it.value === value);
-      valueEl.textContent = hit ? hit.label : '';
+    // The fallback list mirrors the value too (the overlay path never builds one).
+    markList = (value) => {
+      if (!list || !list.children) return;
       for (const item of list.children) {
         if (item.dataset && item.dataset.value !== undefined) {
           item.classList.toggle('active', item.dataset.value === value);
         }
       }
     };
-    setValue(opts.value);
+    markList(opts.value);
 
     // The list is a sibling of the row, so an outside click has to clear *both* — and a
     // click on an item must not close the menu on its own pointerdown, or the click that

@@ -1125,6 +1125,19 @@ function runShot(ctx) {
               fs.writeFileSync(settingsShotLate, img.toPNG());
               console.log('settings shot late:', settingsShotLate);
             }
+            // The model dropdown is the desktop overlay, so it must be captured from
+            // that window (a settings/window shot cannot contain it).
+            const menuShotLate = argValue('--menu-shot-late');
+            if (menuShotLate) {
+              const ow = ctx.overlayWin;
+              if (ow && !ow.isDestroyed() && ow.isVisible()) {
+                const img = await ow.webContents.capturePage();
+                fs.writeFileSync(menuShotLate, img.toPNG());
+                console.log('menu shot late:', JSON.stringify({ file: menuShotLate, bounds: ow.getBounds() }));
+              } else {
+                console.log('menu shot late: the overlay is not visible');
+              }
+            }
           }
         }
         // A tiny UI-hygiene check, run inside the window: interactive targets too

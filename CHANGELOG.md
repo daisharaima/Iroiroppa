@@ -178,6 +178,18 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   gets the perceptual S/V curves instead of plain HSV. CMYK/LUT documents (no RGB cube)
   get a gamut-relative S: 100% is the document gamut's own limit at that hue and
   lightness, so every pick is a colour the document holds.
+- **The Model dropdown is a desktop popup again.** It opens the same overlay menu as the
+  profile picker (family headings included), so it is never clipped by the popup window or
+  buried by a palette; the in-page list remains only as a fallback.
+- **Tool windows stay above the palettes, and the palette no longer flashes over them.**
+  The band watchdog raises the overlay menu (profile picker, model dropdown) with the
+  Settings/popout and repairs the palette's topmost bit without reordering it while a tool
+  window is visible.
+- **The lightness guide follows the pointer during a drag** in the Disc and the Slices
+  (it still traces the map's own light once the gesture ends).
+- **The palette no longer fails to come back.** A missed foreground event used to leave it
+  hidden while Clip Studio Paint was in front; a slow safety poll re-queries the foreground
+  and shows it.
 - **Maps clip instead of fading.** A colour the document holds but the display cannot show
   used to be painted as the desaturated stand-in, which turned most of a wide-gamut
   document's Wheel/Disc/Slices into a pale patch. Maps now paint the **clipped** colour

@@ -67,6 +67,14 @@
         menu.append(sep);
         return;
       }
+      if (item && item.kind === 'heading') {
+        const head = document.createElement('div');
+        head.className = 'overlay-menu-heading';
+        head.setAttribute('role', 'presentation');
+        head.textContent = item.label || '';
+        menu.append(head);
+        return;
+      }
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = item.danger ? 'overlay-menu-item danger' : 'overlay-menu-item';

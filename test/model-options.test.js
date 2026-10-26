@@ -70,6 +70,8 @@ class El {
 
   scrollIntoView() {}
 
+  getBoundingClientRect() { return { left: 10, top: 20, right: 110, bottom: 40, width: 100, height: 20 }; }
+
   fire(type, extra = {}) {
     for (const fn of this.handlers.get(type) || []) {
       fn({ preventDefault() {}, target: this, ...extra });
@@ -98,6 +100,34 @@ const load = () => {
   vm.createContext(sandbox);
   vm.runInContext(SRC, sandbox, { filename: 'model-options.js' });
   return { api: window.IroModelOptions, doc };
+};
+
+/** Load with the desktop overlay available (the real app's dropdown). */
+const loadWithOverlay = () => {
+  const doc = {
+    createElement: (tag) => new El(tag),
+    listeners: new Map(),
+    addEventListener() {},
+    removeEventListener() {},
+  };
+  const shown = [];
+  const handlers = new Map();
+  const overlayMenu = {
+    show: (kind, trigger, spec) => { shown.push({ kind, trigger, spec }); return true; },
+    onPick: (kind, fn) => { handlers.set(kind, fn); },
+    close() {},
+    kind: () => 'model',
+  };
+  const window = {
+    screenX: 100,
+    screenY: 200,
+    Iro: { t: (key) => LABELS[key] || key, overlayMenu },
+    csp: { showPaletteMenu() {} },
+  };
+  const sandbox = { window, document: doc, console };
+  vm.createContext(sandbox);
+  vm.runInContext(SRC, sandbox, { filename: 'model-options.js' });
+  return { api: window.IroModelOptions, doc, shown, handlers };
 };
 
 const MODELS = [
@@ -239,4 +269,30 @@ test('set() shows the label and marks the active row', () => {
   assert.strictEqual(value.textContent, 'CIELCH');
   const active = list.children.filter((c) => c.className === 'menu-item' && c.classList.contains('active'));
   assert.deepStrictEqual(active.map((c) => c.dataset.value), ['cielch']);
+});
+
+test('with the overlay the dropdown is a desktop popup with family headings', () => {
+  const { api, shown, handlers } = loadWithOverlay();
+  const host = new El('div');
+  const picked = [];
+  const menu = api.menu(host, {
+    groups: api.groups(MODELS), value: 'okhsv', onChange: (v) => picked.push(v),
+  });
+  const btn = menu.el.children[0];
+  btn.fire('click');
+
+  assert.strictEqual(shown.length, 1, 'one overlay menu asked for');
+  assert.strictEqual(shown[0].kind, 'model', 'the pick is routed to this menu');
+  const items = shown[0].spec.items;
+  assert.deepStrictEqual(
+    [...items.filter((i) => i.kind === 'heading').map((i) => i.label)],
+    ['OKLab', 'CIELAB', 'HelmGen'],
+    'one heading per family, in order',
+  );
+  assert.ok(items.some((i) => i.id === 'okhsv'), 'every model is a row');
+  assert.ok(shown[0].spec.anchor.x > 0 && shown[0].spec.anchor.y > 0, 'anchored below the button');
+
+  handlers.get('model')('oklch');
+  assert.deepStrictEqual(picked, ['oklch'], 'the pick reaches onChange');
+  assert.strictEqual(btn.children[0].textContent, 'OKLCH');
 });

@@ -200,6 +200,7 @@ human clicking:
 | `--command <instanceId>:<name>[,<json args>]` | call a module command through the kernel bus from the palette renderer (retries ~3 s while the target mounts) and print the result — the end-to-end check for `docs/MODULES.md` "Module commands" |
 | `--settings-shot <png>` | with `--open-settings`, capture the Settings window itself (bounds + visibility + PNG) — for "the window is blank" reports |
 | `--settings-shot-late <png>` | capture Settings **after** the tab/module/click actions (the normal shot is taken before them) |
+| `--menu-shot-late <png>` | capture the desktop overlay menu (a Model dropdown, the profile picker) after the actions — it is a separate window, so no page shot contains it |
 | `--settings-debug` | print the Settings window's live workspace, hidden instances, dots and module lights |
 | `--settings-click <selector>` | click anything in the Settings window by CSS selector |
 | `--settings-click-2 <selector>` | a second Settings click, after `--settings-click` |

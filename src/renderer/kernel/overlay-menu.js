@@ -34,6 +34,16 @@
 
   const kind = () => state.kind;
 
+  // Which module gets the pick. The overlay is one surface for several menus (the
+  // palette's ☰, the Session profile picker, a module's Model dropdown), and the pick
+  // arrives here as `{ id, menu }` — so each menu registers its own handler.
+  const handlers = new Map();
+
+  /** @param {string} menu @param {(id: string) => void} fn */
+  function onPick(menu, fn) {
+    if (typeof menu === 'string' && typeof fn === 'function') handlers.set(menu, fn);
+  }
+
   document.addEventListener('pointerdown', (event) => {
     if (!state.kind) return;
     if (state.trigger && (state.trigger === event.target || state.trigger.contains(event.target))) return;
@@ -43,9 +53,16 @@
   }, true);
 
   if (csp && typeof csp.onPaletteMenuPick === 'function') {
-    csp.onPaletteMenuPick(() => { state.kind = null; state.trigger = null; });
+    csp.onPaletteMenuPick((pick) => {
+      const menu = (pick && pick.menu) || state.kind;
+      const id = pick && pick.id;
+      state.kind = null;
+      state.trigger = null;
+      const fn = handlers.get(menu);
+      if (fn && id !== undefined) fn(id);
+    });
   }
 
   window.Iro = window.Iro || {};
-  window.Iro.overlayMenu = { show, close, kind };
+  window.Iro.overlayMenu = { show, close, kind, onPick };
 })();

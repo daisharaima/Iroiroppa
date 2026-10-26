@@ -374,12 +374,14 @@
         const radius = Math.min(w, h) / 2 - 0.5;
         drawDiscGuide(c2d, w, h, model, axes, lockLight != null
           ? lockLight
-          // Trace the contour from the light the displayed map was built at, not the live
-          // one: a paced rebuild would otherwise be traced at a newer target, which made
-          // the guide flash, jump, and miss the pointer.
-          : (lastDiscOff && Number.isFinite(lastDiscOff.__target)
-            ? lastDiscOff.__target
-            : G.lightnessOf(model, axes)), dpr);
+          // Idle: trace the contour from the light the displayed map was built at — a
+          // paced rebuild traced at a newer target made the guide flash, jump, and miss
+          // the pointer. During a drag the light row is moving and the guide must follow
+          // the pointer, so use the live light over the current field instead of waiting
+          // for the next paced build (the "guide does not update live" report).
+          : (store.interactive || !lastDiscOff || !Number.isFinite(lastDiscOff.__target)
+            ? G.lightnessOf(model, axes)
+            : lastDiscOff.__target), dpr);
         // The ring shows the *picked* colour, not the cursor: with a locked lightness the
         // stored colour is solved onto the iso-lightness line, so the ring belongs there.
         const p = pointOf(model, axes, scale);

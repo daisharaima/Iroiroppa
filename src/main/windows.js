@@ -28,7 +28,7 @@ function createWindows(ctx) {
    */
   const raiseTopmost = (win) => { ensureTopmost(win).catch(() => {}); };
   // The palette/float band: topmost *and* out of the activation path (topmost.js).
-  const raiseBand = (win) => { ensureBand(win, { noActivate: true }).catch(() => {}); };
+  const raiseBand = (win, opts = {}) => { ensureBand(win, { noActivate: true, ...opts }).catch(() => {}); };
 
   // --- the band watchdog + visibility trace ----------------------------------
 
@@ -49,13 +49,23 @@ function createWindows(ctx) {
       for (const win of (ctx.floatWins ? ctx.floatWins.values() : [])) {
         if (win && !win.isDestroyed() && win.isVisible()) wins.push(win);
       }
-      for (const win of wins) raiseBand(win);
       // Our own tool windows are raised *last*, so pressing the palette cannot bury
       // them: on this build `isAlwaysOnTop()` lies, the palette is re-raised here every
       // half second, and a popout that was not re-asserted ended up behind it
       // ("clicking the 3 dots does nothing", "the settings window disappears").
-      for (const tool of [ctx.moduleSettingsWin, ctx.settingsWin]) {
-        if (tool && !tool.isDestroyed() && tool.isVisible()) raiseTopmost(tool);
+      const tools = [ctx.moduleSettingsWin, ctx.settingsWin, ctx.overlayWin];
+      const toolVisible = tools.some((tool) => tool && !tool.isDestroyed() && tool.isVisible());
+      // While a tool window is up, a palette repair must not *reorder*: raising it with
+      // SetWindowPos(HWND_TOPMOST) put it above the Settings/popout for a frame every
+      // half second (the "palette flashes on top then goes behind" report). The bit is
+      // repaired without touching the z-order; the tool windows are raised after.
+      for (const win of wins) raiseBand(win, { zorder: !toolVisible });
+      for (const tool of tools) {
+        if (!tool || tool.isDestroyed() || !tool.isVisible()) continue;
+        // The overlay is a click-through surface that must never take activation; the
+        // Settings window and the module-settings popout are allowed to.
+        if (tool === ctx.overlayWin) raiseBand(tool);
+        else raiseTopmost(tool);
       }
       if (!wins.length) stopBandWatch();
     }, 500);
@@ -1115,6 +1125,24 @@ function startFollowFocus() {
     ctx.fgHealthy = false;
     traceFocus('watcher down -> keep');
   });
+  // Safety net. `foreground.ps1` is event-driven, and a missed event (a lock screen,
+  // a runtime hiccup) leaves the palette hidden while CSP is focused — the "does not
+  // reappear" report. While Auto-hide is on and the palette is hidden, re-query the
+  // foreground on a slow timer and show it if CSP really is in front.
+  if (ctx.fgSafety) clearInterval(ctx.fgSafety);
+  ctx.fgSafety = setInterval(async () => {
+    if (!ctx.popup || ctx.popup.isDestroyed() || ctx.popup.isVisible()) return;
+    if (ctx.settings.get().autoHide === false) return;
+    let name = '';
+    try { name = await ctx.fgWatcher.refresh(); } catch { name = ''; }
+    if (!name || !isCspProcess(name)) return;
+    ctx.fgHealthy = true;
+    ctx.fgName = name;
+    ctx.lastCspAt = Date.now();
+    traceFocus('safety -> show');
+    showPopupAuto();
+  }, 5000);
+  if (ctx.fgSafety.unref) ctx.fgSafety.unref();
   ctx.fgHealthy = false;
   ctx.fgWatcher.start();
 }
@@ -1123,6 +1151,10 @@ function stopFollowFocus() {
   if (ctx.fgWatcher) {
     ctx.fgWatcher.stop();
     ctx.fgWatcher = null;
+  }
+  if (ctx.fgSafety) {
+    clearInterval(ctx.fgSafety);
+    ctx.fgSafety = null;
   }
   ctx.fgHealthy = false;
   ctx.fgName = '';

@@ -567,14 +567,15 @@
         // sRGB-referenced spaces — the same value the lock holds and the footer prints.
         //
         // When the plane's *fixed* axis is the light axis, the map is keyed by that
-        // light: trace the contour from the light the map was built for, not the live
-        // one. Otherwise a paced/stale map is traced at a newer target and the guide
-        // jumps and misses the pointer (the OKHSV HxS report). For planes whose light
-        // is free the map is valid for every light, so the live target is right.
+        // light. Trace the contour from the light the map was built for when idle — a
+        // paced/stale map traced at a newer target jumps and misses the pointer (the
+        // OKHSV HxS report) — but follow the live light *during a drag*, so the guide
+        // moves with the pointer instead of waiting for the next paced build.
         const planes = Models.planesFor(model);
         const fixedIndex = planes[plane] ? planes[plane][2] : -1;
         const lightIndex = Models.lightAxis(model);
-        const fixedAxes = (fixedIndex === lightIndex && src.__fixed) ? src.__fixed : axes;
+        const mapLight = fixedIndex === lightIndex && src.__fixed && !store.interactive;
+        const fixedAxes = mapLight ? src.__fixed : axes;
         const target = lockLight != null ? lockLight : G.lightnessOf(model, fixedAxes);
         // The field belongs to the map, which may differ in size from the canvas (the
         // interactive native-pixel build, or a held map): index it with its own size,

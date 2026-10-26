@@ -2,6 +2,7 @@ param(
   [Parameter(Mandatory = $true)][string]$Hwnd,
   [int]$NoActivate = 1,
   [int]$Topmost = 1,
+  [int]$Zorder = 1,
   [int]$Watch = 0
 )
 
@@ -44,8 +45,9 @@ public class IroBand {
   // SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE — no SWP_FRAMECHANGED: a frame recalc
   // on every band call is what made the palette flash when a press repaired the band.
   const uint FLAGS = 0x0001 | 0x0002 | 0x0010;
+  const uint SWP_NOZORDER = 0x0004;
 
-  public static bool Apply(long hwnd, bool noActivate, bool topmost) {
+  public static bool Apply(long hwnd, bool noActivate, bool topmost, bool zorder) {
     IntPtr h = new IntPtr(hwnd);
     if (h == IntPtr.Zero) return false;
     long ex = GetWindowLongPtr(h, GWL_EXSTYLE).ToInt64();
@@ -55,20 +57,25 @@ public class IroBand {
     if (topmost) want |= WS_EX_TOPMOST;
     else want &= ~WS_EX_TOPMOST;
     if (want != ex) SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(want));
+    // zorder=false repairs the style bit without moving the window in the topmost
+    // band: HWND_TOPMOST would raise it above the Settings/popout for a frame, which
+    // is the "palette flashes on top then goes behind" report.
+    if (!zorder) return SetWindowPos(h, IntPtr.Zero, 0, 0, 0, 0, FLAGS | SWP_NOZORDER);
     return SetWindowPos(h, new IntPtr(topmost ? -1 : -2), 0, 0, 0, 0, FLAGS);
   }
 }
 '@
 
 if ($Watch -ne 0) {
-  # One line per request: <hwnd>|<noActivate>|<topmost>. The parent writes to our
-  # stdin and never waits; when it closes stdin we exit.
+  # One line per request: <hwnd>|<noActivate>|<topmost>|<zorder>. The parent writes to
+  # our stdin and never waits; when it closes stdin we exit.
   $reader = [Console]::In
   while ($null -ne ($line = $reader.ReadLine())) {
     $parts = $line.Trim().Split('|')
     if ($parts.Length -lt 3) { continue }
-    [void][IroBand]::Apply([long]$parts[0], ($parts[1] -ne '0'), ($parts[2] -ne '0'))
+    $z = if ($parts.Length -ge 4) { $parts[3] -ne '0' } else { $true }
+    [void][IroBand]::Apply([long]$parts[0], ($parts[1] -ne '0'), ($parts[2] -ne '0'), $z)
   }
 } else {
-  [void][IroBand]::Apply([long]$Hwnd, ($NoActivate -ne 0), ($Topmost -ne 0))
+  [void][IroBand]::Apply([long]$Hwnd, ($NoActivate -ne 0), ($Topmost -ne 0), ($Zorder -ne 0))
 }

@@ -41,15 +41,19 @@ function menuBox(opts = {}) {
   const wantedWidth = Number.isFinite(opts.width) ? opts.width : longest * 7 + 26;
   const width = Math.round(clamp(wantedWidth, MIN_WIDTH, MAX_WIDTH));
 
-  // Action and separator rows have their own heights; a separator is not a row
-  // and must not consume one of the ten visible-row slots.
+  // Action, heading and separator rows have their own heights; a separator or a
+  // heading is not a row and must not consume one of the ten visible-row slots.
   const heightOf = (item) => {
     if (item && item.kind === 'separator') return 9;
+    if (item && item.kind === 'heading') return Math.round(rowHeight * 0.72);
     if (item && item.kind === 'action') return Math.max(rowHeight, 30);
     return rowHeight;
   };
-  const normalRows = items.filter((item) => !item || item.kind !== 'separator').length;
-  const extras = items.reduce((n, item) => n + Math.max(0, heightOf(item) - rowHeight), 0);
+  const normalRows = items.filter((item) => !item || (item.kind !== 'separator' && item.kind !== 'heading')).length;
+  // Headings are not rows either, but their height must count, or the cap hides them
+  // and the menu can never show every family.
+  const extras = items.reduce((n, item) => n
+    + (item && item.kind === 'heading' ? heightOf(item) : Math.max(0, heightOf(item) - rowHeight)), 0);
   const natural = items.reduce((n, item) => n + heightOf(item), 0) + padding;
   const visibleRows = Math.max(1, Math.min(normalRows || 1, maxRows));
   const rowHeightCap = visibleRows * rowHeight + padding + extras;

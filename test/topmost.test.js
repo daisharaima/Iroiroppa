@@ -64,14 +64,14 @@ test('one helper is started and every request is a line on its stdin', async () 
   assert.equal(spawns[0].file, 'powershell.exe');
   assert.ok(spawns[0].args.includes('-Watch'));
   assert.ok(spawns[0].args.includes('C:/app/topmost.ps1'));
-  assert.deepEqual(writes, ['12032|1|1\n', '12032|1|0\n']);
+  assert.deepEqual(writes, ['12032|1|1|1\n', '12032|1|0|1\n']);
 });
 
 test('a text field drops the non-activating bit through the same helper', async () => {
   const writes = [];
   const band = createBand({ spawnFn: () => fakeProc(writes) });
   await band.apply(fakeWindow(0x10), { noActivate: false });
-  assert.deepEqual(writes, ['16|0|1\n']);
+  assert.deepEqual(writes, ['16|0|1|1\n']);
 });
 
 test('the one-shot fallback passes the handle and the flags', async () => {

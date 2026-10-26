@@ -225,25 +225,32 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   holes are bridged, or the guide arrives in pieces and cannot be dragged as one path. The
   Disc keeps the drawn guide in disc coordinates and projects onto the same line. **The
   contour's target comes from the map's own fixed light** (`off.__fixed` in Slices,
-  `off.__target` in the Disc), never the live colour: a paced or stale map traced at a
-  newer target made the guide flash, jump and miss the pointer (the OKHSV HxS report).
-- **A model dropdown is grouped by family and drawn in the page**
-  (`kernel/model-options.js`): one group per family, in the order OKLab, CIELAB, HelmGen,
-  using the `settings.family.*` labels. It is a button plus an in-page list, **not a
-  native `<select>`**: a select's list is a separate OS window outside our topmost band,
-  so inside a tool window it was drawn *behind* the page. The list renders **in the page
-  flow, after its row** — positioned absolutely it was clipped by the content-fitted
-  popup window and by the Settings tab's column — and both settings hosts re-fit their
-  window with a `ResizeObserver` when the page grows. A module still filters the list to
-  the models it can draw, and the within-family order is the module's own.
+  `off.__target` in the Disc) when idle: a paced or stale map traced at a newer target
+  made the guide flash, jump and miss the pointer (the OKHSV HxS report). **During a drag
+  the target is the live light** — the field is at most a frame old, and waiting for the
+  paced rebuild made the guide lag the pointer ("the guide does not update live").
+- **A model dropdown is grouped by family and drawn by the desktop overlay.**
+  (`kernel/model-options.js` + `renderer/overlay.js`): one group per family, in the order
+  OKLab, CIELAB, HelmGen, using the `settings.family.*` labels as small headings. It opens
+  through `Iro.overlayMenu` — the same full-desktop, always-on-top surface as the Session
+  profile picker and the palette's ☰ — because a renderer cannot paint outside its own
+  window and a native `<select>`'s OS list is outside the topmost band. The overlay's
+  pick comes back as `{id, menu}` and `overlay-menu.js` routes it to the menu that asked
+  (`onPick`). The old in-page list is kept only as the fallback when the overlay is
+  unavailable (a bare page, the tests). Both settings hosts load `kernel/overlay-menu.js`.
 - **A tool window is raised *after* the palette, or the palette buries it.** On this
   build `isAlwaysOnTop()` reports false, so the band watchdog re-raises the palette every
-  500 ms; a module-settings popout or a Settings window that was only topmost at creation
-  ended up behind it ("clicking the 3 dots does nothing", "the settings window disappears
-  when I switch tabs"). The watchdog now raises the palette and floats first and any
-  visible tool window last, every content resize (`moduleSettings:resize`,
-  `settings:resize`, `applyUiScale`) re-asserts `ensureTopmost`, and the popout's blur
-  close is deferred 150 ms so a transient blur cannot kill it between open and pointer.
+  500 ms; a module-settings popout, the Settings window or the overlay menu that was only
+  topmost at creation ended up behind it ("clicking the 3 dots does nothing", "the
+  settings window disappears when I switch tabs", "the profile picker is buried"). The
+  watchdog raises the palette and floats first, then every visible tool window and the
+  overlay menu last, every content resize (`moduleSettings:resize`, `settings:resize`,
+  `applyUiScale`) re-asserts `ensureTopmost`, and the popout's blur close is deferred
+  150 ms so a transient blur cannot kill it between open and pointer. **While a tool
+  window is visible the palette's repair must not reorder**: `SetWindowPos(HWND_TOPMOST)`
+  put it above the Settings for a frame every half second (the "palette flashes on top
+  then goes behind" report), so the band call uses `zorder:false` (style bit only,
+  `SWP_NOZORDER`) in that case.
 - **A module's `settingsUI` must never blank its popup — in either host.** Two pages
   render it (`module-settings.html`, and the Settings window's Modules tab), and both
   `try/catch` it and load every global a settingsUI may touch (`kernel/model-options.js`

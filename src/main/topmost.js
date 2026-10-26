@@ -79,18 +79,18 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200 
   }
 
   /** Send one band request to the helper. False when there is no usable helper. */
-  function send(hwnd, noActivate, topmost) {
+  function send(hwnd, noActivate, topmost, zorder = true) {
     const proc = child || spawnHelper();
     if (!proc || !proc.stdin || proc.stdin.destroyed) return false;
     try {
-      proc.stdin.write(`${hwnd}|${noActivate ? 1 : 0}|${topmost ? 1 : 0}\n`);
+      proc.stdin.write(`${hwnd}|${noActivate ? 1 : 0}|${topmost ? 1 : 0}|${zorder ? 1 : 0}\n`);
       return true;
     } catch {
       return false;
     }
   }
 
-  function oneShot(hwnd, noActivate, topmost, now) {
+  function oneShot(hwnd, noActivate, topmost, now, zorder = true) {
     const last = oneShotAt.get(hwnd);
     if (last != null && now - last < throttleMs) return Promise.resolve(true);
     oneShotAt.set(hwnd, now);
@@ -104,6 +104,7 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200 
           '-Hwnd', hwnd,
           '-NoActivate', noActivate ? '1' : '0',
           '-Topmost', topmost ? '1' : '0',
+          '-Zorder', zorder ? '1' : '0',
         ], { windowsHide: true, stdio: 'ignore' });
         proc.on('error', () => done(false));
         proc.on('exit', (code) => done(code === 0));
@@ -113,11 +114,11 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200 
     });
   }
 
-  async function apply(win, { noActivate = true, topmost = true, now = Date.now() } = {}) {
+  async function apply(win, { noActivate = true, topmost = true, zorder = true, now = Date.now() } = {}) {
     const hwnd = hwndOf(win);
     if (!hwnd) return false;
-    if (send(hwnd, noActivate, topmost)) return true;
-    return oneShot(hwnd, noActivate, topmost, now);
+    if (send(hwnd, noActivate, topmost, zorder)) return true;
+    return oneShot(hwnd, noActivate, topmost, now, zorder);
   }
 
   /** Close the helper (app quit). */

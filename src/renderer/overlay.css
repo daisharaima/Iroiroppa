@@ -81,3 +81,14 @@ html[dir="rtl"] .overlay-menu-item::before { left: auto; right: 5px; }
 .overlay-menu-icon { display: inline-flex; width: 14px; height: 14px; flex: 0 0 auto; }
 .overlay-menu-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
 .overlay-menu-sep { flex: 0 0 auto; height: 1px; margin: 2px 4px; background: var(--line); }
+.overlay-menu-heading {
+  flex: 0 0 auto;
+  padding: 5px 8px 1px;
+  font-size: 0.68em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  opacity: 0.8;
+}
+.overlay-menu-heading:first-child { padding-top: 2px; }
