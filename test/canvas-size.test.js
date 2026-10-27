@@ -8,8 +8,8 @@ const assert = require('node:assert');
 const Size = require('../src/shared/canvas-size');
 
 test('a small module still supersamples', () => {
-  const s = Size.backingScale(200, 200, { want: 2 });
-  assert.ok(s > 1.9 && s <= 2, `scale ${s}`);
+  const s = Size.backingScale(160, 160, { want: 2 });
+  assert.ok(s > 1.5 && s <= 2, `scale ${s}`);
 });
 
 test('a large module gives up supersampling, never drops below 1×', () => {

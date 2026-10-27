@@ -738,9 +738,10 @@
           Raster.renderPlane({
             model, plane, fixed, ranges, width: w, height: h, out: img.data, luma,
             workingGamut: workingGamutTest(),
-            // A dense model's map is total: out-of-gamut pixels are dimmed stand-ins,
-            // never holes (the "white out of gamut" in OKHSV).
-            fill: model.dense === true,
+            // Never a dimmed stand-in: a pale band across a slice reads as a bug ("the
+            // H x L slice shows an out-of-gamut section that should not happen").
+            // Out-of-document is a hole, the same as every other slice.
+            fill: false,
             // Inside the document but beyond the display: full opacity by default (the
             // nearest displayable colour), dimmed when the user asks to see the region.
             outAlpha: store.markOutOfDisplay ? 140 : 255,

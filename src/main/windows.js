@@ -78,6 +78,14 @@ function createWindows(ctx) {
       if (ctx.overlayWin && !ctx.overlayWin.isDestroyed() && ctx.overlayWin.isVisible()
         && !ctx.overlayMenu && !ctx.overlayTooltip) ctx.overlayWin.hide();
       raiseInteracted();
+      // The overlay (a menu or a tooltip) must stay above the window that opened it:
+      // raising that window every 500 ms put the palette over the menu half a second after
+      // it appeared ("it appears for a moment then disappears").
+      const ov = ctx.overlayWin;
+      if (ov && !ov.isDestroyed() && ov.isVisible() && (ctx.overlayMenu || ctx.overlayTooltip)) {
+        raiseTopmost(ov);
+        ov.moveTop();
+      }
       if (!wins.length) stopBandWatch();
     }, 500);
     if (bandTimer.unref) bandTimer.unref();
@@ -455,6 +463,7 @@ function showPopupAuto() {
 function hidePopup() {
   // The palette menu is drawn by the overlay: it must not outlive the palette.
   closeOverlayMenu();
+  hideTooltip();
   closeModuleSettingsWindow();
   ctx.showFloats(false);
   // The Settings window goes away with the palette and returns with it.

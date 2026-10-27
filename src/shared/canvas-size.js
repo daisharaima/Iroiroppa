@@ -14,8 +14,8 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const IDLE_BUDGET = 260000; // ~510×510 at 1× — supersampled a little when small
-  const LIVE_BUDGET = 110000; // while the pointer is down
+  const IDLE_BUDGET = 130000; // ~360×360 at 1× — a little supersampling only when small
+  const LIVE_BUDGET = 55000; // while the pointer is down: resolution follows speed
 
   /**
    * @param {number} cssW  layout width (CSS px)

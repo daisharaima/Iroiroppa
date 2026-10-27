@@ -190,6 +190,14 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The palette no longer fails to come back.** A missed foreground event used to leave it
   hidden while Clip Studio Paint was in front; a slow safety poll re-queries the foreground
   and shows it.
+- **The overlay stays above the window that opened it.** The band watch re-raises the
+  window that owns the menu every 500 ms, so a menu appeared and was covered half a second
+  later ("the dropdown vanishes", "the hamburger menu is behind the palette"); the overlay
+  is now raised *after* the last-interacted window while a menu or tooltip is open.
+- **No dimmed stand-in in the slices**: out-of-document is a hole, always (a pale band
+  across the H×L slice at high saturation read as a bug).
+- **The pixel budgets are halved again** (130k idle, 55k live) — a large module trades
+  supersampling for speed.
 - **Crash fix**: `showTooltip`/`hideTooltip` were exported without a definition (a failed
   batch edit) — the app died at startup with two error dialogs. The watchdog also calls
   `isVisible` on a window, not an IPC sender.
