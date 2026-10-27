@@ -190,6 +190,16 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The palette no longer fails to come back.** A missed foreground event used to leave it
   hidden while Clip Studio Paint was in front; a slow safety poll re-queries the foreground
   and shows it.
+- **Crash fix**: `showTooltip`/`hideTooltip` were exported without a definition (a failed
+  batch edit) — the app died at startup with two error dialogs. The watchdog also calls
+  `isVisible` on a window, not an IPC sender.
+- **The window order change no longer steals focus from CSP**: band windows are raised with
+  their non-activating bit intact (`raiseBand`), tool windows with `raiseTopmost`.
+- **The disc's out-of-gamut option is pale vs blank** (one uniform region; the hard edge
+  between clipped and dimmed was the "harsh transition").
+- **Canvas sizes have a pixel budget**, so a large module no longer renders 4× the pixels.
+- **The H×V slice guide contours at stride 2** and drops stubs, instead of vertical zig-zags.
+- **Slider channel toggles use the model's channel names.**
 - **The hue ring is the document's cusp, fitted to the display, not a clipped fixed-L
   edge.** The cusp's lightness is interpolated around the circle (no primary seam) and the
   colour is `fitToSrgb`, so every hue is distinct and the profile shows through; the ring

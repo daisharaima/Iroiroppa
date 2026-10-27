@@ -263,8 +263,15 @@
         return Models.get(Models.defaultForFamily(store.viewFamily || 'all')) || Models.get('oklch');
       };
 
-      const sizeCanvas = (cap = 2) => {
-        const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 2), cap);
+      const sizeCanvas = (cap = 2, nativeOnly = false) => {
+        const base = window.devicePixelRatio || 1;
+        const want = nativeOnly ? Math.max(1, Math.min(base, cap)) : Math.min(Math.max(base, 2), cap);
+        const dpr = window.IroCanvasSize
+          ? window.IroCanvasSize.backingScale(canvas.clientWidth, canvas.clientHeight, {
+            want,
+            budget: nativeOnly ? window.IroCanvasSize.LIVE_BUDGET : window.IroCanvasSize.IDLE_BUDGET,
+          })
+          : want;
         const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
         const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
         if (canvas.width !== w || canvas.height !== h) {
@@ -779,7 +786,7 @@
       };
 
       const render = () => {
-        const { w, h } = sizeCanvas(2);
+        const { w, h } = sizeCanvas(2, store.interactive);
         // A module that is still unmeasured draws nothing (the box arrives via
         // onResize); arc() with a negative radius throws and would abort the board.
         if (w < 12 || h < 12) return;

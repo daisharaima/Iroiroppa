@@ -83,13 +83,15 @@
     });
     root.append(modelRow);
 
-    addToggle('showL', 'Show 1st channel');
-    addToggle('showC', 'Show 2nd channel');
-    addToggle('showH', 'Show 3rd channel');
+    // Label the toggle with the model's own axis name, so "show 1st channel" is
+    // "Show L" for OKLCH, "Show H" for OKHSV, "Show L*" for CIELAB, etc.
+    const axisName = (i) => (model.axes[i] && model.axes[i].label) || String(i + 1);
+    addToggle('showL', `Show ${axisName(0)}`);
+    addToggle('showC', `Show ${axisName(1)}`);
+    addToggle('showH', `Show ${axisName(2)}`);
     addToggle('hideNumbers', 'Hide Values');
     // Per-axis out-of-gamut marking. Off leaves the whole track coloured; the
     // edge is then not drawn for that axis only.
-    const axisName = (i) => (model.axes[i] && model.axes[i].label) || String(i + 1);
     addToggle('showOutL', `Mark out of gamut — ${axisName(0)}`);
     addToggle('showOutC', `Mark out of gamut — ${axisName(1)}`);
     addToggle('showOutH', `Mark out of gamut — ${axisName(2)}`);

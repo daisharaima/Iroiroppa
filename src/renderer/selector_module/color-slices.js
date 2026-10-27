@@ -409,14 +409,17 @@
       const updateFooter = () => footer.classList.toggle('hidden', hideNumbers || narrow);
 
       const sizeCanvas = (canvas, cap = 2.5, nativeOnly = false) => {
-        // The backing store never drops below the idle resolution during a drag:
-        // rebuilding one panel per frame is the throttle, not a 1× upscale.
-        // An expensive model's interactive plane does render at native device pixels
-        // (`nativeOnly`): 2× supersampling is four times the pixels, and that is what
-        // stalled the pointer. Full supersampling returns on the trailing rebuild.
-        const dpr = nativeOnly
-          ? Math.max(1, Math.min(window.devicePixelRatio || 1, cap))
-          : Math.min(Math.max(window.devicePixelRatio || 1, 2), cap);
+        // A pixel *budget*, not a fixed dpr: a module stretched large would otherwise
+        // render four times the pixels of its usual size and drop frames. Never below 1×
+        // (no blurry upscale); only the supersampling is given up above the budget.
+        const base = window.devicePixelRatio || 1;
+        const want = nativeOnly ? Math.max(1, Math.min(base, cap)) : Math.min(Math.max(base, 2), cap);
+        const dpr = window.IroCanvasSize
+          ? window.IroCanvasSize.backingScale(canvas.clientWidth, canvas.clientHeight, {
+            want,
+            budget: nativeOnly ? window.IroCanvasSize.LIVE_BUDGET : window.IroCanvasSize.IDLE_BUDGET,
+          })
+          : want;
         const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
         const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
         if (canvas.width !== w || canvas.height !== h) {
@@ -586,13 +589,25 @@
         // path the user drags along and it must not arrive in pieces.
         const sw = Math.max(2, src.width);
         const sh = Math.max(2, src.height);
-        const lines = Contour.isoLines(luma, sw, sh, target);
+        // Stride 2: the H x V plane's luma is quantised by the model's own axes, and a
+        // per-pixel contour turns that quantisation into vertical zig-zags all over the
+        // slice. Every other cell is enough for a guide and kills the high-frequency
+        // zig-zag (the line is smoothed by the caller's decimation as well).
+        const lines = Contour.isoLines(luma, sw, sh, target, { stride: 2 });
         if (!lines.length) return;
         // A ragged field (the OKHSV H x V plane near S=1 is nearly all out-of-gamut) can
         // produce dozens of one-cell stubs, which read as vertical lines scattered over
         // the slice. A guide is one contour through the pointer: keep real components and
         // draw nothing rather than a speckle when there is no clear line.
-        const kept = lines.filter((pts) => pts.length >= 3);
+        const kept = lines.filter((pts) => {
+          if (pts.length < 3) return false;
+          let len = 0;
+          for (let i = 1; i < pts.length; i += 1) {
+            len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+          }
+          // A stub a few cells long is not a guide; it reads as a stray vertical stroke.
+          return len >= 12;
+        });
         if (!kept.length || kept.length > 24) return;
         guideMap[plane] = kept.map((pts) => pts.map(([x, y]) => [x / (sw - 1), y / (sh - 1)]));
         // Pixel -> the map's drawn transform, the same one paint() uses (v down).

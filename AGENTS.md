@@ -188,14 +188,24 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   "put it back": `SetWindowPos(HWND_TOP)` itself removes the topmost band. No-op wherever
   the runtime did its job.
 - **The wheel's hue ring is the document's cusp, fitted — never clipped.** `ring.js` gives
-  the outer band the document's most colourful colour per hue (its cusp; the cusp's
-  lightness is sampled at 24 anchors and interpolated, so no primary seam) and the inner
-  band the same hue at the selected lightness. Both are mapped with `fitToSrgb`, because a
-  channel clip collapsed long arcs of different hues into one sRGB primary (the "red takes
-  so much space" report) and made every profile look identical; the fit keeps every hue
-  distinct and lets the profile show through the cusp's lightness. The bands are painted
-  with one `createConicGradient` stroke (360 stops) plus a per-degree arc fallback — the
-  360-arc loop and the 200 ms inner-band hold were what made dragging the wheel lag.
+  the outer band the document's most colourful colour per hue (`cusp`) and the inner band
+  the same hue at the selected lightness; both go through `fitToSrgb`. The disc instead has
+  one region for *everything the display cannot show*: pale (`fitToSrgb` at alpha 140) or
+  blank, chosen by the module's `showOutOfGamut` — never a second, fully coloured area, or
+  the boundary between the two rules is the hard edge the user saw as a "harsh transition".
+- **Canvas backing stores have a pixel budget, not a fixed dpr.** `canvas-size.js`
+  (`backingScale`) caps the total pixels (~260k idle, ~110k live), so a module stretched big
+  only gives up supersampling, never sharpness, and never renders 4× the pixels of its
+  normal size. Slices, Disc and Wheel all size through it.
+- **The slice guide contours at stride 2 and drops sub-12-px stubs.** The H×V plane's luma
+  is quantised by the model's own axes; a per-pixel contour turned that into vertical
+  zig-zags all over the panel.
+- **The Slider's visibility toggles use the model's own channel names** (`model.axes[i].label`),
+  not "1st/2nd/3rd channel".
+- **The overlay is a helper surface, never the last-interacted window**, and the band watch
+  hides it when no menu or tooltip owns it (a full-desktop transparent window left visible
+  was the "model dropdown disappears" smell). `raiseInteracted` guards `isVisible` because an
+  IPC sender is a webContents, not a window.
 - **A model dropdown's pick id is per widget and bound on open.** `overlay.onPick('model')`
   registered by every menu at build time let the last-built menu take every pick, which is
   why the Slices/Slider model menus did nothing (their other menus won). Each widget now

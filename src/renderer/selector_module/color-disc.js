@@ -208,9 +208,16 @@
       };
 
       const sizeCanvas = (cap = 2, nativeOnly = false) => {
-        const dpr = nativeOnly
-          ? Math.max(1, Math.min(window.devicePixelRatio || 1, cap))
-          : Math.min(Math.max(window.devicePixelRatio || 1, 2), cap);
+        // A pixel budget instead of a fixed 2×: a disc stretched to the palette width
+        // renders far more pixels and stutters. Below 1× is never used (no blurry upscale).
+        const base = window.devicePixelRatio || 1;
+        const want = nativeOnly ? Math.max(1, Math.min(base, cap)) : Math.min(Math.max(base, 2), cap);
+        const dpr = window.IroCanvasSize
+          ? window.IroCanvasSize.backingScale(canvas.clientWidth, canvas.clientHeight, {
+            want,
+            budget: nativeOnly ? window.IroCanvasSize.LIVE_BUDGET : window.IroCanvasSize.IDLE_BUDGET,
+          })
+          : want;
         const w = Math.max(1, Math.round(canvas.clientWidth * dpr));
         const h = Math.max(1, Math.round(canvas.clientHeight * dpr));
         if (canvas.width !== w || canvas.height !== h) {
@@ -274,13 +281,21 @@
             // clipped colour (like any drawing app), dimmed only when the user asks to
             // see that region (`store.markOutOfDisplay`).
             const inSrgb = Color.inGamut(lch.L, lch.C, lch.H);
-            const mark = store.markOutOfDisplay && inside && !inSrgb;
-            // Off: the out-of-gamut area is painted clipped like the rest of the disc, so
-            // there is no pale stand-in to look at (the user's "hide the pale section").
-            const showOut = inside || showOutOfGamut;
-            const rgb = showOut && !mark ? Color.oklabToRgb(lab.L, lab.a, lab.b) : Color.fitToSrgb(lch.L, lch.C, lch.H);
-            const alpha = showOut && !mark ? 255 : 140;
             const i = (y * w + x) * 4;
+            // One region: everything the display cannot show, whether or not the document
+            // can hold it. Painted as the pale stand-in, or left blank when the user turns
+            // the option off — never as a second, fully coloured area (that hard edge is
+            // what the user saw as a "harsh transition"). Inside the display gamut is the
+            // true colour.
+            let rgb;
+            let alpha = 255;
+            if (!inSrgb) {
+              if (!showOutOfGamut) { data[i + 3] = 0; continue; }
+              rgb = Color.fitToSrgb(lch.L, lch.C, lch.H);
+              alpha = 140;
+            } else {
+              rgb = Color.oklabToRgb(lab.L, lab.a, lab.b);
+            }
             data[i] = clamp255(rgb.r * 255);
             data[i + 1] = clamp255(rgb.g * 255);
             data[i + 2] = clamp255(rgb.b * 255);

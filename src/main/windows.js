@@ -15,7 +15,7 @@ const { overlayBounds } = require('./overlay-bounds');
 const { menuBox } = require('./overlay-menu-box');
 const { drawIcon, rgbaToBgra } = require('../shared/icon-art');
 const { sendTo } = require('./broadcast');
-const { ensureBand, ensureTopmost } = require('./topmost');
+const { ensureBand, ensureTopmost, forgetBand } = require('./topmost');
 
 const SETTINGS_WIDTH = 360;
 
@@ -35,8 +35,11 @@ function createWindows(ctx) {
   app.on('browser-window-focus', (_event, win) => { if (win && !win.isDestroyed()) ctx.lastInteracted = win; });
   app.on('browser-window-created', (_event, win) => {
     win.on('show', () => {
-      if (!win.isDestroyed()) ctx.lastInteracted = win;
+      if (!win.isDestroyed()) markInteracted(win);
       ensureOnScreen(win);
+      // A helper surface shown with nothing on it is a bug: hide it rather than leave a
+      // full-desktop transparent window in the band (and in Alt-Tab).
+      if (win === ctx.overlayWin && !ctx.overlayMenu && !ctx.overlayTooltip) win.hide();
     });
   });
 
@@ -71,6 +74,9 @@ function createWindows(ctx) {
       // made the palette flash over Settings (the "palette flashes on top then goes
       // behind" report).
       for (const win of wins) raiseBand(win, { zorder: false });
+      // Self-heal: the overlay is only for a menu or a tooltip.
+      if (ctx.overlayWin && !ctx.overlayWin.isDestroyed() && ctx.overlayWin.isVisible()
+        && !ctx.overlayMenu && !ctx.overlayTooltip) ctx.overlayWin.hide();
       raiseInteracted();
       if (!wins.length) stopBandWatch();
     }, 500);
@@ -579,13 +585,27 @@ function ensureOnScreen(win) {
  * every other band window's *bit* has been repaired without moving it.
  */
 function markInteracted(win) {
+  // The overlay is a helper surface (a menu or a tooltip), not a window the user works
+  // in: it must never become the one window the watchdog raises.
+  if (win === ctx.overlayWin) return;
   if (win && !win.isDestroyed()) ctx.lastInteracted = win;
 }
 
 function raiseInteracted() {
   const win = ctx.lastInteracted;
-  if (!win || win.isDestroyed() || !win.isVisible()) return;
-  raiseTopmost(win);
+  // `lastInteracted` must be a BrowserWindow: an IPC sender is a webContents, and
+  // calling isVisible() on one threw inside the watchdog (the "isVisible is not a
+  // function" crash).
+  if (!win || typeof win.isVisible !== 'function' || win.isDestroyed() || !win.isVisible()) return;
+  if (isBandWindow(win)) raiseBand(win, { zorder: true });
+  else raiseTopmost(win);
+}
+
+/** Palettes and floats are kept out of the activation path; tool windows may activate. */
+function isBandWindow(win) {
+  if (win === ctx.popup) return true;
+  for (const w of (ctx.floatWins ? ctx.floatWins.values() : [])) if (w === win) return true;
+  return false;
 }
 
 /**
@@ -974,8 +994,7 @@ function closeOverlayMenu() {
 function showTooltip(sender, spec = {}) {
   const text = String(spec.text || '').slice(0, 300);
   if (!text) { hideTooltip(); return; }
-  // A menu owns the surface while it is open; opening a menu closes the tooltip.
-  if (ctx.overlayMenu) closeOverlayMenu();
+  if (ctx.overlayMenu) return; // A menu owns the surface while it is open (never close it).
   const win = ensureOverlayWin();
   const anchorX = Number.isFinite(spec.x) ? spec.x : 0;
   const anchorY = Number.isFinite(spec.y) ? spec.y : 0;
@@ -992,7 +1011,10 @@ function showTooltip(sender, spec = {}) {
   win.setAlwaysOnTop(true, 'screen-saver');
   if (!win.isVisible()) win.showInactive();
   // Above the page that asked (its own window may be lower in the band).
-  if (sender && !sender.isDestroyed()) ctx.lastInteracted = sender;
+  const senderWin = sender && typeof sender.isDestroyed === 'function' && typeof sender.isVisible === 'function'
+    ? sender
+    : BrowserWindow.fromWebContents(sender);
+  if (senderWin && !senderWin.isDestroyed()) ctx.lastInteracted = senderWin;
   win.moveTop();
 }
 
