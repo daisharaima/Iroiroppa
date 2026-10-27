@@ -34,7 +34,10 @@ function createWindows(ctx) {
   // coming back, the overlay menu opening) makes that window the one to raise.
   app.on('browser-window-focus', (_event, win) => { if (win && !win.isDestroyed()) ctx.lastInteracted = win; });
   app.on('browser-window-created', (_event, win) => {
-    win.on('show', () => { if (!win.isDestroyed()) ctx.lastInteracted = win; });
+    win.on('show', () => {
+      if (!win.isDestroyed()) ctx.lastInteracted = win;
+      ensureOnScreen(win);
+    });
   });
 
   // --- the band watchdog + visibility trace ----------------------------------
@@ -545,6 +548,31 @@ function reassertBand(webContents) {
 }
 
 /**
+ * A saved or snapped position can put a palette entirely off-screen (a neighbour snapped to
+ * the right edge of a palette near the screen edge, then the display changed): the app looks
+ * as if it did not start. Centre it on the primary work area in that case only.
+ */
+function ensureOnScreen(win) {
+  if (!win || win.isDestroyed()) return;
+  const b = win.getBounds();
+  const visible = screen.getAllDisplays().some((d) => {
+    const a = d.workArea;
+    const keep = 40;
+    return b.x < a.x + a.width - keep && b.x + b.width > a.x + keep
+      && b.y < a.y + a.height - keep && b.y + b.height > a.y + keep;
+  });
+  if (visible) return;
+  const area = screen.getPrimaryDisplay().workArea;
+  win.setBounds({
+    x: Math.round(area.x + Math.max(0, (area.width - b.width) / 2)),
+    y: Math.round(area.y + Math.max(0, (area.height - b.height) / 2)),
+    width: b.width,
+    height: b.height,
+  });
+  traceFocus('off-screen window moved on screen', JSON.stringify(b));
+}
+
+/**
  * The window the user touched last owns the top of the band. Windows are equal in the
  * topmost band, so a fixed raise order made Settings permanently outrank a palette the
  * user had just clicked (and vice versa). `raiseInteracted` raises this one window after
@@ -934,6 +962,47 @@ function closeOverlayMenu() {
   sendTo(win, 'overlay:menu', null);
   win.setIgnoreMouseEvents(true);
   win.hide();
+}
+
+/**
+ * Show a tooltip on the overlay surface. Native OS tooltips are separate windows outside
+ * our topmost band, so a palette or the Settings window covered them (the user's
+ * "tooltips get hidden" report). The overlay is full-desktop, always-on-top and
+ * click-through when it is not a menu, so a small box near the pointer is never covered.
+ * `sender` is the window that asked; it stays the last-interacted window.
+ */
+function showTooltip(sender, spec = {}) {
+  const text = String(spec.text || '').slice(0, 300);
+  if (!text) { hideTooltip(); return; }
+  // A menu owns the surface while it is open; opening a menu closes the tooltip.
+  if (ctx.overlayMenu) closeOverlayMenu();
+  const win = ensureOverlayWin();
+  const anchorX = Number.isFinite(spec.x) ? spec.x : 0;
+  const anchorY = Number.isFinite(spec.y) ? spec.y : 0;
+  const display = screen.getDisplayNearestPoint({ x: Math.round(anchorX), y: Math.round(anchorY) });
+  const area = display.workArea;
+  const width = Math.round(Math.min(320, Math.max(90, text.length * 6.4 + 18)));
+  const height = Math.round(Math.min(120, 20 + Math.ceil(text.length / 46) * 16));
+  const x = Math.max(area.x + 4, Math.min(Math.round(anchorX + 12), area.x + area.width - width - 4));
+  const y = Math.max(area.y + 4, Math.min(Math.round(anchorY + 14), area.y + area.height - height - 4));
+  win.setBounds({ x, y, width, height });
+  ctx.overlayTooltip = { text };
+  win.setIgnoreMouseEvents(true);
+  sendTo(win, 'overlay:tooltip', { text });
+  win.setAlwaysOnTop(true, 'screen-saver');
+  if (!win.isVisible()) win.showInactive();
+  // Above the page that asked (its own window may be lower in the band).
+  if (sender && !sender.isDestroyed()) ctx.lastInteracted = sender;
+  win.moveTop();
+}
+
+/** Hide the overlay tooltip; a menu on the same surface stays open. */
+function hideTooltip() {
+  ctx.overlayTooltip = null;
+  const win = ctx.overlayWin;
+  if (!win || win.isDestroyed()) return;
+  sendTo(win, 'overlay:tooltip', null);
+  if (!ctx.overlayMenu) win.hide();
 }
 
 /** Take a module id out of every float (used when a module is disabled). */
