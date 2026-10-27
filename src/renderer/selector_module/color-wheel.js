@@ -297,19 +297,33 @@
       // --- ring --------------------------------------------------------------
       const ringCache = new Map();
 
-      // A fixed-lightness ring is the only *continuous* pure-hue reference here.
-      // OKHSV's S=1/V=1 path follows the sRGB blue fin and jumps at the primary
-      // (green 61 -> 0 in one step); a constant-L gamut edge has no such seam.
-      const RING_OUTER_L = 0.7;
+      // The outer band is the *document's* most colourful colour per hue (its cusp), the
+      // inner band the same hue at the selected lightness. Both are mapped to the display
+      // with `fitToSrgb` — hue and lightness kept, chroma reduced to the sRGB edge — so
+      // neighbouring hues always differ (a channel clip made long arcs of different hues
+      // collapse to one sRGB primary: the "red takes so much space" look) and the profile
+      // shows through the cusp's lightness. A narrow print gamut even shows its own
+      // saturated ring, because its cusp is inside sRGB.
       const RING_HELM_L = 0.65;
-      const ringColor = (model, hue, light) => {
-        // The ring is the maximal in-gamut colour per hue. It can lie past the sRGB display:
-        // clip it (the plain drawing-app look) rather than fading it, or the whole ring goes
-        // pastel on a wide-gamut document.
-        const clip = (L, C, H) => {
-          const lin = Color.oklchToRgb(L, C, H);
-          return { r: Math.min(1, Math.max(0, lin.r)), g: Math.min(1, Math.max(0, lin.g)), b: Math.min(1, Math.max(0, lin.b)) };
-        };
+      const display = (L, C, H) => {
+        const f = Color.fitToSrgb(L, C, H);
+        return { r: f.r, g: f.g, b: f.b };
+      };
+      const outerColour = (model, hue) => {
+        if (model.id === 'helmgenlch') {
+          const axes = [0, 0, 0];
+          axes[hueIndexOf(model)] = hue;
+          axes[lightAxis(model)] = RING_HELM_L;
+          axes[1] = model.axes[1].max;
+          const lab = model.toLab(axes);
+          const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
+          return display(lch.L, lch.C, lch.H);
+        }
+        return window.IroRing
+          ? window.IroRing.outerColour(store, hue)
+          : display(RING_HELM_L, Math.max(0, store.maxChroma(RING_HELM_L, hue)), hue);
+      };
+      const innerColour = (model, hue, light) => {
         if (model.id === 'helmgenlch') {
           const axes = [0, 0, 0];
           axes[hueIndexOf(model)] = hue;
@@ -317,11 +331,36 @@
           axes[1] = model.axes[1].max;
           const lab = model.toLab(axes);
           const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-          return clip(lch.L, lch.C, lch.H);
+          return display(lch.L, lch.C, lch.H);
         }
-        const L = clamp01(light);
-        const C = Math.max(0, store.maxChroma(L, hue));
-        return clip(L, C, hue);
+        return window.IroRing
+          ? window.IroRing.innerColour(store, hue, light)
+          : display(clamp01(light), Math.max(0, store.maxChroma(clamp01(light), hue)), hue);
+      };
+
+      /** Paint one ring band: a single conic gradient (360 stops) stroked as one arc. */
+      const paintBand = (c2d, geo, radius, width, colourAt) => {
+        const pad = 1.5;
+        const css = (c) => `rgb(${clamp255(c.r * 255)},${clamp255(c.g * 255)},${clamp255(c.b * 255)})`;
+        if (typeof c2d.createConicGradient === 'function') {
+          const grad = c2d.createConicGradient(0, geo.cx, geo.cy);
+          for (let deg = 0; deg < 360; deg += 1) grad.addColorStop(deg / 360, css(colourAt(deg)));
+          grad.addColorStop(1, css(colourAt(0)));
+          c2d.beginPath();
+          c2d.arc(geo.cx, geo.cy, radius, 0, Math.PI * 2);
+          c2d.strokeStyle = grad;
+          c2d.lineWidth = width + pad;
+          c2d.stroke();
+          return;
+        }
+        // Fallback: one short arc per degree (older runtimes).
+        for (let deg = 0; deg < 360; deg += 1) {
+          c2d.beginPath();
+          c2d.arc(geo.cx, geo.cy, radius, ((deg - 0.4) * Math.PI) / 180, ((deg + 1.4) * Math.PI) / 180);
+          c2d.strokeStyle = css(colourAt(deg));
+          c2d.lineWidth = width + pad;
+          c2d.stroke();
+        }
       };
 
       /** The fixed outer band: the widest in-gamut colour at every hue. */
@@ -336,19 +375,8 @@
         // The stroke is a hair wider than its band on the inner side, so the two bands
         // overlap at their joint: compositing two separately drawn anti-aliased edges
         // leaves a white hairline, which read as a gap between the rings.
-        const pad = 1.5;
-        const radius = geo.outer - (geo.outerW + pad) / 2;
-        const light = model.id === 'helmgenlch' ? RING_HELM_L : RING_OUTER_L;
-        for (let deg = 0; deg < 360; deg += 1) {
-          const rgb = ringColor(model, deg, light);
-          const a0 = (deg - 0.4) * Math.PI / 180;
-          const a1 = (deg + 1.4) * Math.PI / 180;
-          c2d.beginPath();
-          c2d.arc(geo.cx, geo.cy, radius, a0, a1);
-          c2d.strokeStyle = `rgb(${clamp255(rgb.r * 255)},${clamp255(rgb.g * 255)},${clamp255(rgb.b * 255)})`;
-          c2d.lineWidth = geo.outerW + pad;
-          c2d.stroke();
-        }
+        const radius = geo.outer - (geo.outerW + 1.5) / 2;
+        paintBand(c2d, geo, radius, geo.outerW, (deg) => outerColour(model, deg));
         if (ringCache.size > 12) ringCache.clear();
         ringCache.set(key, off);
         return off;
@@ -356,11 +384,9 @@
 
       /** The contextual inner band: the same hue at the selected OKLab L. */
       const innerRingPlot = (w, h, model, geo, third) => {
-        // During a drag the band is a thin approximation: quantise the light to
-        // 0.01 so moving the inner pointer does not rebuild 360 arcs per frame, and
-        // hold the last band for a beat while a gesture is in flight (the raster's
-        // own hold is in buildInner).
-        const thirdPaint = store.interactive ? Math.round(third * 100) / 100 : third;
+        // No hold: a single conic gradient is cheap enough to rebuild per frame, and the
+        // old 200 ms hold is what made dragging the wheel look laggy.
+        const thirdPaint = store.interactive ? Math.round(third * 200) / 200 : third;
         const lightAxes = currentAxes();
         lightAxes[lightAxis(model)] = thirdPaint;
         const lightLab = model.toLab(lightAxes);
@@ -368,29 +394,16 @@
         const key = `ringinner:${store.plotKeyTag()}:${model.id}:${thirdPaint.toFixed(3)}:${lch.L.toFixed(4)}:${ringWidth.toFixed(3)}:${split.toFixed(2)}:${w}x${h}`;
         const hit = ringCache.get(key);
         if (hit && hit.width === w && hit.height === h) return hit;
-        const now = performance.now();
-        if (store.interactive && lastInnerRing && now - innerRingBuilt < 200) return lastInnerRing;
         const off = document.createElement('canvas');
         off.width = w; off.height = h;
         const c2d = off.getContext('2d');
         if (geo.innerW <= 0 || geo.inner <= 0) return off;
-        const pad = 1.5;
-        const radius = geo.inner + (geo.innerW + pad) / 2;
+        const radius = geo.inner + (geo.innerW + 1.5) / 2;
         const light = model.id === 'helmgenlch' ? thirdPaint : lch.L;
-        for (let deg = 0; deg < 360; deg += 1) {
-          const rgb = ringColor(model, deg, light);
-          const a0 = (deg - 0.4) * Math.PI / 180;
-          const a1 = (deg + 1.4) * Math.PI / 180;
-          c2d.beginPath();
-          c2d.arc(geo.cx, geo.cy, radius, a0, a1);
-          c2d.strokeStyle = `rgb(${clamp255(rgb.r * 255)},${clamp255(rgb.g * 255)},${clamp255(rgb.b * 255)})`;
-          c2d.lineWidth = geo.innerW + pad;
-          c2d.stroke();
-        }
+        paintBand(c2d, geo, radius, geo.innerW, (deg) => innerColour(model, deg, light));
         if (ringCache.size > 12) ringCache.clear();
         ringCache.set(key, off);
         lastInnerRing = off;
-        innerRingBuilt = now;
         return off;
       };
 

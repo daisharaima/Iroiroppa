@@ -190,6 +190,20 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The palette no longer fails to come back.** A missed foreground event used to leave it
   hidden while Clip Studio Paint was in front; a slow safety poll re-queries the foreground
   and shows it.
+- **The hue ring is the document's cusp, fitted to the display, not a clipped fixed-L
+  edge.** The cusp's lightness is interpolated around the circle (no primary seam) and the
+  colour is `fitToSrgb`, so every hue is distinct and the profile shows through; the ring
+  is one conic-gradient stroke.
+- **Model dropdowns work in every module.** Each widget has its own overlay menu id and
+  binds its pick on open (the last-built menu used to steal the pick).
+- **Window order follows the last interaction**, and tool windows are no longer forced
+  above a palette the user just clicked.
+- **Tooltips are drawn on the overlay**, so Settings and the palettes can never cover them.
+- **Slices can hide the crosshair** (`crosshair`) and the **Disc can hide the pale
+  out-of-gamut section** (`showOutOfGamut`).
+- **The wheel's rings rebuild per frame** (conic gradient); the 200 ms hold is gone.
+- **The Slices guide ignores speckle** (components under 3 points, or a ragged field with
+  more than 24 components, draw nothing instead of vertical stubs).
 - **Maps clip instead of fading.** A colour the document holds but the display cannot show
   used to be painted as the desaturated stand-in, which turned most of a wide-gamut
   document's Wheel/Disc/Slices into a pale patch. Maps now paint the **clipped** colour

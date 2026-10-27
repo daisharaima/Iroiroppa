@@ -54,6 +54,7 @@
   }
 
   let openMenu = null;
+  let menuSeq = 0;
 
   /**
    * A dropdown. The real menu is the desktop overlay (the same surface the Session
@@ -118,11 +119,16 @@
     }
 
     if (hasOverlay) {
-      overlay.onPick('model', (id) => { if (id) change(id); });
+      // Every widget gets its own menu id and registers its pick handler *on open*:
+      // registering them all as 'model' at build time made the last-built menu win, so
+      // the Slices' model menu and the Slider's other dropdowns stole each other's picks
+      // ("switching colour model is impossible").
+      const menuId = `model:${(menuSeq += 1)}`;
       btn.addEventListener('click', (ev) => {
         ev.preventDefault();
         const rect = btn.getBoundingClientRect();
-        overlay.show('model', btn, {
+        overlay.onPick(menuId, (id) => { if (id) change(id); });
+        overlay.show(menuId, btn, {
           items: overlayItems,
           anchor: {
             x: Math.round(window.screenX + rect.left),

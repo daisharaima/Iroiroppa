@@ -35,7 +35,14 @@
       const node = el.firstChild;
       if (node && node.nodeType === 3) node.nodeValue = i18n.t(el.dataset.i18nLead);
     }
-    for (const el of root.querySelectorAll('[data-i18n-title]')) el.title = i18n.t(el.dataset.i18nTitle);
+    for (const el of root.querySelectorAll('[data-i18n-title]')) {
+      const text = i18n.t(el.dataset.i18nTitle);
+      // Where the overlay tooltip helper is loaded, a tooltip is `data-tip` (a native
+      // `title` would be an OS window behind the always-on-top palettes). Elsewhere keep
+      // the native attribute.
+      if (window.Iro && window.Iro.tooltip) el.setAttribute('data-tip', text);
+      else el.title = text;
+    }
     for (const el of root.querySelectorAll('[data-i18n-aria-label]')) el.setAttribute('aria-label', i18n.t(el.dataset.i18nAriaLabel));
     for (const el of root.querySelectorAll('[data-i18n-placeholder]')) el.placeholder = i18n.t(el.dataset.i18nPlaceholder);
   }

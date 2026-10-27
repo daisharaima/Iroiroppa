@@ -92,3 +92,21 @@ html[dir="rtl"] .overlay-menu-item::before { left: auto; right: 5px; }
   opacity: 0.8;
 }
 .overlay-menu-heading:first-child { padding-top: 2px; }
+.overlay-tooltip {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  max-width: 300px;
+  padding: 5px 8px;
+  border-radius: var(--radius, 6px);
+  background: var(--bar, #1e2130);
+  color: var(--text, #e8e8f0);
+  border: 1px solid var(--line, #34374a);
+  box-shadow: var(--shadow, 0 4px 14px rgba(0, 0, 0, 0.3));
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  line-height: 1.35;
+  pointer-events: none;
+  z-index: 3;
+}
+.overlay-tooltip.hidden { display: none; }

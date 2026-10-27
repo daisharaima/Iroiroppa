@@ -187,14 +187,37 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   it while visible and the press path repairs it at once. `moveTop()` is never used to
   "put it back": `SetWindowPos(HWND_TOP)` itself removes the topmost band. No-op wherever
   the runtime did its job.
+- **The wheel's hue ring is the document's cusp, fitted — never clipped.** `ring.js` gives
+  the outer band the document's most colourful colour per hue (its cusp; the cusp's
+  lightness is sampled at 24 anchors and interpolated, so no primary seam) and the inner
+  band the same hue at the selected lightness. Both are mapped with `fitToSrgb`, because a
+  channel clip collapsed long arcs of different hues into one sRGB primary (the "red takes
+  so much space" report) and made every profile look identical; the fit keeps every hue
+  distinct and lets the profile show through the cusp's lightness. The bands are painted
+  with one `createConicGradient` stroke (360 stops) plus a per-degree arc fallback — the
+  360-arc loop and the 200 ms inner-band hold were what made dragging the wheel lag.
+- **A model dropdown's pick id is per widget and bound on open.** `overlay.onPick('model')`
+  registered by every menu at build time let the last-built menu take every pick, which is
+  why the Slices/Slider model menus did nothing (their other menus won). Each widget now
+  uses `model:<n>` and registers on click.
+- **Window order follows the last interaction, not a fixed raise order.** `ctx.lastInteracted`
+  is set on `browser-window-focus`, on a window `show`, and on a palette press
+  (`reassertBand`); the 500 ms band watch repairs every band window's *bit* with
+  `zorder:false` (no reorder) and then raises only that window. A palette clicked while
+  Settings is open comes forward, and Settings clicked over a palette does too.
+- **Tooltips are drawn on the overlay, not by the OS.** A native `title=` tooltip is a
+  separate window outside the topmost band, so a palette or the Settings window covered it.
+  `kernel/tooltip.js` shows `data-tip` on the overlay surface (`showTooltip` in windows.js);
+  `data-i18n-title` sets `data-tip` where the helper is loaded. The Disc's pale section has
+  a module toggle (`showOutOfGamut`) and the Slices' crosshair a local one (`crosshair`).
 - **The wheel's inner shape is keyed on its fixed axis, and its guide is clipped to the
   shape the projection shows.** Plane 0 is the fixed-hue plane, so its pixels depend on
   that one axis — keying the raster cache on all three axes rebuilt a HelmGen inner
-  (~a hundred ms per frame) on every lightness drag, which was the "very laggy wheel"
-  report. It builds at native device pixels while a gesture is in flight and back at
-  full supersampling on release, and the lightness guide is clipped to the projection's
-  own `inside` region so it cannot stop in mid-air over the page (the "guide gets cut
-  off" report). The ring's inner band is held for 200 ms while interacting.
+  (~a hundred ms per frame) on every lightness drag (the "very laggy wheel" report). It
+  builds at native device pixels while a gesture is in flight and back at full
+  supersampling on release, and the lightness guide is clipped to the projection's own
+  `inside` region so it cannot stop in mid-air over the page (the "guide gets cut off"
+  report).
 - **The Color Wheel's gap, its bands, and its ring-at-grey.** The inner shape is
   inscribed in a smaller concentric circle (`geometry().gap`) so it never touches the hue
   ring; the *two hue bands* meet exactly (`outer - outerW === inner + innerW`) and no
@@ -238,19 +261,13 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   pick comes back as `{id, menu}` and `overlay-menu.js` routes it to the menu that asked
   (`onPick`). The old in-page list is kept only as the fallback when the overlay is
   unavailable (a bare page, the tests). Both settings hosts load `kernel/overlay-menu.js`.
-- **A tool window is raised *after* the palette, or the palette buries it.** On this
-  build `isAlwaysOnTop()` reports false, so the band watchdog re-raises the palette every
-  500 ms; a module-settings popout, the Settings window or the overlay menu that was only
-  topmost at creation ended up behind it ("clicking the 3 dots does nothing", "the
-  settings window disappears when I switch tabs", "the profile picker is buried"). The
-  watchdog raises the palette and floats first, then every visible tool window and the
-  overlay menu last, every content resize (`moduleSettings:resize`, `settings:resize`,
-  `applyUiScale`) re-asserts `ensureTopmost`, and the popout's blur close is deferred
-  150 ms so a transient blur cannot kill it between open and pointer. **While a tool
-  window is visible the palette's repair must not reorder**: `SetWindowPos(HWND_TOPMOST)`
-  put it above the Settings for a frame every half second (the "palette flashes on top
-  then goes behind" report), so the band call uses `zorder:false` (style bit only,
-  `SWP_NOZORDER`) in that case.
+- **A tool window joins the same band and the same order.** On this build
+  `isAlwaysOnTop()` reports false, so every band window's bit is repaired every 500 ms
+  (see "Window order follows the last interaction"); the module-settings popout, the
+  Settings window and the overlay menu are in that list, every content resize
+  (`moduleSettings:resize`, `settings:resize`, `applyUiScale`) re-asserts `ensureTopmost`,
+  and the popout's blur close is deferred 150 ms so a transient blur cannot kill it
+  between open and pointer.
 - **A module's `settingsUI` must never blank its popup — in either host.** Two pages
   render it (`module-settings.html`, and the Settings window's Modules tab), and both
   `try/catch` it and load every global a settingsUI may touch (`kernel/model-options.js`

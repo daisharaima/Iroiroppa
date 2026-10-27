@@ -13,7 +13,7 @@
   <div id="app">
     <header id="titlebar">
       <span id="ms-title" class="ms-title">Module</span>
-      <button id="ms-close" class="icon-btn" type="button" title="Close" aria-label="Close">
+      <button id="ms-close" class="icon-btn" type="button" data-tip="Close" aria-label="Close">
         <svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>
       </button>
     </header>
@@ -29,6 +29,7 @@
   <script src="../shared/contour.js"></script>
   <script src="../shared/render-cadence.js"></script>
   <script src="../shared/disc-map.js"></script>
+<script src="../shared/ring.js"></script>
   <script src="../shared/slider-gamut.js"></script>
 <script src="../shared/slice-view.js"></script>
 <script src="../shared/slice-geometry.js"></script>
@@ -47,6 +48,7 @@
        palette uses; without it the whole settings section throws and the popup opens
        empty (the "module settings disappeared" report). -->
   <script src="kernel/overlay-menu.js"></script>
+<script src="kernel/tooltip.js"></script>
 <script src="kernel/model-options.js"></script>
 <script src="module-settings.js"></script>
 </body>

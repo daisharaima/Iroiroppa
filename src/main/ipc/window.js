@@ -109,6 +109,10 @@ function register(ctx, h) {
   ipcMain.on('drag:overlay', (event, spec) => ctx.showOverlay(event.sender, spec || {}));
   // The palette menu lives in the overlay window (see `showOverlayMenu`): the palette asks for it, the
   // overlay reports which item was clicked, and main forwards the choice back to the window that asked.
+  ipcMain.on('tooltip:show', (event, spec = {}) => {
+    if (ctx.showTooltip) ctx.showTooltip(event.sender, spec);
+  });
+  ipcMain.on('tooltip:hide', () => { if (ctx.hideTooltip) ctx.hideTooltip(); });
   ipcMain.on('palette:menu', (event, spec) => ctx.showOverlayMenu(event.sender, spec || {}));
   ipcMain.on('overlay:menu:close', () => ctx.closeOverlayMenu());
   ipcMain.on('module-settings:close', () => ctx.closeModuleSettingsWindow());

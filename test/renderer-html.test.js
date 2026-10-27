@@ -44,6 +44,11 @@ test('both pages that render a settingsUI load the model-options helper', () => 
     const html = fs.readFileSync(path.join(RENDERER, page), 'utf8');
     assert.match(html, /<script[^>]+src="kernel\/model-options\.js"/,
       `${page} must load kernel/model-options.js`);
+    // The info tooltips are drawn on the overlay (a native title would be an OS window
+    // behind the always-on-top palettes).
+    assert.match(html, /<script[^>]+src="kernel\/tooltip\.js"/,
+      `${page} must load kernel/tooltip.js`);
+    assert.ok(!/\stitle="/.test(html), `${page} must not set native title tooltips`);
   }
 });
 

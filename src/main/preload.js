@@ -121,6 +121,9 @@ contextBridge.exposeInMainWorld('csp', {
   overlayMenuPick: (index) => ipcRenderer.send('overlay:menu:pick', { index }),
   overlayMenuClose: () => ipcRenderer.send('overlay:menu:close'),
   onOverlayMenu: (cb) => ipcRenderer.on('overlay:menu', (_e, d) => cb(d)),
+  tooltipShow: (spec) => ipcRenderer.send('tooltip:show', spec),
+  tooltipHide: () => ipcRenderer.send('tooltip:hide'),
+  onOverlayTooltip: (cb) => ipcRenderer.on('overlay:tooltip', (_e, d) => cb(d)),
   closeModuleSettings: () => ipcRenderer.send('module-settings:close'),
   onInputReset: (cb) => ipcRenderer.on('input:reset', () => cb()),
   // Opt-in input diagnosis (`--trace-input`); main drops the record without the flag.

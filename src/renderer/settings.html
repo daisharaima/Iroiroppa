@@ -12,7 +12,7 @@
   <div id="app">
     <header id="titlebar">
       <span class="settings-title" data-i18n="settings.title">Settings</span>
-      <button id="settings-close" class="icon-btn" title="Close" aria-label="Close">
+      <button id="settings-close" class="icon-btn" data-tip="Close" aria-label="Close">
         <svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>
       </button>
     </header>
@@ -33,7 +33,7 @@
         <div id="palette-list" class="palette-list"></div>
         <div class="section-title">Whole workspace</div>
         <div class="row">
-          <span class="row-label">Every palette and its arrangement, as one file<span class="info" title="Export writes the workspace to a JSON file; Import replaces the workspace with one. An old layout.json can be imported too.">i</span></span>
+          <span class="row-label">Every palette and its arrangement, as one file<span class="info" data-tip="Export writes the workspace to a JSON file; Import replaces the workspace with one. An old layout.json can be imported too.">i</span></span>
           <span class="row-actions">
             <button id="btn-export-ws" class="btn">Export&hellip;</button>
             <button id="btn-import-ws" class="btn">Import&hellip;</button>
@@ -66,23 +66,23 @@
 
         <div class="section-title" data-i18n="settings.section.behaviour">Behaviour</div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.liveSync">Live sync while dragging<span class="info" title="Push colour changes to Clip Studio Paint while you drag. Turn off to send only when you release.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.liveSync">Live sync while dragging<span class="info" data-tip="Push colour changes to Clip Studio Paint while you drag. Turn off to send only when you release.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-live" /><span class="tgl-track"></span></label>
         </div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.autoHide">Auto-hide<span class="info" title="Show the palette while Clip Studio Paint is active, and hide it when you switch away or click elsewhere.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.autoHide">Auto-hide<span class="info" data-tip="Show the palette while Clip Studio Paint is active, and hide it when you switch away or click elsewhere.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-autohide" /><span class="tgl-track"></span></label>
         </div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.autoConnect">Connect automatically<span class="info" title="While not connected, look for Clip Studio Paint's Companion Mode QR code on screen and connect as soon as it appears. It only ever reads the QR (locally, never saved).">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.autoConnect">Connect automatically<span class="info" data-tip="While not connected, look for Clip Studio Paint's Companion Mode QR code on screen and connect as soon as it appears. It only ever reads the QR (locally, never saved).">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-autoconnect" /><span class="tgl-track"></span></label>
         </div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.startWithWindows">Start when Windows starts<span class="info" title="Launch Iroiroppa automatically when you sign in to Windows.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.startWithWindows">Start when Windows starts<span class="info" data-tip="Launch Iroiroppa automatically when you sign in to Windows.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-login" /><span class="tgl-track"></span></label>
         </div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.summonHotkey">Summon hotkey<span class="info" title="A system-wide key that shows or hides the palette, even while Clip Studio Paint has focus. Click the box, then press the keys (a modifier is required); press Esc to clear.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.summonHotkey">Summon hotkey<span class="info" data-tip="A system-wide key that shows or hides the palette, even while Clip Studio Paint has focus. Click the box, then press the keys (a modifier is required); press Esc to clear.">i</span></span>
           <input id="set-summon" class="text-input hotkey-input" readonly placeholder="None" spellcheck="false" aria-label="Summon hotkey" />
         </div>
 
@@ -91,7 +91,7 @@
 
         <div class="section-title" data-i18n="settings.section.proofColor">Proof Color</div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.colourProfile">Colour profile<span class="info" title="Interpret the document's recorded colours through this profile. Picking one turns proofing on; the default treats the records as sRGB.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.colourProfile">Colour profile<span class="info" data-tip="Interpret the document's recorded colours through this profile. Picking one turns proofing on; the default treats the records as sRGB.">i</span></span>
         </div>
         <button id="set-profile-default" class="profile-pinned" type="button">
           <span class="profile-dot"></span>
@@ -103,13 +103,13 @@
         </button>
         <div id="set-profile-list" class="profile-list settings-profile-list"></div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.markOutOfDisplay">Mark colours this display can&#8217;t show<span class="info" title="A document can hold colours your screen cannot display. They are drawn as the closest displayable colour; turn this on to dim them so you can tell them apart. Off (default) draws them like any other colour.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.markOutOfDisplay">Mark colours this display can&#8217;t show<span class="info" data-tip="A document can hold colours your screen cannot display. They are drawn as the closest displayable colour; turn this on to dim them so you can tell them apart. Off (default) draws them like any other colour.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-mark-out-of-display" /><span class="tgl-track"></span></label>
         </div>
 
         <div class="section-title" data-i18n="settings.section.cspData">CSP data folder</div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.cspDataDir">Clip Studio Paint's settings folder<span class="info" title="The CSP Shortcuts module reads its shortcut and workspace files from here. Usually Documents\CELSYS (the folder that contains CLIPStudioPaintVer…); Auto uses the default location. A different Documents folder (OneDrive, a moved profile) is the usual reason the module finds nothing.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.cspDataDir">Clip Studio Paint's settings folder<span class="info" data-tip="The CSP Shortcuts module reads its shortcut and workspace files from here. Usually Documents\CELSYS (the folder that contains CLIPStudioPaintVer…); Auto uses the default location. A different Documents folder (OneDrive, a moved profile) is the usual reason the module finds nothing.">i</span></span>
           <span class="row-actions">
             <button id="btn-csp-browse" class="btn" data-i18n="settings.cspData.browse">Browse…</button>
             <button id="btn-csp-auto" class="btn" data-i18n="settings.cspData.auto">Auto</button>
@@ -120,7 +120,7 @@
 
         <div class="section-title" data-i18n="settings.section.settingsFile">Settings file</div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.settingsFile">Back up or move your preferences<span class="info" title="Export writes settings.json to a JSON file; Import merges a previously exported file.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.settingsFile">Back up or move your preferences<span class="info" data-tip="Export writes settings.json to a JSON file; Import merges a previously exported file.">i</span></span>
           <span class="row-actions">
             <button id="btn-export-settings" class="btn" data-i18n="settings.file.export">Export&hellip;</button>
             <button id="btn-import-settings" class="btn" data-i18n="settings.file.import">Import&hellip;</button>
@@ -131,8 +131,8 @@
         <div class="foot-row">
           <button id="btn-quit" class="btn danger" data-i18n="settings.footer.quit">Quit</button>
           <span class="foot-right">
-            <button id="settings-update" class="settings-update hidden" type="button" title="Open the release page"></button>
-            <button id="settings-check" class="settings-check" type="button" title="Check GitHub for a newer release" data-i18n="settings.footer.checkUpdates">Check for updates</button>
+            <button id="settings-update" class="settings-update hidden" type="button" data-tip="Open the release page"></button>
+            <button id="settings-check" class="settings-check" type="button" data-tip="Check GitHub for a newer release" data-i18n="settings.footer.checkUpdates">Check for updates</button>
             <span id="settings-version" class="settings-version"></span>
           </span>
         </div>
@@ -141,11 +141,11 @@
       <div id="tab-appearance" class="tab-panel">
         <div class="section-title" data-i18n="settings.section.mainPanel">Main Panel</div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.crosshair">Show crosshair guides<span class="info" title="Draw the crosshair and guide lines over the colour maps.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.crosshair">Show crosshair guides<span class="info" data-tip="Draw the crosshair and guide lines over the colour maps.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-cross" /><span class="tgl-track"></span></label>
         </div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.viewFamily">Color model family<span class="info" title="Limit the model lists in every picker to one family. All still uses the canonical OKLab value internally.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.viewFamily">Color model family<span class="info" data-tip="Limit the model lists in every picker to one family. All still uses the canonical OKLab value internally.">i</span></span>
           <select id="set-view-family" class="select" data-i18n-aria-label="settings.row.viewFamily">
             <option value="all" data-i18n="settings.family.all">All</option>
             <option value="oklab" data-i18n="settings.family.oklab">OKLab</option>
@@ -154,16 +154,16 @@
           </select>
         </div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.uiScale">UI scale<span class="info" title="Scale the whole interface between 80% and 160%.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.uiScale">UI scale<span class="info" data-tip="Scale the whole interface between 80% and 160%.">i</span></span>
           <div class="row-control">
             <input id="set-ui-scale" class="rng scale-rng" type="range" min="0.8" max="1.6" step="0.01" value="1" aria-label="UI scale" />
             <div class="spinner">
-              <button id="btn-scale-up" class="spin-btn" type="button" title="Increase by 1%" data-i18n-title="settings.scale.increase">&#9650;</button>
-              <button id="btn-scale-down" class="spin-btn" type="button" title="Decrease by 1%" data-i18n-title="settings.scale.decrease">&#9660;</button>
+              <button id="btn-scale-up" class="spin-btn" type="button" data-tip="Increase by 1%" data-i18n-title="settings.scale.increase">&#9650;</button>
+              <button id="btn-scale-down" class="spin-btn" type="button" data-tip="Decrease by 1%" data-i18n-title="settings.scale.decrease">&#9660;</button>
             </div>
             <input id="ui-scale-value" class="scale-input" type="text" inputmode="numeric" maxlength="4" value="100" aria-label="UI scale percent" spellcheck="false" />
             <span class="scale-suffix">%</span>
-            <button id="btn-scale-reset" class="btn tiny icon-only" type="button" title="Reset to 100%" aria-label="Reset to 100%" data-i18n-title="settings.scale.reset" data-i18n-aria-label="settings.scale.reset">
+            <button id="btn-scale-reset" class="btn tiny icon-only" type="button" data-tip="Reset to 100%" aria-label="Reset to 100%" data-i18n-title="settings.scale.reset" data-i18n-aria-label="settings.scale.reset">
               <svg viewBox="0 0 20 20"><path d="M4.6 7.6A6 6 0 0 1 15.6 6.2"/><path d="M15.8 2.6v3.8h-3.8"/><path d="M15.4 12.4A6 6 0 0 1 4.4 13.8"/><path d="M4.2 17.4v-3.8h3.8"/></svg>
             </button>
           </div>
@@ -175,18 +175,18 @@
           </div>
         </div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.theme">Theme<span class="info" title="Pick a theme. Add your own by dropping theme JSON files into the Iroiroppa themes folder in AppData.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.theme">Theme<span class="info" data-tip="Pick a theme. Add your own by dropping theme JSON files into the Iroiroppa themes folder in AppData.">i</span></span>
           <div class="row-control">
             <select id="set-theme" class="select" aria-label="Theme"></select>
-            <button id="btn-accent" class="accent-trigger" type="button" title="Accent colour — click to choose" aria-label="Accent colour" data-i18n-title="settings.accent.choose" data-i18n-aria-label="settings.accent.choose"></button>
-            <button id="btn-accent-reset" class="btn tiny icon-only" title="Use the theme's own accent" aria-label="Use the theme's own accent">
+            <button id="btn-accent" class="accent-trigger" type="button" data-tip="Accent colour — click to choose" aria-label="Accent colour" data-i18n-title="settings.accent.choose" data-i18n-aria-label="settings.accent.choose"></button>
+            <button id="btn-accent-reset" class="btn tiny icon-only" data-tip="Use the theme's own accent" aria-label="Use the theme's own accent">
               <svg viewBox="0 0 20 20"><path d="M4.6 7.6A6 6 0 0 1 15.6 6.2"/><path d="M15.8 2.6v3.8h-3.8"/><path d="M15.4 12.4A6 6 0 0 1 4.4 13.8"/><path d="M4.2 17.4v-3.8h3.8"/></svg>
             </button>
           </div>
         </div>
 
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.hideNames">Hide module names<span class="info" title="Keep each module's title bar (for dragging) but hide its name.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.hideNames">Hide module names<span class="info" data-tip="Keep each module's title bar (for dragging) but hide its name.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-names" /><span class="tgl-track"></span></label>
         </div>
       </div>
@@ -200,7 +200,7 @@
              longer exist. Deleting keeps them so a mis-click is recoverable; startup sweeps the
              ones older than 30 days (module-store's TRASH_DAYS). -->
         <div class="trash-bar">
-          <button id="btn-trash" class="icon-btn" type="button" title="Unused settings files" aria-label="Unused settings files">
+          <button id="btn-trash" class="icon-btn" type="button" data-tip="Unused settings files" aria-label="Unused settings files">
             <svg viewBox="0 0 20 20"><path d="M4.5 6.5h11"/><path d="M8 6.5V5h4v1.5"/><path d="M6 6.5l.8 8.5h6.4l.8-8.5"/></svg>
           </button>
         </div>
@@ -239,6 +239,7 @@
 <script src="../shared/contour.js"></script>
 <script src="../shared/render-cadence.js"></script>
 <script src="../shared/disc-map.js"></script>
+<script src="../shared/ring.js"></script>
 <script src="../shared/slider-gamut.js"></script>
 <script src="../shared/slice-view.js"></script>
 <script src="../shared/slice-geometry.js"></script>
@@ -261,6 +262,7 @@
      Model control through this helper: without it the section throws and only the
      Module Size slider is left (the "no settings" report). -->
 <script src="kernel/overlay-menu.js"></script>
+<script src="kernel/tooltip.js"></script>
 <script src="kernel/model-options.js"></script>
 <script src="settings.js"></script>
 </body>

@@ -78,6 +78,20 @@
     numbers.append(box, label);
     box.addEventListener('change', () => api.patch({ hideNumbers: box.checked }));
     root.append(numbers);
+
+    // The disc is painted whole, so the part of it the document cannot hold is drawn as a
+    // dimmed stand-in (the pale section over a light theme). This switches that off: the
+    // region is then painted clipped, part of the disc, with no pale band.
+    const outRow = document.createElement('label');
+    outRow.className = 'pop-row';
+    const outBox = document.createElement('input');
+    outBox.type = 'checkbox';
+    outBox.checked = api.get().showOutOfGamut !== false;
+    const outLabel = document.createElement('span');
+    outLabel.textContent = window.Iro.t('module.disc.outOfGamut');
+    outRow.append(outBox, outLabel);
+    outBox.addEventListener('change', () => api.patch({ showOutOfGamut: outBox.checked }));
+    root.append(outRow);
     const hint = document.createElement('div');
     hint.className = 'pop-hint';
     hint.textContent = window.Iro.t('module.slices.guideLock');
@@ -91,7 +105,7 @@
     // Content-sized: a circle plus one slider row, so a column share only leaves an
     // empty band under the disc. The canvas width (the palette width) sets its size.
     autoHeight: true,
-    defaults: { model: 'okhsv', hideNumbers: false, guideLines: true },
+    defaults: { model: 'okhsv', hideNumbers: false, guideLines: true, showOutOfGamut: true },
     settingsUI,
     minSize() { return { width: 140, height: 214 }; },
 
@@ -104,6 +118,7 @@
       let modelId = discModel(ctx.settings.get().model, AVAILABLE);
       let hideNumbers = ctx.settings.get().hideNumbers === true;
       let guideLines = ctx.settings.get().guideLines !== false;
+      let showOutOfGamut = ctx.settings.get().showOutOfGamut !== false;
       let resetCleanup = null;
 
       const body = document.createElement('div');
@@ -260,12 +275,16 @@
             // see that region (`store.markOutOfDisplay`).
             const inSrgb = Color.inGamut(lch.L, lch.C, lch.H);
             const mark = store.markOutOfDisplay && inside && !inSrgb;
-            const rgb = inside && !mark ? Color.oklabToRgb(lab.L, lab.a, lab.b) : Color.fitToSrgb(lch.L, lch.C, lch.H);
+            // Off: the out-of-gamut area is painted clipped like the rest of the disc, so
+            // there is no pale stand-in to look at (the user's "hide the pale section").
+            const showOut = inside || showOutOfGamut;
+            const rgb = showOut && !mark ? Color.oklabToRgb(lab.L, lab.a, lab.b) : Color.fitToSrgb(lch.L, lch.C, lch.H);
+            const alpha = showOut && !mark ? 255 : 140;
             const i = (y * w + x) * 4;
             data[i] = clamp255(rgb.r * 255);
             data[i + 1] = clamp255(rgb.g * 255);
             data[i + 2] = clamp255(rgb.b * 255);
-            data[i + 3] = inside && !mark ? 255 : 140;
+            data[i + 3] = alpha;
             if (inside) luma[y * w + x] = nativeLight ? next[lIdx] : lab.L;
           }
         }
@@ -568,6 +587,14 @@
           }
           if (settings.hideNumbers !== undefined) hideNumbers = settings.hideNumbers === true;
           if (settings.guideLines !== undefined) guideLines = settings.guideLines !== false;
+          if (settings.showOutOfGamut !== undefined) {
+            const nextOut = settings.showOutOfGamut !== false;
+            if (nextOut !== showOutOfGamut) {
+              showOutOfGamut = nextOut;
+              discCache.clear();
+              lastDiscOff = null;
+            }
+          }
           footer.classList.toggle('hidden', hideNumbers);
           sliders.classList.toggle('hide-numbers', hideNumbers);
           schedule();

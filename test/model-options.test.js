@@ -282,7 +282,7 @@ test('with the overlay the dropdown is a desktop popup with family headings', ()
   btn.fire('click');
 
   assert.strictEqual(shown.length, 1, 'one overlay menu asked for');
-  assert.strictEqual(shown[0].kind, 'model', 'the pick is routed to this menu');
+  assert.match(shown[0].kind, /^model:\d+$/, 'the pick is routed to this menu id');
   const items = shown[0].spec.items;
   assert.deepStrictEqual(
     [...items.filter((i) => i.kind === 'heading').map((i) => i.label)],
@@ -292,7 +292,28 @@ test('with the overlay the dropdown is a desktop popup with family headings', ()
   assert.ok(items.some((i) => i.id === 'okhsv'), 'every model is a row');
   assert.ok(shown[0].spec.anchor.x > 0 && shown[0].spec.anchor.y > 0, 'anchored below the button');
 
-  handlers.get('model')('oklch');
+  handlers.get(shown[0].kind)('oklch');
   assert.deepStrictEqual(picked, ['oklch'], 'the pick reaches onChange');
   assert.strictEqual(btn.children[0].textContent, 'OKLCH');
+});
+
+test('two menus on one page route the pick to the one that was opened', () => {
+  const { api, shown, handlers } = loadWithOverlay();
+  const host = new El('div');
+  const first = [];
+  const second = [];
+  const a = api.menu(host, { groups: api.groups(MODELS), value: 'oklch', onChange: (v) => first.push(v) });
+  const b = api.menu(host, { groups: api.groups(MODELS), value: 'cielch', onChange: (v) => second.push(v) });
+  // Both buttons exist; open the *first* one (the last-built handler used to win).
+  a.el.children[0].fire('click');
+  assert.strictEqual(shown.length, 1);
+  const idA = shown[0].kind;
+  b.el.children[0].fire('click');
+  const idB = shown[1].kind;
+  assert.notStrictEqual(idA, idB, 'each widget has its own menu id');
+  handlers.get(idA)('okhsv');
+  assert.deepStrictEqual(first, ['okhsv'], 'the first menu got its pick');
+  assert.deepStrictEqual(second, [], 'the second menu did not');
+  handlers.get(idB)('helmgenlch');
+  assert.deepStrictEqual(second, ['helmgenlch']);
 });

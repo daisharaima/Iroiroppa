@@ -184,6 +184,12 @@
       return this.useWorkingGamut() ? this.proof.maxChroma(L, H, 0.6) : Color.maxChroma(L, H);
     }
 
+    /** The *document's* gamut regardless of the proof-mode switch (the wheel's ring
+     *  shows what the document can hold, which must not depend on the display mode). */
+    documentMaxChroma(L, H) {
+      return this.proofOn() && this.proof ? this.proof.maxChroma(L, H, 0.6) : Color.maxChroma(L, H);
+    }
+
     /** In-gamut chroma intervals for the map silhouette (see Color). */
     chromaIntervals(L, H) {
       return this.useWorkingGamut() ? this.proof.chromaIntervals(L, H, 0.6) : Color.chromaIntervals(L, H);

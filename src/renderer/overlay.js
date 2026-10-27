@@ -45,6 +45,19 @@
   }
 
   const menu = document.getElementById('overlay-menu');
+  const tooltip = document.getElementById('overlay-tooltip');
+
+  /** A tooltip for a page that cannot paint over the palettes (Settings, a popout). */
+  function renderTooltip(spec) {
+    if (!tooltip) return;
+    if (!spec || !spec.text) {
+      tooltip.classList.add('hidden');
+      tooltip.textContent = '';
+      return;
+    }
+    tooltip.textContent = String(spec.text);
+    tooltip.classList.remove('hidden');
+  }
 
   /**
    * The palette menu, drawn *here* because a renderer cannot paint outside its own window: main
@@ -120,6 +133,7 @@
     });
 
     csp.onOverlayMenu(renderMenu);
+    if (typeof csp.onOverlayTooltip === 'function') csp.onOverlayTooltip(renderTooltip);
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape') csp.overlayMenuClose(); });
     // A click on the little surface that is not an item closes the menu. Anything *outside* the menu
     // is outside this window too (main sizes it to the menu), so it never takes those clicks.

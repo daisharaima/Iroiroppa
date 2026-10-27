@@ -225,6 +225,8 @@
     'module.slices.lightness': 'Lightness Slice',
     'module.slices.chroma': 'Chroma Slice',
     'module.slices.guide': 'Lightness guide',
+    'module.slices.crosshair': 'Crosshair lines',
+    'module.disc.outOfGamut': 'Show out-of-gamut area',
     'module.slices.guideLock': 'Hold Shift while dragging to keep the current lightness',
     'module.slices.reorder': 'Drag to reorder this slice',
     'module.slices.moveUp': 'Move this slice up',

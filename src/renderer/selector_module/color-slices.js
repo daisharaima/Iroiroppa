@@ -243,6 +243,7 @@
     }
 
     addToggle('guideLines', window.Iro.t('module.slices.guide'));
+    addToggle('crosshair', window.Iro.t('module.slices.crosshair'));
     const guideHint = document.createElement('div');
     guideHint.className = 'pop-hint';
     guideHint.textContent = window.Iro.t('module.slices.guideLock');
@@ -279,7 +280,7 @@
     version: 5,
     defaults: {
       model: 'oklch', constantHue: true, constantLightness: true, constantChroma: true,
-      guideLines: true, hideNumbers: false, orientation: 'vertical',
+      guideLines: true, crosshair: true, hideNumbers: false, orientation: 'vertical',
       sliceOrder: [0, 1, 2],
       slice1Rotate: 0, slice1FlipH: false, slice1FlipV: false,
       slice2Rotate: 0, slice2FlipH: false, slice2FlipV: false,
@@ -403,6 +404,7 @@
 
       let hideNumbers = false;
       let guideLines = true;
+      let crosshair = true;
       let narrow = false;
       const updateFooter = () => footer.classList.toggle('hidden', hideNumbers || narrow);
 
@@ -586,7 +588,13 @@
         const sh = Math.max(2, src.height);
         const lines = Contour.isoLines(luma, sw, sh, target);
         if (!lines.length) return;
-        guideMap[plane] = lines.map((pts) => pts.map(([x, y]) => [x / (sw - 1), y / (sh - 1)]));
+        // A ragged field (the OKHSV H x V plane near S=1 is nearly all out-of-gamut) can
+        // produce dozens of one-cell stubs, which read as vertical lines scattered over
+        // the slice. A guide is one contour through the pointer: keep real components and
+        // draw nothing rather than a speckle when there is no clear line.
+        const kept = lines.filter((pts) => pts.length >= 3);
+        if (!kept.length || kept.length > 24) return;
+        guideMap[plane] = kept.map((pts) => pts.map(([x, y]) => [x / (sw - 1), y / (sh - 1)]));
         // Pixel -> the map's drawn transform, the same one paint() uses (v down).
         const wd = Math.max(1, w - 1);
         const hd = Math.max(1, h - 1);
@@ -605,7 +613,7 @@
         const p = G.pointOf(model, plane, clamped.axes, store);
         const s = point(plane, p.u, 1 - p.v);
         const x = s.u * (w - 1), y = s.v * (h - 1);
-        if (store.crosshair) Overlay.crosshair(c2d, w, h, x, y, { scale });
+        if (store.crosshair && crosshair) Overlay.crosshair(c2d, w, h, x, y, { scale });
         Overlay.pointer(c2d, x, y, { clamped: clamped.clamped, scale });
       };
 
@@ -1003,6 +1011,7 @@
           panelSections[2].classList.toggle('hidden', settings.constantChroma === false);
           hideNumbers = settings.hideNumbers === true;
           guideLines = settings.guideLines !== false;
+          crosshair = settings.crosshair !== false;
           panels.dataset.orientation = settings.orientation === 'horizontal' ? 'horizontal' : 'vertical';
           panelViews[0] = SV ? SV.composeView(settings.slice1Rotate, settings.slice1FlipH, settings.slice1FlipV) : identity;
           panelViews[1] = SV ? SV.composeView(settings.slice2Rotate, settings.slice2FlipH, settings.slice2FlipV) : identity;

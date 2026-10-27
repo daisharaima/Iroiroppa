@@ -30,6 +30,13 @@ function createWindows(ctx) {
   // The palette/float band: topmost *and* out of the activation path (topmost.js).
   const raiseBand = (win, opts = {}) => { ensureBand(win, { noActivate: true, ...opts }).catch(() => {}); };
 
+  // Window order follows the user: a focus (Settings, the popout) or a show (a palette
+  // coming back, the overlay menu opening) makes that window the one to raise.
+  app.on('browser-window-focus', (_event, win) => { if (win && !win.isDestroyed()) ctx.lastInteracted = win; });
+  app.on('browser-window-created', (_event, win) => {
+    win.on('show', () => { if (!win.isDestroyed()) ctx.lastInteracted = win; });
+  });
+
   // --- the band watchdog + visibility trace ----------------------------------
 
   let bandTimer = null;
@@ -49,24 +56,19 @@ function createWindows(ctx) {
       for (const win of (ctx.floatWins ? ctx.floatWins.values() : [])) {
         if (win && !win.isDestroyed() && win.isVisible()) wins.push(win);
       }
-      // Our own tool windows are raised *last*, so pressing the palette cannot bury
-      // them: on this build `isAlwaysOnTop()` lies, the palette is re-raised here every
-      // half second, and a popout that was not re-asserted ended up behind it
-      // ("clicking the 3 dots does nothing", "the settings window disappears").
-      const tools = [ctx.moduleSettingsWin, ctx.settingsWin, ctx.overlayWin];
-      const toolVisible = tools.some((tool) => tool && !tool.isDestroyed() && tool.isVisible());
-      // While a tool window is up, a palette repair must not *reorder*: raising it with
-      // SetWindowPos(HWND_TOPMOST) put it above the Settings/popout for a frame every
-      // half second (the "palette flashes on top then goes behind" report). The bit is
-      // repaired without touching the z-order; the tool windows are raised after.
-      for (const win of wins) raiseBand(win, { zorder: !toolVisible });
-      for (const tool of tools) {
-        if (!tool || tool.isDestroyed() || !tool.isVisible()) continue;
-        // The overlay is a click-through surface that must never take activation; the
-        // Settings window and the module-settings popout are allowed to.
-        if (tool === ctx.overlayWin) raiseBand(tool);
-        else raiseTopmost(tool);
+      // Our own tool windows join the same list: order now follows the user, not a
+      // fixed "tools last" rule.
+      for (const tool of [ctx.moduleSettingsWin, ctx.settingsWin, ctx.overlayWin]) {
+        if (tool && !tool.isDestroyed() && tool.isVisible()) wins.push(tool);
       }
+      // Order follows the user: every band window's *bit* is repaired without touching
+      // the z-order (`zorder:false`), and only the window the user touched last is
+      // raised. A fixed "tools last" order made Settings permanently outrank a palette
+      // (and vice versa); a plain `SetWindowPos(HWND_TOPMOST)` per window every 500 ms
+      // made the palette flash over Settings (the "palette flashes on top then goes
+      // behind" report).
+      for (const win of wins) raiseBand(win, { zorder: false });
+      raiseInteracted();
       if (!wins.length) stopBandWatch();
     }, 500);
     if (bandTimer.unref) bandTimer.unref();
@@ -537,8 +539,36 @@ function reassertBand(webContents) {
     // Only for the window that sent the press: a privileged channel acts for a live
     // window it resolves, never for a window id from the payload.
     if (webContents && win.webContents !== webContents) continue;
+    markInteracted(win);
     raiseBand(win);
   }
+}
+
+/**
+ * The window the user touched last owns the top of the band. Windows are equal in the
+ * topmost band, so a fixed raise order made Settings permanently outrank a palette the
+ * user had just clicked (and vice versa). `raiseInteracted` raises this one window after
+ * every other band window's *bit* has been repaired without moving it.
+ */
+function markInteracted(win) {
+  if (win && !win.isDestroyed()) ctx.lastInteracted = win;
+}
+
+function raiseInteracted() {
+  const win = ctx.lastInteracted;
+  if (!win || win.isDestroyed() || !win.isVisible()) return;
+  raiseTopmost(win);
+}
+
+/**
+ * Track interactions on a window we create: a focus (Settings, the popout) or a show
+ * (a palette coming back, the overlay menu opening) counts as the user's last action.
+ * The hooks live in `createWindows` (`browser-window-focus` / `browser-window-created`).
+ */
+function trackInteraction(win) {
+  if (!win || win.isDestroyed()) return;
+  win.on('focus', () => markInteracted(win));
+  win.on('show', () => markInteracted(win));
 }
 
 /**
@@ -1272,7 +1302,7 @@ function refreshTray() {
 }
 
   return {
-    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, resetInputState, reassertBand, reassertTopmost: raiseTopmost, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayMenu, closeOverlayMenu, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
+    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, resetInputState, reassertBand, reassertTopmost: raiseTopmost, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayMenu, closeOverlayMenu, showTooltip, hideTooltip, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
   };
 }
 
