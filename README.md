@@ -11,7 +11,7 @@ smartphone"). No plugins, no scripts inside CSP, no file patching.
 
 - **Pick colours visually** — choose colours on maps and sliders in OKLCH and other models, then send them straight to Clip Studio Paint.
 - **Two-way sync** — colours changed in Clip Studio Paint appear here, and changes here update Clip Studio Paint live.
-- **Colour-profile preview** — see how a colour will look in the document's colour profile, including CMYK, without changing what Clip Studio Paint records. The RGB-shaped pickers (OKHSV/OKHSL/OKHWB) are measured inside the document's own gamut, so a wide-gamut document is reachable end to end; a colour the display itself cannot show is drawn as the nearest displayable colour, and Settings → **Mark colours this display can't show** dims that region.
+- **Colour-profile preview** — see how a colour will look in the document's colour profile, including CMYK, without changing what Clip Studio Paint records. The RGB-shaped pickers (OKHSV/OKHSL) are measured inside the document's own gamut, so a wide-gamut document is reachable end to end; a colour the display itself cannot show is drawn as the nearest displayable colour, and Settings → **Mark colours this display can't show** dims that region.
 - **A clear colour readout** — see the current colour's hex code and channel values at a glance.
 - **A modular palette** — build the panel from small modules: show, hide, duplicate, resize and arrange them, or pop one out into its own window.
 

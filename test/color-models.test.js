@@ -19,7 +19,7 @@ test('every model declares whether its light axis carries the lightness', () => 
   const expected = {
     oklch: true, oklab: true, cielab: true, cielch: true,
     helmgen: true, helmgenlch: true,
-    okhsv: false, okhsl: false, okhwb: false,
+    okhsv: false, okhsl: false,
   };
   for (const m of Models.list()) {
     assert.ok(m.lightSource === 'native' || m.lightSource === 'oklab', `${m.id} declares lightSource`);
@@ -88,7 +88,7 @@ test('every model round-trips OKLab -> axes -> OKLab', () => {
 });
 
 test('the lineup is the OK family plus the two GenSpace views', () => {
-  assert.deepEqual(Models.ids(), ['oklch', 'oklab', 'cielab', 'cielch', 'okhsv', 'okhsl', 'okhwb', 'helmgenlch', 'helmgen']);
+  assert.deepEqual(Models.ids(), ['oklch', 'oklab', 'cielab', 'cielch', 'okhsv', 'okhsl', 'helmgenlch', 'helmgen']);
   for (const gone of ['lab', 'hsv', 'hsl']) {
     assert.equal(Models.get(gone), null, `${gone} is deliberately not a model any more`);
   }

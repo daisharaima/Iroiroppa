@@ -107,14 +107,17 @@
     const hasOverlay = Boolean(overlay && typeof overlay.show === 'function'
       && window.csp && typeof window.csp.showPaletteMenu === 'function');
 
-    // The overlay item list: one heading per family, every model a row.
+    // The overlay item list: one heading per family, every model a row. A heading is
+    // only useful when there are several families — one family's heading alone (the Disc
+    // filters to the OKLab spaces) reads as a stray title.
     const overlayItems = [];
-    for (const g of source) {
-      if (!g.items || !g.items.length) continue;
+    const families = source.filter((g) => g.items && g.items.length);
+    const showHeadings = families.length > 1;
+    for (const g of families) {
       // A family with a single model named exactly like the family (CIELAB, HelmGen)
       // needs no heading — it would just repeat the item line.
       const repeat = g.items.length === 1 && g.items[0].label === g.label;
-      if (g.label && !repeat) overlayItems.push({ kind: 'heading', label: g.label });
+      if (showHeadings && g.label && !repeat) overlayItems.push({ kind: 'heading', label: g.label });
       for (const it of g.items) overlayItems.push({ id: it.value, label: it.label });
     }
 

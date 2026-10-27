@@ -9,7 +9,8 @@ const Size = require('../src/shared/canvas-size');
 
 test('a small module still supersamples', () => {
   const s = Size.backingScale(160, 160, { want: 2 });
-  assert.ok(s > 1.5 && s <= 2, `scale ${s}`);
+  // 25 600 px at 1×; a 70k budget fits about 1.65×.
+  assert.ok(s > 1.4 && s <= 2, `scale ${s}`);
 });
 
 test('a large module gives up supersampling, never drops below 1×', () => {
@@ -26,11 +27,11 @@ test('the total pixels stay within the budget when > 1× is used', () => {
   }
 });
 
-test('the live budget is cheaper than the idle one', () => {
-  assert.ok(Size.LIVE_BUDGET < Size.IDLE_BUDGET);
-  const idle = Size.backingScale(320, 320, { want: 2, budget: Size.IDLE_BUDGET });
-  const live = Size.backingScale(320, 320, { want: 1, budget: Size.LIVE_BUDGET });
-  assert.ok(live <= idle);
+test('idle and dragging share one resolution', () => {
+  assert.strictEqual(Size.LIVE_BUDGET, Size.IDLE_BUDGET);
+  const a = Size.backingScale(320, 320, { want: 2, budget: Size.IDLE_BUDGET });
+  const b = Size.backingScale(320, 320, { want: 1, budget: Size.LIVE_BUDGET });
+  assert.ok(b <= a);
 });
 
 test('want caps the scale', () => {

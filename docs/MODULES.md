@@ -11,7 +11,7 @@ with drag-out-to-float. The **`color-history`** module (recently picked colours,
 main-owned so every window shares one list) was added after the plan.
 
 The picker modules take a **colour-model** setting (`src/shared/color-models.js`,
-docs/COLOR.md): OKLCH by default, with OKLab, CIELAB, CIELCH, OKHSV, OKHSL, OKHWB
+docs/COLOR.md): OKLCH by default, with OKLab, CIELAB, CIELCH, OKHSV, OKHSL
 and the two Helmlab GenSpace views (HelmGen, HelmGen LCH) as alternate views over
 the same canonical OKLab value. Appearance → **Color model family** filters every list
 to one family.
@@ -422,7 +422,7 @@ Auto-height modules (Color Stat, Session) have no edge. `ratioFromDrag()` in
 
   Slices are always drawn flat (no projection choice). The raster and the pick test
   the **same** reachability predicate, so a shown pixel is always pickable; the
-  sRGB-referenced models (OKHSV/OKHSL/OKHWB) cannot represent a colour outside sRGB,
+  sRGB-referenced models (OKHSV/OKHSL) cannot represent a colour outside sRGB,
   so their crosshair is clamped to the panel edge (a dashed outer ring) instead of
   disappearing. Colours the screen cannot show are drawn as the sRGB-edge colour at
   the same lightness (`Color.fitToSrgb`).
@@ -489,7 +489,7 @@ Auto-height modules (Color Stat, Session) have no edge. `ratioFromDrag()` in
 
   **Guide lightness (all pickers).** There is no global source setting. A model with
   `lightSource: 'native'` uses its own lightness axis (OKLCH/OKLab, CIELAB/CIELCH,
-  HelmGen, future HCT/CAM16); the sRGB-relative OKHSV/OKHSL/OKHWB views use canonical
+  HelmGen, future HCT/CAM16); the sRGB-relative OKHSV/OKHSL views use canonical
   OKLab `L`. `G.lightnessOf(model, axes)` returns that scalar;
   `G.setLightness`/`applyLightness`/`guideCurve` solve to it. A fixed plane/disc only
   has no contour when its fixed axis is that model's native light axis. A sample whose

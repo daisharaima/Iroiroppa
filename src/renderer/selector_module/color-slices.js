@@ -31,7 +31,7 @@
 
   const SHOW_KEYS = ['constantHue', 'constantLightness', 'constantChroma'];
   const PANEL_IDS = ['plot-lc', 'plot-hc', 'plot-hue'];
-  const SRGB_LIMITED = ['okhsv', 'okhsl', 'okhwb'];
+  const SRGB_LIMITED = ['okhsv', 'okhsl'];
   /** True while the model is limited to sRGB by the *reference cube*, not by id alone. */
   const isLimited = (store, model) => (typeof store.modelLimited === 'function'
     ? store.modelLimited(model)
@@ -738,10 +738,11 @@
           Raster.renderPlane({
             model, plane, fixed, ranges, width: w, height: h, out: img.data, luma,
             workingGamut: workingGamutTest(),
-            // Never a dimmed stand-in: a pale band across a slice reads as a bug ("the
-            // H x L slice shows an out-of-gamut section that should not happen").
-            // Out-of-document is a hole, the same as every other slice.
-            fill: false,
+            // A dense model's map is a *shape*: a square with no bites. Its out-of-document
+            // pixels are painted with the sRGB stand-in at full opacity — opaque, not a
+            // pale dim band (the user's report), so the square is whole.
+            fill: model.dense === true,
+            fillAlpha: 255,
             // Inside the document but beyond the display: full opacity by default (the
             // nearest displayable colour), dimmed when the user asks to see the region.
             outAlpha: store.markOutOfDisplay ? 140 : 255,

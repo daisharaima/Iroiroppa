@@ -190,6 +190,15 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The palette no longer fails to come back.** A missed foreground event used to leave it
   hidden while Clip Studio Paint was in front; a slow safety poll re-queries the foreground
   and shows it.
+- **OKHWB is gone.** The picker no longer offers it (its maths stays in `color.js` for the
+  tests); a saved document using it falls back to the family default.
+- **Menus and tooltips dismiss on any click elsewhere** (`input:press` in another window or
+  a window focus).
+- **One resolution for idle and dragging**: a flat ~70k-pixel canvas budget.
+- **A dense model's slice is a whole square**: out-of-document pixels are painted as the
+  sRGB stand-in at **full** opacity (no pale band, no hole).
+- **A family heading is only drawn when several families are listed** (the Disc's filtered
+  list showed a lone "OKLab" title).
 - **The overlay stays above the window that opened it.** The band watch re-raises the
   window that owns the menu every 500 ms, so a menu appeared and was covered half a second
   later ("the dropdown vanishes", "the hamburger menu is behind the palette"); the overlay

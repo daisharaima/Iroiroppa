@@ -78,7 +78,7 @@ test('with the document reference the three spaces reach Adobe RGB primaries', (
 
       // Through a model the axes are clamped to 0..1, so a corner whose S lands a few
       // 1e-4 past 1 comes back that much less colourful (the axis cannot exceed 100%).
-      for (const id of ['okhsv', 'okhsl', 'okhwb']) {
+      for (const id of ['okhsv', 'okhsl']) {
         const model = Models.get(id);
         const axes = model.fromLab(lab);
         assert.ok(axes.every(Number.isFinite), `${id} ${name}: finite axes`);

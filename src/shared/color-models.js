@@ -51,7 +51,7 @@
   function referenceLimited(model) {
     return !reference.gamut
       && Boolean(model)
-      && (model.id === 'okhsv' || model.id === 'okhsl' || model.id === 'okhwb');
+      && (model.id === 'okhsv' || model.id === 'okhsl');
   }
 
   function register(model) {
@@ -330,40 +330,6 @@
         return reference.gamut.okhslToOklab(axes[0], clamp01(axes[1]), clamp01(axes[2]));
       }
       return Color.okhslToOklab(axes[0], axes[1], axes[2]);
-    },
-  });
-
-  // Okhwb is Okhsv re-parameterised: w = v(1-s), b = 1-v. Its hue is undefined on
-  // the *neutral axis* w = 1-b, not at w = 0, so it carries its own achromatic
-  // test (the contract's default checks the second axis at its minimum).
-  register({
-    id: 'okhwb',
-    name: 'OKHWB',
-    hueIndex: 0,
-    dense: true,
-    domain: (lab) => (reference.gamut ? true : inSrgb(lab)),
-    lightSource: 'oklab',
-    isAchromatic(axes) {
-      return Math.abs(axes[1] - (1 - axes[2])) < 1e-6;
-    },
-    axes: [
-      { key: 'h', label: 'H', min: 0, max: 360, scale: 1, fmt: 1, role: 'hue' },
-      { key: 'w', label: 'W', min: 0, max: 1, scale: 100, fmt: 0, role: 'chroma' },
-      { key: 'b', label: 'B', min: 0, max: 1, scale: 100, fmt: 0, role: 'lightness' },
-    ],
-    fromLab(lab) {
-      if (reference.gamut) {
-        const v = reference.gamut.oklabToOkhwb(lab.L, lab.a, lab.b);
-        return [v.h, clamp01(v.w), clamp01(v.b)];
-      }
-      const v = Color.oklabToOkhwb(lab.L, lab.a, lab.b);
-      return [v.h, v.w, v.b];
-    },
-    toLab(axes) {
-      if (reference.gamut) {
-        return reference.gamut.okhwbToOklab(axes[0], clamp01(axes[1]), clamp01(axes[2]));
-      }
-      return Color.okhwbToOklab(axes[0], axes[1], axes[2]);
     },
   });
 

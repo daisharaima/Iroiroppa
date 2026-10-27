@@ -32,7 +32,15 @@ function createWindows(ctx) {
 
   // Window order follows the user: a focus (Settings, the popout) or a show (a palette
   // coming back, the overlay menu opening) makes that window the one to raise.
-  app.on('browser-window-focus', (_event, win) => { if (win && !win.isDestroyed()) ctx.lastInteracted = win; });
+  app.on('browser-window-focus', (_event, win) => {
+    if (!win || win.isDestroyed()) return;
+    // A click anywhere else dismisses an open menu or tooltip (they live on the overlay).
+    if (win !== ctx.overlayWin && (ctx.overlayMenu || ctx.overlayTooltip)) {
+      closeOverlayMenu();
+      hideTooltip();
+    }
+    ctx.lastInteracted = win;
+  });
   app.on('browser-window-created', (_event, win) => {
     win.on('show', () => {
       if (!win.isDestroyed()) markInteracted(win);
@@ -548,6 +556,15 @@ function resetInputState() {
  * topmost bit.
  */
 function reassertBand(webContents) {
+  // A press in any window that is not the menu surface dismisses the menu (and the
+  // tooltip): a click elsewhere must close it, like a normal popup.
+  if (ctx.overlayMenu || ctx.overlayTooltip) {
+    const ov = ctx.overlayWin;
+    if (!ov || ov.isDestroyed() || ov.webContents !== webContents) {
+      closeOverlayMenu();
+      hideTooltip();
+    }
+  }
   const wins = [];
   if (ctx.popup && !ctx.popup.isDestroyed()) wins.push(ctx.popup);
   for (const win of (ctx.floatWins ? ctx.floatWins.values() : [])) {

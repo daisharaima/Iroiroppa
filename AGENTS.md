@@ -151,7 +151,7 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   map's own lightness field** (`raster-plane`'s `luma`, extracted by `contour.js` marching
   squares), not a solved polyline: every point on the line is at the target lightness, and
   it ends exactly where the painted shape ends. The field carries the model's **own** light
-  in its own units — CIELAB L* (0…100), HelmGen L, and OKLab L for OKHSV/OKHSL/OKHWB
+  in its own units — CIELAB L* (0…100), HelmGen L, and OKLab L for OKHSV/OKHSL
   (`Models.usesNativeLight` is the one predicate). The Color Disc derives its plane from the
   model's roles (`planesFor` entry whose fixed axis is the light axis, `disc-map.js#discPlane`)
   for the guide, the raster and the Shift-lock. **Index the field with its own width and
@@ -285,7 +285,7 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   `test/renderer-html.test.js` resolves every page's script tags and pins the helper in
   both settings hosts.
 - **The RGB-shaped picker models are Ottosson's, computed on the document's own cube.**
-  OKHSV/OKHSL/OKHWB are HSV/HSL/HWB shapes, and those are defined by an RGB cube: S is
+  OKHSV/OKHSL are HSV/HSL shapes, and those are defined by an RGB cube: S is
   the distance to the cube's surface. Ottosson's versions are the sRGB-specific ones, so
   they cannot name a colour outside sRGB. `src/shared/ottosson.js` generalises the
   formulas — the cusp is found by bisection on the cube's wall (cached per 0.05° of hue),

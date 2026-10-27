@@ -5,6 +5,16 @@
 //
 //   npm run screenshot
 //
+// The user guide's images use the same recipe, with two extra flags:
+//
+//   npm run wiki:images          # wiki/images/palette.png + wiki/images/settings.png
+//   node scripts/screenshot.js --out <file>    # the palette, to another path
+//   node scripts/screenshot.js --settings --settings-tab general --out <file>
+//
+// `--settings` captures the Settings window instead of the palette (through the
+// `--open-settings` / `--settings-shot` dev flags). Both paths seed the same
+// throwaway profile, so every capture stays inside the Adobe RGB rule.
+//
 // The recipe (this script is the source of truth; AGENTS.md → "Screenshots"):
 //
 //   * 300 px wide (height follows from the modules below)
@@ -25,8 +35,17 @@ const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const OUT = path.join(ROOT, 'docs', 'screenshot.png');
 const PORT = 46123;
+
+/** `--name value` from argv, or '' (the wiki captures pass --out/--settings-tab). */
+function argValue(name) {
+  const i = process.argv.indexOf(name);
+  return i >= 0 && i + 1 < process.argv.length ? process.argv[i + 1] : '';
+}
+
+const OUT = path.resolve(ROOT, argValue('--out') || path.join('docs', 'screenshot.png'));
+const SETTINGS_TAB = argValue('--settings-tab');
+const SETTINGS_MODE = process.argv.includes('--settings') || Boolean(SETTINGS_TAB);
 const WIDTH = 300;
 const HEIGHT = 900;
 const TILE = 24;
@@ -149,22 +168,28 @@ function main() {
     ? path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')
     : path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron');
   const shot = path.join(tmp, 'shot.png');
+  const settingsShot = path.join(tmp, 'settings.png');
+  const args = [
+    '.', `--user-data-dir=${userData}`,
+    '--shot', shot, '--size', `${WIDTH}x${HEIGHT}`, '--shot-wait', '5000',
+  ];
+  if (SETTINGS_MODE) {
+    args.push('--open-settings', '--settings-tab', SETTINGS_TAB || 'general', '--settings-shot', settingsShot);
+  }
   // Some shells (an agent harness, an IDE) export ELECTRON_RUN_AS_NODE, which makes
   // electron.exe behave as plain Node — no `electron` module, no window, no capture.
   // Strip it for the child so the app actually starts.
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   try {
-    const res = spawnSync(electron, [
-      '.', `--user-data-dir=${userData}`,
-      '--shot', shot, '--size', `${WIDTH}x${HEIGHT}`, '--shot-wait', '5000',
-    ], { cwd: ROOT, stdio: 'inherit', env });
-    if (res.status !== 0 || !fs.existsSync(shot)) {
+    const res = spawnSync(electron, args, { cwd: ROOT, stdio: 'inherit', env });
+    const produced = SETTINGS_MODE ? settingsShot : shot;
+    if (res.status !== 0 || !fs.existsSync(produced)) {
       throw new Error(`capture failed (exit ${res.status})`);
     }
     fs.mkdirSync(path.dirname(OUT), { recursive: true });
-    fs.copyFileSync(shot, OUT);
-    console.log(`wrote ${path.relative(ROOT, OUT)} (${WIDTH}x${HEIGHT})`);
+    fs.copyFileSync(produced, OUT);
+    console.log(`wrote ${path.relative(ROOT, OUT)} (${SETTINGS_MODE ? 'settings' : `${WIDTH}x${HEIGHT}`})`);
   } finally {
     host.kill();
     try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }

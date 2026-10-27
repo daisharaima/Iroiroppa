@@ -112,7 +112,7 @@ test('fill paints out-of-gamut pixels instead of leaving holes', () => {
   const filled = Raster.renderPlane({ model, plane: 0, fixed, ranges, width: 8, height: 8, workingGamut: reject, fill: true });
   for (let i = 3; i < holes.length; i += 4) {
     assert.strictEqual(holes[i], 0, 'without fill an out-of-gamut pixel is a hole');
-    assert.ok(filled[i] > 0 && filled[i] < 255, 'with fill it is a dimmed stand-in');
+    assert.strictEqual(filled[i], 255, 'with fill it is an opaque stand-in (no pale band)');
   }
 });
 

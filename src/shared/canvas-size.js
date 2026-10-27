@@ -14,8 +14,8 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const IDLE_BUDGET = 130000; // ~360×360 at 1× — a little supersampling only when small
-  const LIVE_BUDGET = 55000; // while the pointer is down: resolution follows speed
+  const IDLE_BUDGET = 70000; // one resolution for idle and dragging (the user's call)
+  const LIVE_BUDGET = 70000; // a large module is fast, and 1× is sharp enough at its size
 
   /**
    * @param {number} cssW  layout width (CSS px)

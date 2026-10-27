@@ -512,7 +512,7 @@ plausible refactor silently breaks it (that is the test for the core list).
 - **The lightness guide is model-native, one source and one line.**
   `slice-geometry.js#lightnessOf` uses the model's own light axis when
   `lightSource: 'native'` (OKLCH/OKLab, CIELCH, HelmGen, future CIELAB/HCT/CAM16),
-  and canonical OKLab L for the sRGB-relative OKHSV/OKHSL/OKHWB views. There is no
+  and canonical OKLab L for the sRGB-relative OKHSV/OKHSL views. There is no
   global source setting. The guide is exactly one iso-L contour (`guideCurve`); it is
   absent only when the fixed axis already carries the native light axis. Shift holds
   that value for the gesture (before or during the drag): a free light axis is solved;

@@ -119,7 +119,7 @@
    * @returns {Uint8ClampedArray}
    */
   function renderPlane(spec) {
-    const { model, plane, fixed, ranges, width, height, out = null, workingGamut = null, luma = null, fill = false, outAlpha = 255 } = spec;
+    const { model, plane, fixed, ranges, width, height, out = null, workingGamut = null, luma = null, fill = false, outAlpha = 255, fillAlpha = 255 } = spec;
     const data = out || new Uint8ClampedArray(width * height * 4);
     const [hi, vi] = Models.planesFor(model)[plane];
     const hr = ranges[hi];
@@ -163,7 +163,7 @@
             data[i] = clamp255(f.r * 255);
             data[i + 1] = clamp255(f.g * 255);
             data[i + 2] = clamp255(f.b * 255);
-            data[i + 3] = OUT_ALPHA;
+            data[i + 3] = fillAlpha;
           }
           continue;
         }
@@ -183,7 +183,7 @@
           // dense model's map is a shape, not a silhouette with bites out of it).
           if (!workingGamut || !workingGamut(lab)) {
             if (!fill) { data[i + 3] = 0; continue; }
-            paintFitted(data, i, L, a, b, OUT_ALPHA);
+            paintFitted(data, i, L, a, b, fillAlpha);
             continue;
           }
           if (outAlpha >= 255) {

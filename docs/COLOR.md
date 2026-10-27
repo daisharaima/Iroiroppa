@@ -86,11 +86,10 @@ far:
 | `cielch` | L*, C*, H | CIELCH, the standard cylindrical CIELAB form |
 | `okhsv` | H, S, V | Ottosson's Okhsv; S/V are **sRGB-relative**, so it is only meaningful inside sRGB |
 | `okhsl` | H, S, L | Ottosson's Okhsl (L is the *toe* of Oklab's L); S/L are sRGB-relative too |
-| `okhwb` | H, W, B | Ottosson's Okhwb, derived here from Okhsv: `w = v(1-s)`, `b = 1-v` |
 | `helmgenlch` | L, C, H | Helmlab's GenSpace in polar form: its own L/C scale (0–1, chroma 0–~0.5), hue 0–360 |
 | `helmgen` | L, a, b | the same GenSpace, rectangular; no hue axis |
 
-The OK family is `oklch`, `oklab`, `okhsv`, `okhsl`, `okhwb`: OkLab is the value
+The OK family is `oklch`, `oklab`, `okhsv`, `okhsl`: OkLab is the value
 the store holds, and the three sRGB-relative pickers are Ottosson's. `cielab` and
 `cielch` are CIELAB views, not a second canonical value. `helmgenlch` and `helmgen`
 are the **Helmlab GenSpace** views, added on request: they round-trip through XYZ and
@@ -118,7 +117,7 @@ A model may declare `hueIndex` (where the anchor is substituted at zero
 chroma/saturation), `isAchromatic(axes)` (where that *is* for a model whose
 neutral axis is not its second axis at its minimum — Okhwb), `domain` (limits the
 round-trip test — the sRGB-relative three and the GenSpace pair), `lightSource`
-(`native` for OKLCH/OKLab and both HelmGen views, `oklab` for OKHSV/OKHSL/OKHWB)
+(`native` for OKLCH/OKLab and both HelmGen views, `oklab` for OKHSV/OKHSL)
 and `tol` (loosens the round-trip where the maths is lossy). Adding a model is one
 `register()` call plus a round-trip test; `test/color-models.test.js` covers every
 registered model automatically, and its lineup test pins the seven ids so an eighth
@@ -132,7 +131,7 @@ labels are the two free channel names in display order. `axisRange(model, i, sto
 lets OKLCH's chroma axis reach `store.cmax()`; every other axis is the declared
 range.
 
-The sRGB-referenced models (`okhsv`, `okhsl`, `okhwb`) are shaped by an **RGB cube**: S is
+The sRGB-referenced models (`okhsv`, `okhsl`) are shaped by an **RGB cube**: S is
 how far from the neutral axis toward the cube's surface, V/L is the axis position. That
 cube is the *document's* when the active proof is a matrix/TRC RGB profile
 (`src/shared/model-reference.js`), and the conversion is **Ottosson's own construction**
@@ -162,7 +161,7 @@ Ottosson's sRGB polynomial, which is the deliberate trade for generality.
 **Guide lightness is native to the model.** There is no global source setting.
 `slice-geometry.js#lightnessOf` returns the model's own light axis for
 `lightSource: 'native'` (OKLCH/OKLab, CIELCH, HelmGen, future CIELAB/HCT/CAM16
-models) and canonical OKLab `L` for the sRGB-relative OKHSV/OKHSL/OKHWB views.
+models) and canonical OKLab `L` for the sRGB-relative OKHSV/OKHSL views.
 `setLightness`, `applyLightness` and `guideCurve` use the same rule: a free light
 axis is solved by bisection; in a fixed-light plane the vertical free axis is
 solved, which projects the press onto the iso-L contour without changing the
