@@ -9,8 +9,9 @@
 // - The **dot** is the connection state *and* the action: green while connected, and a click pairs
 //   when it is idle or failed. There are no connect/scan buttons — the app connects by itself — and
 //   Disconnect lives in this module's own ⋯ panel (and in the tray).
-// - The **proof icon** opens the profile switcher: the same pinned default row plus list of profiles
-//   the Settings window shows (`.profile-pinned` / `.profile-item`), so the two cannot drift apart.
+// - The **profile dropdown** shows the document's current colour profile and opens the
+//   switcher: the same pinned default row plus list of profiles the Settings window
+//   shows (`.profile-pinned` / `.profile-item`), so the two cannot drift apart.
 // - The **lock** is the layout lock (it is also a Settings row and a hamburger entry).
 // - The **gear** opens Settings, and is rightmost — it is the window's own icon-button style, so it
 //   matches every other icon button in the app.
@@ -25,8 +26,8 @@
   reg.modules = reg.modules || {};
 
   const CONNECTED_STATES = new Set(['live', 'connected', 'paired']);
-  // Not connected: the row says what the app is doing instead of repeating the app's
-  // name. Connected keeps "Clip Studio Paint" (or "CSP" when the row is narrow).
+  // Not connected: the dot's tooltip carries the state; the row itself shows the
+  // current document profile.
   const STATE_KEYS = {
     idle: 'module.session.state.idle',
     disconnected: 'module.session.state.disconnected',
@@ -55,19 +56,6 @@
     return value === key ? fallback : value;
   };
   const stateLabel = (state) => tr(STATE_KEYS[state] || STATE_KEYS.idle, STATE_TEXT[state] || STATE_TEXT.idle);
-
-  // The labelless state: "Clip Studio Paint" shortens to this when the card is too narrow for the
-  // full name, and the module's own minimum width is what that shortened row needs.
-  const SHORT_NAME = 'CSP';
-  const FULL_NAME = 'Clip Studio Paint';
-
-  // Measured once per window by the first mount: the row's own width with the long label and with
-  // the short one. `minSize()` reports the short one, so the palette can never be dragged narrow
-  // enough to cut the row up.
-  let widthFull = 0;
-  let widthShort = 0;
-  let widthState = 0;
-
   // One subscription per *window*, shared by every mount of this module: the host mounts a module
   // again whenever the board rebuilds, and `ipcRenderer.on` listeners are never removed by
   // discarding the DOM — a few rebuilds and the renderer reports eleven `companion:status`
@@ -114,9 +102,9 @@
     rigid: true,
     compact: true,
     settingsUI,
-    // Exactly one row: the height is fixed, and the width is what the row needs with the short
-  // label ("CSP") — measured from the live DOM by the first mount.
-  minSize() { return { width: Math.max(widthShort, widthState) || 148, height: 32 }; },
+    // Exactly one row: dot, the profile dropdown, the lock and the gear. The width
+    // is the minimum those controls need; the dropdown ellipsises when it is wider.
+    minSize() { return { width: 156, height: 32 }; },
 
     create(ctx) {
       const root = document.createElement('div');
@@ -124,25 +112,25 @@
       // This mount's subscriptions, so `destroy()` can take them out again.
       let statusCb = null;
       let settingsCb = null;
-      let observer = null;
 
       // The dot is the state and the action: green while connected, a click pairs when idle.
+      // Its tooltip is the only place "Clip Studio Paint" appears now.
       const dot = document.createElement('button');
       dot.type = 'button';
       dot.className = 'dot';
-      const name = document.createElement('span');
-      name.className = 'session-name';
-      name.textContent = FULL_NAME;
-      // The proof icon: the profile switcher, in the same shape as the header's icon buttons.
-      const proof = document.createElement('button');
-      proof.type = 'button';
-      proof.className = 'icon-btn session-proof';
-      proof.title = window.Iro.t('module.session.proofTitle');
-      proof.setAttribute('aria-label', 'Colour profile of the document');
-      // A half-filled circle: "how this document's recorded values are interpreted".
-      proof.innerHTML = '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="6.4"/><path d="M10 3.6a6.4 6.4 0 0 1 0 12.8Z" fill="currentColor" stroke="none"/></svg>';
-      // The layout lock, right next to the proof icon (it is also a Settings row and a hamburger
-      // entry — one setting, three ways to reach it).
+      // The document's colour profile, as a dropdown in the row. The list is drawn by
+      // the overlay; this button just shows the current profile.
+      const profile = document.createElement('button');
+      profile.type = 'button';
+      profile.className = 'session-profile';
+      profile.setAttribute('aria-haspopup', 'listbox');
+      const profileName = document.createElement('span');
+      profileName.className = 'session-profile-name';
+      profileName.textContent = window.Iro.t('module.session.defaultProfile');
+      const chevron = document.createElement('span');
+      chevron.className = 'session-profile-chevron';
+      chevron.innerHTML = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5l3-3"/></svg>';
+      profile.append(profileName, chevron);
       const lock = document.createElement('button');
       lock.type = 'button';
       lock.className = 'icon-btn session-lock';
@@ -158,28 +146,51 @@
       // lopsided sun). Drawn with the session row's stroke style.
       settings.innerHTML = '<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="4.2"/><circle cx="10" cy="10" r="1.5"/><path d="M10 5.8V3.2M10 14.2v2.6M5.8 10H3.2M14.2 10h2.6M7.03 7.03L5.19 5.19M12.97 12.97l1.84 1.84M12.97 7.03l1.84-1.84M7.03 12.97l-1.84 1.84"/></svg>';
 
-      root.append(dot, name, proof, lock, settings);
+      root.append(dot, profile, lock, settings);
       ctx.el.append(root);
 
       let status = 'idle';
       let current = Object.assign({}, ctx.settings || {});
+      const profileNames = new Map();
       const connected = () => CONNECTED_STATES.has(status);
+
+      /** A file name without its ICC extension, for a profile the scan did not describe. */
+      const basenameOf = (path) => String(path || '').split(/[\\/]/).pop()
+        .replace(/\.(icc|icm)$/i, '') || String(path || '');
+
+      /** The name shown in the row: the default entry, or the profile's own description. */
+      const profileLabel = () => {
+        const path = current.proofMode === 'default' ? '' : (current.proofProfile || '');
+        if (!path) return tr('module.session.defaultProfile', 'Default sRGB');
+        return profileNames.get(path) || basenameOf(path);
+      };
 
       const render = () => {
         const isConnected = connected();
-        const label = isConnected ? FULL_NAME : stateLabel(status);
+        const state = stateLabel(status);
+        const action = status === 'scanning'
+          ? tr('module.session.clickStop', 'click to stop')
+          : status === 'pairFailed' || status === 'error'
+            ? tr('module.session.clickRetry', 'click to retry')
+            : tr('module.session.clickConnect', 'click to connect');
+        const tip = isConnected
+          ? tr('module.session.connectedTip', 'Connected to Clip Studio Paint')
+          : `${state} — ${action}`;
         // The dot's colour *is* the state (the classes the stylesheet already carries).
         dot.classList.toggle('online', isConnected);
         dot.classList.toggle('busy', status === 'scanning' || status === 'connecting'
           || status === 'authenticating' || status === 'reconnecting');
         dot.classList.toggle('error', status === 'pairFailed' || status === 'error');
-        dot.title = label;
-        dot.setAttribute('aria-label', connected() ? label : `${label} — click to scan`);
+        dot.setAttribute('data-tip', tip);
+        dot.setAttribute('aria-label', tip);
         root.dataset.state = status;
-        // Not connected: say what the app is doing, not "Clip Studio Paint" forever.
-        if (isConnected) fit();
-        else name.textContent = label;
-        proof.dataset.profile = current.proofProfile || '';
+        const path = current.proofMode === 'default' ? '' : (current.proofProfile || '');
+        profile.dataset.profile = path;
+        profileName.textContent = profileLabel();
+        profile.setAttribute('aria-label', `${tr('module.session.proofTitle', 'Color profile of the document')}: ${profileLabel()}`);
+        profile.setAttribute('data-tip', path
+          ? `${profileLabel()} — ${tr('module.session.profileHint', 'click to change the color profile')}`
+          : tr('module.session.profileHint', 'click to change the color profile'));
         lock.classList.toggle('active', current.locked === true);
         lock.title = tr('module.session.lockTitle', current.locked === true
           ? 'Layout locked — click to unlock' : 'Lock the layout');
@@ -200,7 +211,7 @@
         window.csp.updateSettings({ locked: next });
       });
 
-      /* --- the profile switcher (what the proof icon opens) ------------------------------ */
+      /* --- the profile dropdown (the row's main control) --------------------------------- */
 
       const shortProfileName = (path) => String(path || '').split(/[\\/]/).pop() || String(path || '');
       let pickEntries = [];
@@ -209,6 +220,7 @@
         // The palette's old picker turned proofing on when a profile was chosen; keep that rule
         // where the control moved to (docs/LAYOUT.md, "One palette").
         current = Object.assign({}, current, { proofProfile: path, proofMode: path ? 'proof' : 'default' });
+        if (path && !profileNames.has(path)) profileNames.set(path, basenameOf(path));
         render();
         window.csp.updateSettings({ proofProfile: path, proofMode: path ? 'proof' : 'default' });
       };
@@ -238,6 +250,8 @@
         pickEntries = list.map((entry) => (typeof entry === 'string'
           ? { path: entry, name: shortProfileName(entry) }
           : { path: entry.path || '', name: entry.description || entry.name || shortProfileName(entry.path) }));
+        profileNames.clear();
+        for (const entry of pickEntries) if (entry.path) profileNames.set(entry.path, entry.name);
         const wanted = await currentProfilePath();
         // The document's profile is listed even when the scan does not carry it (applied by a
         // flag, or the file has moved): a missing row would read as "sRGB".
@@ -252,7 +266,7 @@
           { id: 'default', label: tr('settings.profile.default', 'Default sRGB (no custom profile)'), checked: !current.proofProfile },
           ...pickEntries.map((entry, i) => ({ id: `p${i}`, label: entry.name, checked: entry.path === wanted })),
         ];
-        const r = proof.getBoundingClientRect();
+        const r = profile.getBoundingClientRect();
         const width = 236;
         const spec = {
           items,
@@ -263,14 +277,14 @@
           },
         };
         if (window.Iro && window.Iro.overlayMenu) {
-          window.Iro.overlayMenu.show('profile', proof, spec);
+          window.Iro.overlayMenu.show('profile', profile, spec);
           return;
         }
         // No overlay available (an old page): keep the old in-window fallback minimal.
         window.csp.showPaletteMenu?.({ ...spec, menu: 'profile' });
       };
 
-      proof.addEventListener('click', () => { openProfilePicker(); });
+      profile.addEventListener('click', () => { openProfilePicker(); });
 
       const onProfilePick = (pick) => {
         if (!pick || pick.menu !== 'profile') return;
@@ -282,10 +296,11 @@
         if (entry) choose(entry.path);
       };
 
-      /** Put the document's profile on the button, falling back to what main reports. */
+      /** Put the document's profile on the dropdown, falling back to what main reports. */
       const syncProfileValue = async () => {
         const path = await currentProfilePath();
         if (path) current = Object.assign({}, current, { proofProfile: path });
+        await refreshProfileNames();
         render();
       };
       const currentProfilePath = async () => {
@@ -300,39 +315,21 @@
         return '';
       };
 
-      /* --- the label, and the minimum width it implies ----------------------------------- */
+      /* --- the label ------------------------------------------------------------- */
 
-      const applyLabel = (short) => {
-        const want = short ? SHORT_NAME : FULL_NAME;
-        if (name.textContent !== want) name.textContent = want;
+      /** Populate the profile-name map once, so the row can show a description. */
+      const refreshProfileNames = async () => {
+        try {
+          const out = await window.csp.listProofProfiles(false);
+          const list = Array.isArray(out) ? out : [];
+          for (const entry of list) {
+            if (typeof entry === 'string') profileNames.set(entry, shortProfileName(entry));
+            else if (entry && entry.path) {
+              profileNames.set(entry.path, entry.description || entry.name || shortProfileName(entry.path));
+            }
+          }
+        } catch { /* the basename fallback is fine */ }
       };
-      const measure = () => {
-        // Measure every label this row can show: the long name decides when to shorten,
-        // the short name and the state labels decide the module's minimum width, so no
-        // state ("Reconnecting…") is ever clipped.
-        const had = name.textContent;
-        applyLabel(false);
-        widthFull = Math.ceil(root.getBoundingClientRect().width);
-        applyLabel(true);
-        widthShort = Math.ceil(root.getBoundingClientRect().width);
-        for (const label of Object.values(STATE_TEXT)) {
-          name.textContent = label;
-          widthState = Math.max(widthState, Math.ceil(root.getBoundingClientRect().width));
-        }
-        name.textContent = had;
-      };
-      const fit = () => {
-        // Only the connected label shortens; a state label is the whole message.
-        if (!connected()) return;
-        if (!widthFull) measure();
-        const w = root.getBoundingClientRect().width;
-        applyLabel(w > 0 && w < widthFull);
-      };
-      try {
-        observer = new ResizeObserver(() => fit());
-        observer.observe(root);
-      } catch { /* no observer: the full label is what shows */ }
-      requestAnimationFrame(() => { measure(); fit(); });
 
       // Subscribe once per *window*, not per mount: the host mounts a module again whenever the
       // board re-renders, and these are `ipcRenderer.on` listeners that nothing removes — a few
@@ -400,7 +397,6 @@
           shared.profileHandlers.delete(onProfilePick);
           statusCb = null;
           settingsCb = null;
-          if (observer) { observer.disconnect(); observer = null; }
         },
       };
     },

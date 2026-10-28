@@ -133,6 +133,11 @@ test('a colour past sRGB is clipped at full opacity, dimmed only when asked', ()
   const hole = new Uint8ClampedArray(4);
   Raster.pixelFromLab(lab, hole, () => false);
   assert.strictEqual(hole[3], 0, 'out of the document gamut stays a hole');
+  // A shape map (the Disc) fills that hole instead of leaving a bite in the circle.
+  const filled = new Uint8ClampedArray(4);
+  Raster.pixelFromLab(lab, filled, () => false, 255, true);
+  assert.strictEqual(filled[3], 140, 'fill paints the dimmed stand-in');
+  assert.ok(filled[0] + filled[1] + filled[2] > 0, 'the stand-in has a colour');
 });
 
 test('the luma field carries the model\'s own lightness, in its own units', () => {

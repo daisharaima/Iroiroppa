@@ -5,7 +5,61 @@
 // Moved out of ipc.js verbatim: it uses only `ctx` and Electron's app/dialog/shell,
 // so it needs no inner helpers. `wireIpc` calls `register(ctx)`.
 
+const fs = require('node:fs');
+const path = require('node:path');
 const { app, ipcMain, dialog, shell } = require('electron');
+const { ALLOWED_URLS } = require('../../shared/credits');
+
+/** The app documents the About tab can read (and open) by fixed name. */
+const ABOUT_FILES = {
+  license: 'LICENSE',
+  notice: 'NOTICE',
+  thirdParty: 'THIRD_PARTY.md',
+};
+
+/** The first readable candidate for a shipped document. */
+function readShipped(name) {
+  const rel = ABOUT_FILES[name];
+  if (!rel) return '';
+  const candidates = [
+    path.join(app.getAppPath(), rel),
+    path.join(process.resourcesPath || '', rel),
+    path.join(__dirname, '..', '..', '..', rel),
+  ];
+  for (const file of candidates) {
+    try { return fs.readFileSync(file, 'utf8'); } catch { /* try the next location */ }
+  }
+  return '';
+}
+
+/** Local, fixed files the About tab can open in the OS (never an arbitrary path). */
+function aboutPath(name) {
+  if (name === 'data') return app.getPath('userData');
+  if (Object.prototype.hasOwnProperty.call(ABOUT_FILES, name)) {
+    const rel = ABOUT_FILES[name];
+    const candidates = [
+      path.join(app.getAppPath(), rel),
+      path.join(process.resourcesPath || '', rel),
+      path.join(__dirname, '..', '..', '..', rel),
+    ];
+    return candidates.find((file) => { try { return fs.statSync(file).isFile(); } catch { return false; } }) || '';
+  }
+  const root = path.dirname(process.execPath);
+  if (name === 'electronLicense') {
+    return [
+      path.join(root, 'LICENSE.electron.txt'),
+      path.join(root, 'LICENSE'),
+      path.join(__dirname, '..', '..', '..', 'node_modules', 'electron', 'dist', 'LICENSE'),
+    ].find((file) => { try { return fs.statSync(file).isFile(); } catch { return false; } }) || '';
+  }
+  if (name === 'chromiumNotices') {
+    return [
+      path.join(root, 'LICENSES.chromium.html'),
+      path.join(__dirname, '..', '..', '..', 'node_modules', 'electron', 'dist', 'LICENSES.chromium.html'),
+    ].find((file) => { try { return fs.statSync(file).isFile(); } catch { return false; } }) || '';
+  }
+  return '';
+}
 
 function register(ctx, trusted = () => false) {
   ipcMain.handle('app:snapshot', () => ({ ...ctx.service.snapshot(), capabilities: ctx.capabilities.state() }));
@@ -45,13 +99,51 @@ function register(ctx, trusted = () => false) {
     return { ok: false, error: 'no invoke path' };
   });
   ipcMain.handle('app:version', () => app.getVersion());
+  // The About tab: versions, build kind and the data folder. `isPortable` comes from
+  // main (the build kind is fixed at launch, before userData is chosen).
+  ipcMain.handle('app:about', () => ({
+    version: app.getVersion(),
+    build: ctx.isPortable && ctx.isPortable() ? 'portable' : (app.isPackaged ? 'installer' : 'development'),
+    electron: process.versions.electron || '',
+    chrome: process.versions.chrome || '',
+    node: process.versions.node || '',
+    platform: process.platform,
+    arch: process.arch,
+    dataDir: app.getPath('userData'),
+  }));
+  // The licenses are shipped as files; the About tab shows the text read-only and can
+  // open the same fixed files in the OS.
+  ipcMain.handle('about:text', (_e, name) => {
+    const key = String(name || '');
+    if (key === 'electronLicense') {
+      const file = aboutPath(key);
+      try { return file ? fs.readFileSync(file, 'utf8') : ''; } catch { return ''; }
+    }
+    return readShipped(key);
+  });
+  ipcMain.handle('about:open', (_e, name) => {
+    const target = aboutPath(String(name || ''));
+    if (!target) return false;
+    shell.openPath(target).catch(() => {});
+    return true;
+  });
+  ipcMain.handle('whats-new:get', () => (typeof ctx.getWhatsNew === 'function' ? ctx.getWhatsNew() : null));
+  ipcMain.handle('whats-new:seen', () => {
+    if (typeof ctx.markWhatsNewSeen === 'function') ctx.markWhatsNewSeen();
+    return true;
+  });
+  ipcMain.handle('whats-new:open', () => Boolean(ctx.openWhatsNew && ctx.openWhatsNew()));
   ipcMain.handle('update:get', () => ctx.updateInfo);
   ipcMain.handle('update:check', () => ctx.refreshUpdateCheck());
-  // The renderer cannot navigate under its CSP, so links are opened here, and
-  // only ever to this project's GitHub.
+  ipcMain.handle('update:install', () => (typeof ctx.installUpdate === 'function'
+    ? ctx.installUpdate()
+    : { ok: false, error: 'Updates are not available in this build.' }));
+  // The renderer cannot navigate under its CSP, so links are opened here, and only
+  // ever to this project's GitHub or a URL named in the credits data.
   ipcMain.handle('shell:openExternal', (_e, url) => {
     const s = String(url || '');
-    if (!/^https:\/\/github\.com\/daisharaima\/Iroiroppa\//i.test(s)) return false;
+    const repoLink = /^https:\/\/github\.com\/daisharaima\/Iroiroppa(?:\/|$)/i.test(s);
+    if (!repoLink && !ALLOWED_URLS.has(s)) return false;
     shell.openExternal(s);
     return true;
   });

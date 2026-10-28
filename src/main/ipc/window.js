@@ -15,7 +15,23 @@ const { sendTo } = require('../broadcast');
 const { isChannel255 } = require('../ipc-sender');
 
 function register(ctx, h) {
-  const { instanceOf, findInstance, moduleIdOfInstance, isSingletonModule, paletteIdForSender, commitSettings, trusted } = h;  ipcMain.handle('window:bounds', (event) => {
+  const { instanceOf, findInstance, moduleIdOfInstance, isSingletonModule, paletteIdForSender, commitSettings, trusted } = h;
+  // Bare shortcuts must pass through while any window has a text field focused.
+  // Track senders, not a single boolean, so closing Settings cannot leave the hook
+  // stuck in "typing" mode.
+  const typingSenders = new Set();
+  const typingWatched = new Set();
+  ipcMain.on('ui:typing', (event, on) => {
+    const id = event.sender && event.sender.id;
+    if (!id) return;
+    if (!typingWatched.has(id)) {
+      typingWatched.add(id);
+      try { event.sender.once('destroyed', () => { typingSenders.delete(id); typingWatched.delete(id); }); } catch { /* gone */ }
+    }
+    if (on) typingSenders.add(id); else typingSenders.delete(id);
+    if (ctx.setBareTypingShortcut) ctx.setBareTypingShortcut(typingSenders.size > 0);
+  });
+  ipcMain.handle('window:bounds', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isDestroyed()) return null;
     const b = win.getBounds();
@@ -36,6 +52,10 @@ function register(ctx, h) {
     // A board starts a drag for what it is holding; main owns the rest (V4).
     const paletteId = paletteIdForSender(event.sender);
     if (!paletteId) return;
+    // A drag is the user's own placement; stop treating a recent shortcut move as ephemeral.
+    if (typeof ctx.clearShortcutPlacement === 'function') ctx.clearShortcutPlacement(paletteId);
+    // A new drag supersedes an unanswered merge question; put the windows back first.
+    if (typeof ctx.cancelPendingMerge === 'function') ctx.cancelPendingMerge();
     // A drag must not land on the open palette menu (the overlay window draws
     // both): close it so the indicator cannot be painted over the menu and the
     // menu cannot read as a drop target.
@@ -78,6 +98,9 @@ function register(ctx, h) {
   ipcMain.handle('drag:drop', (event) => {
     if (!paletteIdForSender(event.sender)) return { ok: false, error: 'unknown-window' };
     const result = ctx.dragSession.drop();
+    if (result && result.pendingMerge && typeof ctx.beginPaletteMerge === 'function') {
+      ctx.beginPaletteMerge(result.pendingMerge);
+    }
     return result;
   });
   ipcMain.on('drag:cancel', (event) => {
@@ -106,7 +129,10 @@ function register(ctx, h) {
   ipcMain.on('float:remove', (_e, { floatId } = {}) => ctx.removeFloat(floatId));
   ipcMain.on('float:dock', (_e, spec) => ctx.dockFloatModule(spec || {}));
   ipcMain.on('float:remove-module', (_e, { moduleId } = {}) => ctx.removeModuleFromFloats(moduleId));
-  ipcMain.on('drag:overlay', (event, spec) => ctx.showOverlay(event.sender, spec || {}));
+  ipcMain.on('drag:overlay', (event, spec) => {
+    ctx.overlayPreview = true;
+    ctx.showOverlay(event.sender, { ...(spec || {}), preview: true });
+  });
   // The palette menu lives in the overlay window (see `showOverlayMenu`): the palette asks for it, the
   // overlay reports which item was clicked, and main forwards the choice back to the window that asked.
   ipcMain.on('tooltip:show', (event, spec = {}) => {
@@ -115,6 +141,11 @@ function register(ctx, h) {
   ipcMain.on('tooltip:hide', () => { if (ctx.hideTooltip) ctx.hideTooltip(); });
   ipcMain.on('palette:menu', (event, spec) => ctx.showOverlayMenu(event.sender, spec || {}));
   ipcMain.on('overlay:menu:close', () => ctx.closeOverlayMenu());
+  ipcMain.on('overlay:confirm:pick', (event, spec = {}) => {
+    // Only the overlay's own renderer may answer the merge question.
+    if (!ctx.overlayWin || event.sender !== ctx.overlayWin.webContents) return;
+    if (typeof ctx.resolvePendingMerge === 'function') ctx.resolvePendingMerge(spec.ok === true);
+  });
   ipcMain.on('module-settings:close', () => ctx.closeModuleSettingsWindow());
   // `--trace-input`: every pointer event a page receives, plus the state of the
   // window it arrived in, so a palette that paints but takes no clicks can say
@@ -207,7 +238,7 @@ function register(ctx, h) {
     ctx.moduleSettingsWin.setContentSize(w, h);
     // The popout is measured and resized right after it opens; a resize drops the
     // topmost bit here, and the palette's band watchdog then put the palette over it.
-    if (ctx.reassertTopmost) ctx.reassertTopmost(ctx.moduleSettingsWin);
+    if (ctx.repairTopmost) ctx.repairTopmost(ctx.moduleSettingsWin);
   });
 
 }

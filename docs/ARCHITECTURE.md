@@ -140,7 +140,11 @@ Factory defaults live in the install at
 
 `store.js` is a tiny JSON store. `settings.json` holds UI/behaviour settings,
 `session.json` the rotated Companion password for reconnects. Both live in
-`%APPDATA%\Iroiroppa` and are never committed.
+`%APPDATA%\Iroiroppa` and are never committed. `settings.json#shortcuts` holds the
+General and per-palette reveal settings — toggle and hold accelerators, the
+after-colour-pick switch, and the appearance position (keep/centre/cursor corner).
+Module command keys stay in `settings.json#commandBindings` (keyed by instance and
+command).
 
 ## Architecture
 
@@ -150,14 +154,22 @@ src/main/
   preload.js          contextBridge API (window.csp)
   service.js          connection lifecycle, adaptive polling, coalesced writes
   history-recorder.js the one writer of the shared colour history (pure, testable)
-  pointer-watch.js/.ps1  left-button down/up over CSP (canvas/Alt flags) for history
+  pointer-watch.js/.ps1  left-button down/up over CSP (canvas/Alt/Ctrl/Shift flags)
+  key-hold.js/keys.ps1  hold-to-show chord watcher (RegisterHotKey + key-up poll)
+  bare-key.js/bare-keys.ps1  bare-key shortcut watcher (low-level keyboard hook +
+                        native typing guard; main sends active/typing on stdin)
+  shortcut-actions.js   one reveal mode per target, toggle/hold/after-pick, toggle
+                        auto-dismiss, bare-key routing and the foreground gate
+  overlay-confirm-box.js  the merge warning card's geometry (pure, testable)
   pointer-history.js  the release/contact fresh reads (pure, testable)
   history-gate.js     the global drawing-only gate routing (pure, testable)
   capture.js          screen capture (Electron/PowerShell) + QR decode
   foreground.js/.ps1  foreground watcher (EVENT_SYSTEM_FOREGROUND hook; -Once query)
   overlay-menu-box.js overlay menu bounds: ten-row cap + scroll (pure, testable)
   window-bounds.js    per-monitor window placement (pure, testable)
-  update-check.js     GitHub release check (pure, injected fetch)
+  update-check.js     GitHub release check (pure, injected fetch); picks installer/portable assets
+  update-install.js  manual download + portable replace helper (Electron-free, testable)
+  whats-new.js        the checked-in release note for this version, plus its GitHub URL
   layout-store.js     layout.json v2 + the v1 -> v2 migration (Electron-free; fs I/O)
   drag-session.js     the drag phase machine: cursor poll, resolve, draw, commit, cancel (pure, testable)
   layout-service.js   the one writer: the workspace in memory, revision, debounced save
@@ -197,6 +209,8 @@ src/renderer/
     editable-fields.js             delegated focusability for text fields (a module's
                                     render() replaces fields after boot)
     settings-transfer.js            copy/paste a module's settings as a clipboard envelope
+    select-overlay.js               opens every native <select> on the overlay
+    typing.js                       reports text-field focus for the bare-key guard
     i18n.js                        loads a locale catalog and applies data-i18n, dir=rtl
   selector_module/
     csp-color.js                  foreground/background/transparent chips
@@ -220,17 +234,24 @@ src/renderer/
     blender-dark.css              a `<themesDir>/<id>/` folder for its own assets
   fonts/                          bundled Inter + DejaVu Sans woff2, with licences
   settings.html/.css/.js          the floating Settings window (Modules tab shows
-                                  a live, pointer-inert preview per module)
+                                  a live, pointer-inert preview per module; About
+                                  reads the license/credits files offline)
+  whats-new.html/.css/.js         the one-time-per-version release-note dialog
   float.html/.css/.js             a floated board window (its own columns)
   module-settings.html/.css/.js   a module's settings popout (closes on blur)
-  overlay.html/.css/.js             the drag chip: its own click-through window
+  overlay.html/.css/.js             the drag chip and the merge-confirmation card
 src/shared/
   color.js            OKLab/OKLCH, sRGB, HSV, CIELAB, Okhsv, gamut maths (UMD)
+  credits.js          the About links/credits + the external-URL allowlist (UMD)
+  release-note.js     the tiny Markdown reader for What's New (UMD, pure)
   color-models.js     the colour-model views (OKLCH/OKHSV/HelmGen) over OKLab (UMD, pure)
   colour-distance.js  Helmlab MetricSpace differences over OKLab (UMD; no picker uses it yet)
   slider-gamut.js     hard-edged in/out-of-gamut slider stops (UMD, pure)
   slice-view.js       per-slice rotate/flip: forward draw + exact inverse pick (UMD, pure)
   shortcut-match.js   normalize CSP/Electron accelerators + find clashes (UMD, pure)
+  shortcut-model.js   normalize the settings shortcut block + conflict/prune helpers (UMD, pure)
+  shortcut-position.js  pure cursor-relative placement geometry (UMD, pure)
+  overlay-ownership.js  is the overlay still owned by a menu/tooltip/merge/drag (UMD, pure)
   module-usage.js     visible/hidden instance counts for the Modules light (UMD, pure)
   locale-names.js     endonyms and RTL set for the language picker (UMD, pure)
   icon-art.js         shared pastel big-I art for the exe/tray icon (UMD, pure)

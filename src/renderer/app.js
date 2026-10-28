@@ -148,13 +148,11 @@
 
   function applySettings(s) {
     const prev = chrome.settings || {};
-    const prevCrosshair = store.crosshair;
     chrome.settings = { ...s };
     // Language: the stored choice, else the system's.
     const lang = s.language || navigator.language || 'en';
     if (lang !== window.Iro.i18n.code) window.Iro.i18n.use(lang);
     store.liveSync = s.liveSync !== false;
-    store.crosshair = s.crosshair !== false;
     store.setViewFamily(s.viewFamily);
     store.historyGate = s.historyGate === true;
     store.markOutOfDisplay = s.markOutOfDisplay === true;
@@ -167,8 +165,6 @@
       el.btnLock.title = locked ? 'Unlock the layout' : 'Lock the layout';
     }
     boardEl.dataset.names = s.hideModuleNames === true ? 'hidden' : '';
-
-    if (store.crosshair !== prevCrosshair) store.notify();
 
     const model = s.proofModel || 'working';
     const profileChanged = (s.proofProfile || '') !== (prev.proofProfile || '');

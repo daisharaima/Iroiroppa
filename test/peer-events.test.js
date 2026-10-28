@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const SE = require('../src/shared/peer-events');
 
-test('the vocabulary matches token-beam', () => {
+test('the vocabulary matches the token layer', () => {
   assert.deepEqual(SE.STATES, ['idle', 'connecting', 'connected', 'paired', 'disconnected', 'error']);
   assert.ok(SE.EVENTS.includes('peer-connected'));
   assert.ok(SE.EVENTS.includes('peer-disconnected'));

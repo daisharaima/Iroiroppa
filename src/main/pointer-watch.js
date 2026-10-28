@@ -73,7 +73,12 @@ class PointerWatcher extends EventEmitter {
       try { info = JSON.parse(line); } catch { continue; }
       if (!info) continue;
       if (info.event === 'up') this.emit('up');
-      else if (info.event === 'down') this.emit('down', { canvas: info.canvas === true, alt: info.alt === true });
+      else if (info.event === 'down') this.emit('down', {
+        canvas: info.canvas === true,
+        alt: info.alt === true,
+        ctrl: info.ctrl === true,
+        shift: info.shift === true,
+      });
     }
   }
 

@@ -3,8 +3,8 @@ name: Release
 description: Cut an Iroiroppa release — version bump, CHANGELOG, tag, CI, release notes. Use when bumping the version, tagging or publishing a release, or changing the release process.
 ---
 
-Cutting a release follows `docs/RELEASE.md` — read it and work through its
-checklist. The rules that are never to be broken:
+Cutting a release follows the maintainer's private checklist. The rules that are
+never to be broken:
 
 - **The version moves only at release.** One bump, in the release commit, in
   `package.json` *and* `package-lock.json` (`npm version --no-git-tag-version

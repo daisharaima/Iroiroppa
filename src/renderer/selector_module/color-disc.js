@@ -31,7 +31,6 @@
   };
 
   const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
-  const clamp255 = (x) => clamp(Math.round(x), 0, 255);
   const CHEV_UP = '<svg viewBox="0 0 10 10"><path d="M2 6.5 5 3.5l3 3"/></svg>';
   const CHEV_DOWN = '<svg viewBox="0 0 10 10"><path d="M2 3.5 5 6.5l3-3"/></svg>';
   // The Disc's held axis is a horizontal slider row, so its nudge arrows step left and
@@ -194,6 +193,7 @@
       const Contour = window.IroContour;
       const DiscMap = window.IroDiscMap;
       const Cadence = window.IroRenderCadence;
+      const Pixel = window.IroRasterPlane;
 
       /** The plane the disc draws (see src/shared/disc-map.js). */
       const discPlane = (model) => DiscMap.discPlane(model);
@@ -249,7 +249,7 @@
       const buildDisc = (w, h, model, axes, scale) => {
         const lIdx = lightAxis(model);
         const nativeLight = Models.usesNativeLight(model);
-        const key = `d:${store.plotKeyTag()}:${model.id}:${axes[lIdx].toFixed(4)}:${scale.toFixed(4)}:${w}x${h}`;
+        const key = `d:${store.plotKeyTag()}:${model.id}:${axes[lIdx].toFixed(4)}:${scale.toFixed(4)}:${w}x${h}:${store.markOutOfDisplay ? 1 : 0}:${showOutOfGamut ? 1 : 0}`;
         const hit = discCache.get(key);
         if (hit && hit.width === w && hit.height === h) return hit;
         const off = document.createElement('canvas');
@@ -261,6 +261,15 @@
         const cx = w / 2;
         const cy = h / 2;
         const radius = Math.min(w, h) / 2 - 0.5;
+        const px = new Uint8ClampedArray(4);
+        // The document's gamut, independent of the display appearance model: this is
+        // the area the disc can pick, and the area the other maps draw as "solid".
+        const inDocument = (lab) => {
+          const l = Color.oklabToOklch(lab.L, lab.a, lab.b);
+          return typeof store.inDocumentGamut === 'function'
+            ? store.inDocumentGamut(l.L, l.C, l.H)
+            : Color.inGamut(l.L, l.C, l.H);
+        };
         for (let y = 0; y < h; y += 1) {
           const ny = (y + 0.5 - cy) / radius;
           for (let x = 0; x < w; x += 1) {
@@ -270,36 +279,18 @@
             const hue = ((Math.atan2(ny, nx) * 180) / Math.PI + 360) % 360;
             const next = axesAt(model, axes, hue, r, scale);
             const lab = model.toLab(next);
-            const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-            const inside = typeof model.inGamut === 'function'
-              ? model.inGamut(next)
-              : store.inGamut(lch.L, lch.C, lch.H);
-            // The disc is a disc: a pixel the document cannot hold is still painted (the
-            // sRGB stand-in at reduced opacity), never skipped into a bite out of the
-            // circle. Its lightness is left out of the field so the guide stops there.
-            // A pixel the document *can* hold but the screen cannot is painted as the
-            // clipped colour (like any drawing app), dimmed only when the user asks to
-            // see that region (`store.markOutOfDisplay`).
-            const inSrgb = Color.inGamut(lch.L, lch.C, lch.H);
+            const inside = inDocument(lab);
+            // The disc is a shape: in the document but outside sRGB is clipped (dimmed
+            // only when the user marks it), and outside the document it is the pale
+            // stand-in — or blank when showOutOfGamut is off. One helper keeps this
+            // identical to the Slices/Wheel paint rule; the old per-pixel sRGB fade
+            // painted a wide-gamut document's disc almost entirely pale.
+            Pixel.pixelFromLab(lab, px, inDocument, store.markOutOfDisplay ? 140 : 255, showOutOfGamut);
             const i = (y * w + x) * 4;
-            // One region: everything the display cannot show, whether or not the document
-            // can hold it. Painted as the pale stand-in, or left blank when the user turns
-            // the option off — never as a second, fully coloured area (that hard edge is
-            // what the user saw as a "harsh transition"). Inside the display gamut is the
-            // true colour.
-            let rgb;
-            let alpha = 255;
-            if (!inSrgb) {
-              if (!showOutOfGamut) { data[i + 3] = 0; continue; }
-              rgb = Color.fitToSrgb(lch.L, lch.C, lch.H);
-              alpha = 140;
-            } else {
-              rgb = Color.oklabToRgb(lab.L, lab.a, lab.b);
-            }
-            data[i] = clamp255(rgb.r * 255);
-            data[i + 1] = clamp255(rgb.g * 255);
-            data[i + 2] = clamp255(rgb.b * 255);
-            data[i + 3] = alpha;
+            data[i] = px[0];
+            data[i + 1] = px[1];
+            data[i + 2] = px[2];
+            data[i + 3] = px[3];
             if (inside) luma[y * w + x] = nativeLight ? next[lIdx] : lab.L;
           }
         }
@@ -374,7 +365,10 @@
         // the canvas takes the width and its height follows (`.disc-plot` has an
         // aspect-ratio of 1), so the card ends under the footer with no dead band and
         // the backing store can never be sized from a stale height.
-        const { w, h } = sizeCanvas(2, store.interactive);
+        // The map backing is a property of the module, not of the gesture. Using a
+        // 2× idle canvas and a native drag canvas made the Disc visibly change
+        // quality the moment a drag began; only the paced rebuild may differ now.
+        const { w, h } = sizeCanvas(2, true);
         if (w < 12 || h < 12) return;
         const dpr = w / Math.max(1, canvas.clientWidth);
         const model = modelNow();
@@ -480,18 +474,10 @@
       };
 
       const applyPoint = (next, notify) => {
-        const { model, axes } = next;
-        let lab = model.toLab(axes);
-        // A recorded value is inside the gamut: pull the chroma back to the
-        // boundary (never raise it) whatever the model. This is the same
-        // predicate the raster paints with, so shown == pickable.
-        const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-        if (!store.inGamut(lch.L, lch.C, lch.H)) {
-          const C = store.maxChroma(lch.L, lch.H);
-          const rad = (lch.H * Math.PI) / 180;
-          lab = { L: lch.L, a: C * Math.cos(rad), b: C * Math.sin(rad) };
-        }
-        store.setLab(lab, { notify });
+        // `snap` is the store's single gamut-snap path (`reduceChroma`, never raises
+        // chroma): every recorded disc value lands inside the document. The pointer is
+        // drawn from the stored axes, so it stays on the drawn boundary.
+        store.setLab(next.model.toLab(next.axes), { notify, snap: true });
       };
 
       let dragging = false;

@@ -210,3 +210,36 @@ test('every end reports it, so main can clear what the drag left behind', () => 
   h.session.drop();
   assert.deepEqual(ends, ['end']);
 });
+
+test('a deferred palette merge returns the plan instead of dispatching', () => {
+  const other = {
+    paletteId: 'p2',
+    rect: { x: 0, y: 0, width: 300, height: 640 },
+    zoom: 1,
+    columns: [{ id: 'd1', width: null, modules: [{ instanceId: 'm3', height: { mode: 'fill', weight: 1 } }] }],
+  };
+  const h = harness({ getPanes: () => [other], deferPaletteMerge: true });
+  h.move({ x: 100, y: 300 });
+  h.session.begin({
+    kind: 'palette', sourcePaletteId: 'p1', items: ['m1'], text: 'Palette 1',
+    members: [{ paletteId: 'p1', x: 300, y: 0, width: 200, height: 300 }],
+  });
+  const out = h.session.drop();
+  assert.equal(out.ok, true);
+  assert.ok(out.pendingMerge);
+  assert.equal(out.pendingMerge.target.paletteId, 'p2');
+  assert.equal(h.dispatched.length, 0, 'nothing is committed before the answer');
+  assert.equal(h.session.active(), false);
+});
+
+test('a cancelled palette drag restores its windows', () => {
+  const restored = [];
+  const h = harness({ restoreWindows: (members) => restored.push(members) });
+  h.session.begin({
+    kind: 'palette', sourcePaletteId: 'p1', text: 'Palette 1',
+    members: [{ paletteId: 'p1', x: 10, y: 20, width: 200, height: 300 }],
+  });
+  h.session.cancel();
+  assert.equal(restored.length, 1);
+  assert.equal(restored[0][0].x, 10);
+});

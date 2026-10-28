@@ -36,7 +36,10 @@ function createSettingsService({ file, defaults = {}, hooks = {} } = {}) {
     }
     if (prev.autoConnect !== next.autoConnect) hooks.scheduleAutoConnect();
     if (prev.locked !== next.locked) hooks.applyLocked(next.locked === true);
-    if (prev.summonHotkey !== next.summonHotkey) hooks.applySummonHotkey(next.summonHotkey);
+    if (JSON.stringify(prev.shortcuts || {}) !== JSON.stringify(next.shortcuts || {})
+      || prev.autoHide !== next.autoHide) {
+      if (typeof hooks.applyShortcuts === 'function') hooks.applyShortcuts(next);
+    }
     if (JSON.stringify(prev.commandBindings || {}) !== JSON.stringify(next.commandBindings || {})) {
       hooks.applyCommandHotkeys(next.commandBindings);
     }

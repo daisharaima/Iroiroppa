@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in Iroiroppa does not work as expected.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for the report. Iroiroppa is a solo project, so a reply may take a while."
+  - type: input
+    id: version
+    attributes:
+      label: Iroiroppa version
+      description: Settings → General footer, or the About tab.
+      placeholder: "1.2.1"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 23H2"
+    validations:
+      required: true
+  - type: input
+    id: csp
+    attributes:
+      label: Clip Studio Paint version
+      placeholder: "5.0.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: build
+    attributes:
+      label: Build
+      options:
+        - Installer
+        - Portable
+        - Development build
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open Iroiroppa\n2. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: A screenshot or a short screen recording helps a lot. Do not paste a real ICC profile, your canvas, or your `session.json`.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / diagnostics (optional)
+      description: "Run `Iroiroppa.exe --log`? Only if you are comfortable sharing the output; it may contain local paths."
+      render: text

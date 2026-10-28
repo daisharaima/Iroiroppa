@@ -29,6 +29,7 @@ Two colour concepts are easy to confuse and both matter:
 | `npm test` | `node:test` suite — no Electron required (2 seconds) |
 | `npm run map [filter]` | print a code index (file + line + declaration) instead of reading whole files; `--files` lists every file the walk saw |
 | `npm run screenshot` | regenerate `docs/screenshot.png` from the standard recipe |
+| `npm run wiki:check` | gate the user guide in `wiki/` — links, sidebar coverage, every module named, no developer vocabulary; `wiki:images` re-captures its screenshots from the same recipe |
 | `npm run bench` | headless micro-benchmarks (see `docs/PERF.md`) |
 | `npm run theme:check` | validate a theme file (or all bundled) against the token manifest; `theme:docs` regenerates the token table, `theme:preview -- <id>` renders one |
 | `npm run probe` | standalone CLI client: scan the QR, read/write the colour |
@@ -189,45 +190,59 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   the runtime did its job.
 - **The wheel's hue ring is the document's cusp, fitted — never clipped.** `ring.js` gives
   the outer band the document's most colourful colour per hue (`cusp`) and the inner band
-  the same hue at the selected lightness; both go through `fitToSrgb`. The disc instead has
-  one region for *everything the display cannot show*: pale (`fitToSrgb` at alpha 140) or
-  blank, chosen by the module's `showOutOfGamut` — never a second, fully coloured area, or
-  the boundary between the two rules is the hard edge the user saw as a "harsh transition".
+  the same hue at the selected lightness; both go through `fitToSrgb`. The disc instead
+  uses the map rule: a pixel inside the document gamut is clipped (dimmed only with
+  `markOutOfDisplay`), and a pixel outside it is the pale stand-in (`fitToSrgb` at alpha
+  140) or blank, chosen by the module's `showOutOfGamut` — never a second, fully coloured
+  area, or the boundary between the two rules is the hard edge the user saw as a "harsh
+  transition". The pointer is clamped to the document gamut, so it never sits outside the
+  drawn shape.
 - **Canvas backing stores have a pixel budget, not a fixed dpr.** `canvas-size.js`
   (`backingScale`) caps the total pixels (~260k idle, ~110k live), so a module stretched big
   only gives up supersampling, never sharpness, and never renders 4× the pixels of its
-  normal size. Slices, Disc and Wheel all size through it.
+  normal size. Slices, Disc and Wheel all size through it. **The Wheel and Disc use one
+  native backing in idle and drag**; `store.interactive` may change rebuild cadence, never
+  the rendered resolution (a 2× idle / 1× drag switch made the map visibly change the
+  moment a gesture began).
 - **The slice guide contours at stride 2 and drops sub-12-px stubs.** The H×V plane's luma
   is quantised by the model's own axes; a per-pixel contour turned that into vertical
   zig-zags all over the panel.
 - **The Slider's visibility toggles use the model's own channel names** (`model.axes[i].label`),
   not "1st/2nd/3rd channel".
 - **The overlay is a helper surface, never the last-interacted window**, and the band watch
-  hides it when no menu or tooltip owns it (a full-desktop transparent window left visible
-  was the "model dropdown disappears" smell). `raiseInteracted` guards `isVisible` because an
-  IPC sender is a webContents, not a window.
+  hides it only when no owner remains: menu, tooltip, merge-confirmation card, or in-flight
+  drag (a full-desktop transparent window left visible was the "model dropdown disappears"
+  smell). **The window `show` handler must use the same ownership predicate**: it only knew
+  menu/tooltip, so it hid the drag chip/line and the merge card the instant they appeared.
+  Menus/tooltips are raised again after the owner window's own raise, or the first 500 ms
+  band tick makes them blink behind Settings. `raiseInteracted` guards `isVisible` because
+  an IPC sender is a webContents, not a window.
 - **A model dropdown's pick id is per widget and bound on open.** `overlay.onPick('model')`
   registered by every menu at build time let the last-built menu take every pick, which is
   why the Slices/Slider model menus did nothing (their other menus won). Each widget now
   uses `model:<n>` and registers on click.
 - **Window order follows the last interaction, not a fixed raise order.** `ctx.lastInteracted`
   is set on `browser-window-focus`, on a window `show`, and on a palette press
-  (`reassertBand`); the 500 ms band watch repairs every band window's *bit* with
-  `zorder:false` (no reorder) and then raises only that window. A palette clicked while
-  Settings is open comes forward, and Settings clicked over a palette does too.
+  (`reassertBand`); a dirty flag makes the 500 ms band watch raise only after a real
+  interaction, never every tick. It repairs every band window's *bit* with
+  `zorder:false` (no reorder). The native helper also skips `SetWindowPos` when the
+  bits already match, and uses `SWP_NOREDRAW`; re-adding the style on every tick was
+  a whole-band flash. A palette clicked while Settings is open comes forward, and
+  Settings clicked over a palette does too.
 - **Tooltips are drawn on the overlay, not by the OS.** A native `title=` tooltip is a
   separate window outside the topmost band, so a palette or the Settings window covered it.
   `kernel/tooltip.js` shows `data-tip` on the overlay surface (`showTooltip` in windows.js);
-  `data-i18n-title` sets `data-tip` where the helper is loaded. The Disc's pale section has
-  a module toggle (`showOutOfGamut`) and the Slices' crosshair a local one (`crosshair`).
+  `data-i18n-title` sets `data-tip` where the helper is loaded — the palette pages load it
+  too, so the Session dot's tooltip is an overlay tooltip. The Disc's pale section has a
+  module toggle (`showOutOfGamut`); Color Slices' crosshair is its own local toggle (there
+  is no global crosshair setting).
 - **The wheel's inner shape is keyed on its fixed axis, and its guide is clipped to the
   shape the projection shows.** Plane 0 is the fixed-hue plane, so its pixels depend on
   that one axis — keying the raster cache on all three axes rebuilt a HelmGen inner
   (~a hundred ms per frame) on every lightness drag (the "very laggy wheel" report). It
-  builds at native device pixels while a gesture is in flight and back at full
-  supersampling on release, and the lightness guide is clipped to the projection's own
-  `inside` region so it cannot stop in mid-air over the page (the "guide gets cut off"
-  report).
+  builds at the same native device scale in idle and drag; only the paced rebuild waits,
+  and the lightness guide is clipped to the projection's own `inside` region so it cannot
+  stop in mid-air over the page (the "guide gets cut off" report).
 - **The Color Wheel's gap, its bands, and its ring-at-grey.** The inner shape is
   inscribed in a smaller concentric circle (`geometry().gap`) so it never touches the hue
   ring; the *two hue bands* meet exactly (`outer - outerW === inner + innerW`) and no
@@ -236,8 +251,7 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   keeps the previous one and the ring cannot turn; at zero chroma `Models.axesFor`
   converts that anchor with a tiny-chroma probe into the model's own hue units. A ring
   drag updates the inner slice live: the build is paced by its own measured interactive
-  cost (`Cadence.holdFor`), and the interactive build uses the real device scale (native
-  pixels, not 2×). See docs/PERF.md.
+  cost (`Cadence.holdFor`), at the same device scale in both states. See docs/PERF.md.
 - **The Color Disc's pointer is the exact inverse of its pick.** `disc-map.js#pointFromAxes`
   is `chroma / rim` in the *same* frame `axesAt` uses; deriving it from the max-chroma
   colour at another lightness made it collapse to the centre for some hues. The module is
@@ -249,6 +263,15 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   solver branch far from the cursor. The model list is one entry per space
   — the a/b forms — because the disc draws the polar form, so a space and its LCH twin are
   the same picture; a saved LCH id resolves to the twin.
+- **A shortcut target has one reveal mode: Toggle, Hold, or After colour pick.** The saved
+  keys for the other modes are kept but not registered; `ShortcutModel.bindings` emits only
+  the active one. **A bare key is a keyboard-hook binding, never a globalShortcut**: a
+  PowerShell `WH_KEYBOARD_LL` helper checks foreground/caret/dialog/IME/I-beam and an
+  Iroiroppa text-focus IPC before it blocks the key. When in doubt it passes the key
+  through, so typing is never swallowed.
+- **Native `<select>` and native `title=` are not allowed to own the visible list.** Their
+  OS windows are outside the topmost band. `kernel/select-overlay.js` opens the options on
+  the overlay, and `kernel/tooltip.js` converts a runtime `title` to `data-tip` on hover.
 - **The guide is also the pick, but only while the lightness is locked.** A Shift drag
   projects the pointer onto the drawn guide (`contour.js#nearestOnLines`), unbounded: the
   guide *is* the set of points at that lightness, and the axis solver brackets from the low
@@ -275,9 +298,9 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   `isAlwaysOnTop()` reports false, so every band window's bit is repaired every 500 ms
   (see "Window order follows the last interaction"); the module-settings popout, the
   Settings window and the overlay menu are in that list, every content resize
-  (`moduleSettings:resize`, `settings:resize`, `applyUiScale`) re-asserts `ensureTopmost`,
-  and the popout's blur close is deferred 150 ms so a transient blur cannot kill it
-  between open and pointer.
+  (`moduleSettings:resize`, `settings:resize`, `applyUiScale`) repairs the bit with
+  `zorder:false` instead of raising the frame, and the popout's blur close is deferred
+  150 ms so a transient blur cannot kill it between open and pointer.
 - **A module's `settingsUI` must never blank its popup — in either host.** Two pages
   render it (`module-settings.html`, and the Settings window's Modules tab), and both
   `try/catch` it and load every global a settingsUI may touch (`kernel/model-options.js`
@@ -447,6 +470,12 @@ assuming**, and keep the recipe comment's breakdown honest. **Adobe RGB
 release note or any artifact — never another ICC profile, and never a real
 user's settings or history; the script aborts if that profile is missing.
 
+**The user guide's images come from the same recipe** (`npm run wiki:images` →
+`wiki/images/`), so they inherit the Adobe RGB rule: the palette is
+`docs/screenshot.png`'s capture path, and the Settings window is captured through
+the `--open-settings` / `--settings-shot` dev flags. Never hand-crop or retouch a
+capture with a real profile or real history in it.
+
 ## Token discipline
 
 Cost is dominated by **new** (uncached) text: every fresh file read, command
@@ -490,8 +519,8 @@ output and reply. Cached repeats (this file, the docs, the conversation) are
 ## Branches
 
 `main` is the released line; `dev` is day-to-day work; short-lived branches off
-`dev` are squash-merged to keep history linear. The full strategy is in
-`docs/RELEASE.md`.
+`dev` are squash-merged to keep history linear. The full strategy lives in the
+maintainer's private release notes (not in this repository).
 
 **Do not confuse the branch with the document.** `layout.json` carries a
 `version` of its own: 1 the original board, 2 palettes with snapping (what
@@ -501,8 +530,8 @@ a branch.
 
 ## Releasing
 
-The procedure is the `release` skill; the checklist, semver rules, asset names
-and release-note rules live in `docs/RELEASE.md`. Each release also has a
+The procedure is the `release` skill; the full checklist, semver rules and asset
+names live in the maintainer's private release notes. Each release also has a
 checked-in `release-notes/vX.Y.Z.md` file; `npm test` enforces its structure and
 the release workflow publishes it. Always true, and never to be broken:
 
@@ -528,13 +557,14 @@ out-of-date doc is read as fact by the next agent or contributor:
 | change colour or proofing maths | `docs/COLOR.md` |
 | add or change a theme, or a theming token | `docs/THEMES.md` (the token table is generated), then `docs/ARCHITECTURE.md` / `docs/MODULES.md` — `npm test` fails until the manifest, the bundled themes, the renderer CSS and the doc agree |
 | change the icon, tray, packaging or CI | `docs/ARCHITECTURE.md` and the **Commands** table here |
-| change the release process, tagging or versioning | `docs/RELEASE.md` |
+| change the release process, tagging or versioning | the maintainer's private release notes |
 | add or change the state model, a domain, the session layer or a fallback flag | `docs/STATE.md` (the spec) and `docs/INVARIANTS.md` |
 | add or change an agent workflow | its `SKILL.md` under `.agents/skills/` |
 | move an item off the backlog, or decide not to do it | the maintainer's private roadmap notes (outside this repository) |
 | ship anything user-visible | `[Unreleased]` in `CHANGELOG.md` as you work (renamed to a dated section at release) **and** the README |
+| change anything a user sees in the app | the page under `wiki/` that covers it — `npm run wiki:check` fails on a broken link, an unlisted page or a module the guide never names |
 | touch the UI | `npm run screenshot`, then commit `docs/screenshot.png` |
 
 **Before every non-beta release**, re-read the README top to bottom against the
 app — feature list, install steps and asset names, credits, AI disclosure — as
-`docs/RELEASE.md` spells out. It is the one document users actually read.
+the private release checklist spells out. It is the one document users actually read.

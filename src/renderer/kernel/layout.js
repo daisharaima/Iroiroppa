@@ -206,6 +206,7 @@
             moduleId: String(mod.moduleId),
             weight: rawWeight != null ? Math.max(1, Math.round(rawWeight)) : null,
             ratio: rawRatio,
+            collapsed: mod.collapsed === true,
           });
         }
         out.columns.push(column);
@@ -637,11 +638,49 @@
       const natural = this._naturalHeight();
       if (!natural) return;
       const min = this.minWindowSize();
-      const floor = this.float ? Math.max(60, min.height) : PALETTE_MIN_H;
+      const floor = this._hasCollapsedModule()
+        ? Math.max(60, min.height)
+        : (this.float ? Math.max(60, min.height) : PALETTE_MIN_H);
       const want = Math.max(floor, Math.round(natural));
       if (Math.abs(want - window.innerHeight) <= 1) return;
-      this._fitUntil = Date.now() + 300;
+      this._fitUntil = Date.now() + 1000;
+      // Lower the OS minimum to the modules' own floors before asking to shrink;
+      // the palette starts at 340 px and would otherwise clamp the request.
+      if (this.csp.setMinSizeSelf && floor < PALETTE_MIN_H) {
+        this.csp.setMinSizeSelf(min.width, Math.max(60, min.height));
+        this._fitLoweredMin = true;
+      }
       this._applyWindowSize(window.innerWidth, want);
+    }
+
+    /** Does any module still sit collapsed to its header? */
+    _hasCollapsedModule() {
+      return (this.layout.columns || []).some((col) => (col.modules || []).some((m) => m.collapsed));
+    }
+
+    /** Does a module fill its column (so no natural height exists)? */
+    _hasFillModule() {
+      return (this.layout.columns || []).some((col) => (col.modules || []).some(
+        (m) => m && !m.collapsed && !this._isNatural(m) && !this._isRigid(m),
+      ));
+    }
+
+    /**
+     * After a minimize/expand, fit the window: shrinks on the way down, grows on
+     * the way up. A fill module's expanded height is unknowable from content, so
+     * the last expand restores the pre-collapse height instead of leaving it
+     * clipped in the shrunken window.
+     */
+    _fitAfterCollapse() {
+      this._fitNaturalWindow();
+      if (this._hasCollapsedModule()) return;
+      const snapshot = this._collapseSnapshot;
+      this._collapseSnapshot = null;
+      if (!snapshot) return;
+      if (!this._hasFillModule()) return;
+      if (window.innerHeight >= snapshot.height - 1) return;
+      this._fitUntil = Date.now() + 1000;
+      this._applyWindowSize(window.innerWidth, snapshot.height);
     }
 
     /**
@@ -742,14 +781,16 @@
       // back clamped, and the clamped height then looks like a user drag (see `_handleUserDrag`).
       // A float's floor is its own modules' floors, not the palette's 340 px design minimum:
       // otherwise a lone Color Stat stays 340 px tall with an empty band under it.
-      const floor = this.float ? Math.max(60, min.height) : PALETTE_MIN_H;
+      const floor = this._hasCollapsedModule()
+        ? Math.max(60, min.height)
+        : (this.float ? Math.max(60, min.height) : PALETTE_MIN_H);
       const wantH = Math.max(floor, Math.round(target));
       // Fit the *height* only: leave the design width alone. `_handleUserDrag` tells a
       // bottom-edge user drag apart from a programmatic resize by seeing a height that
       // differs from the one this board last asked for, so an unrecognized height change
       // here reads as a user dragging the edge and it "preserves the aspect ratio" by
       // shrinking the width too (300 wide became 168).
-      this._fitUntil = Date.now() + 400;
+      this._fitUntil = Date.now() + 1000;
       if (wantH < window.innerHeight - 1) {
         // Claim the height only when it is actually requested: a claimed-but-unset
         // height reads as a user drag in `_handleUserDrag` and rescales the width.
@@ -998,6 +1039,42 @@
           this._beginDrag(ev, mod.instanceId, openSettings);
         });
       }
+      // The eye in the card header: collapse to the header only (or expand). The
+      // document stores it, so a minimized module comes back minimized. Compact
+      // and headless modules have no button (they are already one line).
+      const minBtn = card.querySelector('.module-collapse');
+      if (minBtn) {
+        const current = () => (this.modules.get(mod.instanceId) || {}).model || mod;
+        const paint = () => {
+          const item = current();
+          const label = window.Iro.t(item.collapsed ? 'ui.module.expand' : 'ui.module.collapse');
+          minBtn.title = label;
+          minBtn.setAttribute('aria-label', label);
+          minBtn.setAttribute('aria-expanded', String(!item.collapsed));
+        };
+        paint();
+        minBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const item = current();
+          const wasCollapsed = Boolean(item.collapsed);
+          // Remember the window before the first module is minimized. If the board
+          // has a fill module, `_naturalHeight` cannot know how tall it should be on
+          // expand; this snapshot restores enough room that nothing is clipped.
+          if (!wasCollapsed && !this._collapseSnapshot) {
+            this._collapseSnapshot = { width: window.innerWidth, height: window.innerHeight };
+          }
+          item.collapsed = !item.collapsed;
+          this._applyModuleWeight(card, item, this._moduleWeightOpts(col, item));
+          paint();
+          // The dedicated IPC is the writer for `collapsed`; a v1 `_save()` here
+          // raced it and could broadcast the old expanded column back.
+          if (this.csp.setModuleCollapsed) {
+            const pending = this.csp.setModuleCollapsed(mod.instanceId, item.collapsed);
+            if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+          }
+          requestAnimationFrame(() => this._fitAfterCollapse());
+        });
+      }
       // A compact module has no header row of its own to grab, so its *row* drags the card too —
       // except on the controls inside it (the dot, the gear, the hex zones), which keep their clicks.
       const compactDef = window.Iro.modules && window.Iro.modules[mod.moduleId];
@@ -1038,7 +1115,10 @@
 
     /** Does this module keep its own size rather than taking a column share? */
     _isNatural(mod) {
-      if (!mod || mod.weight != null) return false;
+      if (!mod) return false;
+      // A minimized card is only its header, so it always keeps its content size.
+      if (mod.collapsed) return true;
+      if (mod.weight != null) return false;
       if (this._ratioOf(mod)) return true;
       const def = window.Iro.modules && window.Iro.modules[mod.moduleId];
       if (def && def.autoHeight) return true;
@@ -1104,8 +1184,15 @@
       // or the last of a column where everything is content-sized, fills it.
       // A *rigid* module (Session) is the exception the other way: it keeps its own
       // height even alone, because its whole point is being one row.
+      const minimized = Boolean(mod && mod.collapsed);
+      el.classList.toggle('module-min', minimized);
       const ratio = this._ratioOf(mod);
-      if (ratio) {
+      if (minimized) {
+        // The header is the whole card; drop the locked ratio until it expands.
+        el.style.aspectRatio = '';
+        el.style.width = '100%';
+        el.style.flex = '0 0 auto';
+      } else if (ratio) {
         // Locked-ratio sizing: the height is the column width times the ratio, so
         // changing the width re-sizes the module with no second drag axis.
         el.style.flex = '0 0 auto';
@@ -1147,6 +1234,8 @@
     }
 
     _minHeightOf(mod) {
+      // A minimized card is only its header; do not reserve the module body's floor.
+      if (mod && mod.collapsed) return Math.max(20, this._headHeightOf(mod));
       const size = this._minSizeOf(mod);
       const content = Math.max(40, Number.isFinite(size.height) ? size.height : MIN_MODULE);
       // A card's head is chrome the *module* never asked for, so the board adds it; a headless module

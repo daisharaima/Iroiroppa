@@ -7,7 +7,7 @@
 //
 // The user guide's images use the same recipe, with two extra flags:
 //
-//   npm run wiki:images          # wiki/images/palette.png + wiki/images/settings.png
+//   npm run wiki:images          # wiki/images/palette.png + the Settings tab captures
 //   node scripts/screenshot.js --out <file>    # the palette, to another path
 //   node scripts/screenshot.js --settings --settings-tab general --out <file>
 //
@@ -107,7 +107,6 @@ function main() {
     liveSync: true,
     autoHide: true,
     autoConnect: false,
-    crosshair: true,
     showModebar: true,
     hideModuleNames: false,
     locked: false,
@@ -138,14 +137,18 @@ function main() {
       // Ratios, not weights: a locked-ratio module's height is its column width
       // times the ratio (docs/LAYOUT.md, "Height modes"), and the palette fits its
       // content, so the column adds up to the 900px the recipe asks for at 300 wide.
-      // Measured at 294px of content width: 35 + 559 + 106 + 100 + the two one-row
-      // modules + 26px of window chrome = 900. Changing any module or ratio here
-      // changes the captured height, so re-measure rather than assuming.
+      // The shipped template order (module-manifest DEFAULT_IDS): Session first, then
+      // CSP Color, Color Wheel (OKHSV), Color Slices (OKLCH), Color Slider (OKLCH),
+      // Color History and Color Stat. Measured at 294px of content width; changing a
+      // module or ratio here changes the captured height, so re-measure.
       modules: [
+        { instanceId: 'i0', moduleId: 'session' },
         { instanceId: 'i1', moduleId: 'csp-color' },
-        { instanceId: 'i2', moduleId: 'color-slices', ratio: 1.9 },
-        { instanceId: 'i3', moduleId: 'color-slider', ratio: 0.36 },
-        { instanceId: 'i4', moduleId: 'color-history', ratio: 0.34 },
+        { instanceId: 'i2', moduleId: 'color-wheel', ratio: 0.9 },
+        { instanceId: 'i3', moduleId: 'color-slices', ratio: 1.0 },
+        { instanceId: 'i4', moduleId: 'color-slider', ratio: 0.36 },
+        { instanceId: 'i5', moduleId: 'color-history', ratio: 0.34 },
+        { instanceId: 'i6', moduleId: 'color-stat' },
       ],
     }],
     floats: [],

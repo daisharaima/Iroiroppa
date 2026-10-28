@@ -1,7 +1,7 @@
 /*
  * The typed session vocabulary (docs/STATE.md, §12.3).
  *
- * The same event names as token-beam, so the mental model transfers: one window
+ * The same event names as the token layer, so the mental model transfers: one window
  * (the "source"/hub is main) pairs with its peers and both sides speak
  * `peer-connected` / `sync` / `warning` / `error`. `state` carries the lifecycle
  * (`idle → connecting → connected → paired → disconnected|error`).
@@ -18,7 +18,7 @@
     'peer-connected', 'peer-disconnected', 'sync', 'warning', 'error',
   ];
 
-  /** A tiny typed emitter (token-beam's `TypedEmitter`): `on/off/once/emit`. */
+  /** A tiny typed emitter (the token layer's `TypedEmitter`): `on/off/once/emit`. */
   function createTypedEmitter() {
     const listeners = new Map(); // type -> Set<fn>
 

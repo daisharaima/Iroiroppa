@@ -22,7 +22,9 @@
         <button class="seg-btn" data-tab="general" role="tab" data-i18n="settings.tab.general">General</button>
         <button class="seg-btn" data-tab="appearance" role="tab" data-i18n="settings.tab.appearance">Appearance</button>
         <button class="seg-btn" data-tab="modules" role="tab" data-i18n="settings.tab.modules">Modules</button>
+        <button class="seg-btn" data-tab="shortcuts" role="tab" data-i18n="settings.tab.shortcuts">Shortcuts</button>
         <button class="seg-btn" data-tab="layout" role="tab" data-i18n="settings.tab.layout">Layout</button>
+        <button class="seg-btn" data-tab="about" role="tab" data-i18n="settings.tab.about">About</button>
       </div>
 
       <div id="tab-layout" class="tab-panel hidden">
@@ -66,7 +68,7 @@
 
         <div class="section-title" data-i18n="settings.section.behaviour">Behaviour</div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.liveSync">Live sync while dragging<span class="info" data-tip="Push colour changes to Clip Studio Paint while you drag. Turn off to send only when you release.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.liveSync">Live sync while dragging<span class="info" data-tip="Push color changes to Clip Studio Paint while you drag. Turn off to send only when you release.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-live" /><span class="tgl-track"></span></label>
         </div>
         <div class="row">
@@ -81,17 +83,10 @@
           <span class="row-label" data-i18n-lead="settings.row.startWithWindows">Start when Windows starts<span class="info" data-tip="Launch Iroiroppa automatically when you sign in to Windows.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-login" /><span class="tgl-track"></span></label>
         </div>
-        <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.summonHotkey">Summon hotkey<span class="info" data-tip="A system-wide key that shows or hides the palette, even while Clip Studio Paint has focus. Click the box, then press the keys (a modifier is required); press Esc to clear.">i</span></span>
-          <input id="set-summon" class="text-input hotkey-input" readonly placeholder="None" spellcheck="false" aria-label="Summon hotkey" />
-        </div>
-
-        <div class="section-title" data-i18n="settings.section.moduleShortcuts">Module shortcuts</div>
-        <div id="set-command-list" class="command-list"></div>
 
         <div class="section-title" data-i18n="settings.section.proofColor">Proof Color</div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.colourProfile">Colour profile<span class="info" data-tip="Interpret the document's recorded colours through this profile. Picking one turns proofing on; the default treats the records as sRGB.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.colourProfile">Color profile<span class="info" data-tip="Interpret the document's recorded colors through this profile. Picking one turns proofing on; the default treats the records as sRGB.">i</span></span>
         </div>
         <button id="set-profile-default" class="profile-pinned" type="button">
           <span class="profile-dot"></span>
@@ -103,7 +98,7 @@
         </button>
         <div id="set-profile-list" class="profile-list settings-profile-list"></div>
         <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.markOutOfDisplay">Mark colours this display can&#8217;t show<span class="info" data-tip="A document can hold colours your screen cannot display. They are drawn as the closest displayable colour; turn this on to dim them so you can tell them apart. Off (default) draws them like any other colour.">i</span></span>
+          <span class="row-label" data-i18n-lead="settings.row.markOutOfDisplay">Mark colors this display can&#8217;t show<span class="info" data-tip="A document can hold colors your screen cannot display. They are drawn as the closest displayable color; turn this on to dim them so you can tell them apart. Off (default) draws them like any other color.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-mark-out-of-display" /><span class="tgl-track"></span></label>
         </div>
 
@@ -132,7 +127,12 @@
           <button id="btn-quit" class="btn danger" data-i18n="settings.footer.quit">Quit</button>
           <span class="foot-right">
             <button id="settings-update" class="settings-update hidden" type="button" data-tip="Open the release page"></button>
-            <button id="settings-check" class="settings-check" type="button" data-tip="Check GitHub for a newer release" data-i18n="settings.footer.checkUpdates">Check for updates</button>
+            <button id="settings-update-install" class="settings-update hidden" type="button"></button>
+            <label class="settings-auto" data-i18n-title="settings.footer.autoCheckTip" data-tip="Check GitHub for a newer release when Iroiroppa starts (at most once a day).">
+              <input type="checkbox" id="settings-auto-check" />
+              <span data-i18n="settings.footer.autoCheck">Auto</span>
+            </label>
+            <button id="settings-check" class="settings-check" type="button" data-tip="Check GitHub now for a newer release" data-i18n="settings.footer.checkUpdates">Check for updates</button>
             <span id="settings-version" class="settings-version"></span>
           </span>
         </div>
@@ -140,10 +140,6 @@
 
       <div id="tab-appearance" class="tab-panel">
         <div class="section-title" data-i18n="settings.section.mainPanel">Main Panel</div>
-        <div class="row">
-          <span class="row-label" data-i18n-lead="settings.row.crosshair">Show crosshair guides<span class="info" data-tip="Draw the crosshair and guide lines over the colour maps.">i</span></span>
-          <label class="tgl"><input type="checkbox" id="set-cross" /><span class="tgl-track"></span></label>
-        </div>
         <div class="row">
           <span class="row-label" data-i18n-lead="settings.row.viewFamily">Color model family<span class="info" data-tip="Limit the model lists in every picker to one family. All still uses the canonical OKLab value internally.">i</span></span>
           <select id="set-view-family" class="select" data-i18n-aria-label="settings.row.viewFamily">
@@ -178,7 +174,7 @@
           <span class="row-label" data-i18n-lead="settings.row.theme">Theme<span class="info" data-tip="Pick a theme. Add your own by dropping theme JSON files into the Iroiroppa themes folder in AppData.">i</span></span>
           <div class="row-control">
             <select id="set-theme" class="select" aria-label="Theme"></select>
-            <button id="btn-accent" class="accent-trigger" type="button" data-tip="Accent colour — click to choose" aria-label="Accent colour" data-i18n-title="settings.accent.choose" data-i18n-aria-label="settings.accent.choose"></button>
+            <button id="btn-accent" class="accent-trigger" type="button" data-tip="Accent color — click to choose" aria-label="Accent color" data-i18n-title="settings.accent.choose" data-i18n-aria-label="settings.accent.choose"></button>
             <button id="btn-accent-reset" class="btn tiny icon-only" data-tip="Use the theme's own accent" aria-label="Use the theme's own accent">
               <svg viewBox="0 0 20 20"><path d="M4.6 7.6A6 6 0 0 1 15.6 6.2"/><path d="M15.8 2.6v3.8h-3.8"/><path d="M15.4 12.4A6 6 0 0 1 4.4 13.8"/><path d="M4.2 17.4v-3.8h3.8"/></svg>
             </button>
@@ -189,6 +185,63 @@
           <span class="row-label" data-i18n-lead="settings.row.hideNames">Hide module names<span class="info" data-tip="Keep each module's title bar (for dragging) but hide its name.">i</span></span>
           <label class="tgl"><input type="checkbox" id="set-names" /><span class="tgl-track"></span></label>
         </div>
+      </div>
+
+      <div id="tab-about" class="tab-panel hidden">
+        <div class="about-head">
+          <span class="about-app">Iroiroppa</span>
+          <span id="about-version" class="about-version"></span>
+        </div>
+        <div id="about-build" class="hint"></div>
+
+        <div class="section-title" data-i18n="settings.about.links">Links</div>
+        <div id="about-links" class="about-links"></div>
+
+        <div class="section-title" data-i18n="settings.about.author">Author</div>
+        <div class="about-row">
+          <span>daisharaima</span>
+          <button class="btn tiny" type="button" data-about-url="https://github.com/daisharaima">GitHub</button>
+        </div>
+
+        <div class="section-title" data-i18n="settings.about.contributors">Contributors</div>
+        <div class="hint" data-i18n="settings.about.contributorsHint">No code contributions yet. Contributions and translations are welcome — see CONTRIBUTING.md.</div>
+
+        <div class="section-title" data-i18n="settings.about.credits">Credits</div>
+        <div id="about-credits" class="about-credits"></div>
+
+        <div class="section-title" data-i18n="settings.about.license">License</div>
+        <div class="about-row">
+          <span data-i18n="settings.about.licenseName">GNU General Public License v3.0 or later</span>
+          <span class="row-actions">
+            <button id="about-license-open" class="btn tiny" type="button" data-i18n="settings.about.openFile">Open</button>
+            <button id="about-electron-license" class="btn tiny" type="button" data-i18n="settings.about.electronLicense">Electron license</button>
+            <button id="about-chromium-notices" class="btn tiny" type="button" data-i18n="settings.about.chromiumNotices">Chromium notices</button>
+          </span>
+        </div>
+        <details class="about-details">
+          <summary data-i18n="settings.about.showLicense">Show the full license text</summary>
+          <pre id="about-license-text" class="about-text"></pre>
+        </details>
+
+        <div class="section-title" data-i18n="settings.about.thirdParty">Third-party notices</div>
+        <details class="about-details">
+          <summary data-i18n="settings.about.showThirdParty">Show the third-party notices</summary>
+          <pre id="about-third-party" class="about-text"></pre>
+        </details>
+
+        <div class="about-actions">
+          <button id="about-whats-new" class="btn" type="button" data-i18n="settings.about.whatsNew">What's new</button>
+          <button id="about-check" class="btn" type="button" data-i18n="settings.about.checkUpdates">Check for updates</button>
+        </div>
+        <div id="about-note" class="hint"></div>
+      </div>
+
+      <div id="tab-shortcuts" class="tab-panel hidden">
+        <div class="shortcuts-split">
+          <div id="shortcut-targets" class="module-list shortcut-targets"></div>
+          <div id="shortcut-detail" class="module-detail"></div>
+        </div>
+        <div class="hint" data-i18n="settings.shortcuts.gateHint">Shortcuts only work while Clip Studio Paint or Iroiroppa is the active program.</div>
       </div>
 
       <div id="tab-modules" class="tab-panel hidden">
@@ -215,13 +268,13 @@
     </div>
 
     <div id="accent-backdrop" class="accent-backdrop hidden"></div>
-    <div id="accent-popup" class="accent-popup hidden" role="dialog" aria-label="Accent colour">
-      <div class="accent-popup-head" data-i18n="settings.accent.title">Accent colour</div>
+    <div id="accent-popup" class="accent-popup hidden" role="dialog" aria-label="Accent color">
+      <div class="accent-popup-head" data-i18n="settings.accent.title">Accent color</div>
       <div id="accent-sv" class="accent-sv"><span id="accent-thumb" class="accent-thumb"></span></div>
       <input id="accent-hue" class="rng accent-hue" type="range" min="0" max="360" step="1" value="0" aria-label="Hue" />
       <div class="accent-row">
         <span id="accent-preview" class="accent-preview"></span>
-        <input id="accent-hex" class="text-input accent-hex" maxlength="7" spellcheck="false" aria-label="Hex colour" />
+        <input id="accent-hex" class="text-input accent-hex" maxlength="7" spellcheck="false" aria-label="Hex color" />
       </div>
       <div class="accent-actions">
         <button id="accent-cancel" class="btn" data-i18n="settings.accent.cancel">Cancel</button>
@@ -247,10 +300,12 @@
 <script src="../shared/picker-overlay.js"></script>
 <script src="../shared/projection.js"></script>
 <script src="../shared/shortcut-match.js"></script>
+<script src="../shared/shortcut-model.js"></script>
   <script src="../shared/i18n.js"></script>
 <script src="../shared/lut.js"></script>
 <script src="../shared/proof.js"></script>
   <script src="../shared/module-manifest.js"></script>
+  <script src="../shared/credits.js"></script>
   <script src="../shared/locale-names.js"></script>
   <script src="../shared/module-usage.js"></script>
   <script src="../shared/theme-tokens.js"></script>
@@ -263,6 +318,8 @@
      Model control through this helper: without it the section throws and only the
      Module Size slider is left (the "no settings" report). -->
 <script src="kernel/overlay-menu.js"></script>
+  <script src="kernel/select-overlay.js"></script>
+  <script src="kernel/typing.js"></script>
 <script src="kernel/tooltip.js"></script>
 <script src="kernel/model-options.js"></script>
 <script src="settings.js"></script>

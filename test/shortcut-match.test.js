@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normalizeAccel, findConflicts } = require('../src/shared/shortcut-match');
+const { normalizeAccel, findConflicts, parseAccelerator, validAccelerator } = require('../src/shared/shortcut-match');
 
 test('CSP and Electron spellings normalize to the same accelerator', () => {
   assert.equal(normalizeAccel('Ctrl+Shift+N'), 'Ctrl+Shift+N');
@@ -40,4 +40,25 @@ test('tool keys participate in the comparison', () => {
   );
   assert.equal(conflicts.length, 1);
   assert.equal(conflicts[0].cspLabel, 'Tool: Pencil');
+});
+
+test('an accelerator parses to a virtual key and modifiers', () => {
+  const a = parseAccelerator('Ctrl+Alt+P');
+  assert.equal(a.ok, true);
+  assert.equal(a.vk, 0x50);
+  assert.deepEqual([a.ctrl, a.alt, a.shift, a.super], [true, true, false, false]);
+  assert.equal(parseAccelerator('F8').ok, true);
+  assert.equal(parseAccelerator('Shift+F12').vk, 0x7b);
+  assert.equal(parseAccelerator('Ctrl+Plus').vk, 0xbb);
+});
+
+test('a bare letter is not a global shortcut but is a valid reveal key', () => {
+  assert.equal(validAccelerator(''), true);
+  assert.equal(validAccelerator('P'), false);
+  assert.equal(validAccelerator('P', { allowBare: true }), true);
+  assert.equal(parseAccelerator('P').bare, true);
+  assert.equal(parseAccelerator('P').hook, true);
+  assert.equal(parseAccelerator('F8').hook, false);
+  assert.equal(validAccelerator('Ctrl+NotAKey'), false);
+  assert.equal(validAccelerator('Ctrl+Shift+Z'), true);
 });

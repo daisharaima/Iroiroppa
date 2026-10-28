@@ -1,87 +1,45 @@
-# FAQ and getting help
+# FAQ
 
-## The basics
-
-**Is it free?**
-Yes. Iroiroppa is free software under the GNU General Public License v3 or later — free to use, study, change and share, as long as anything you build from it stays free too.
+**Is Iroiroppa free?**
+Yes. It is free software under GPL-3.0-or-later: use, study, change and share it, provided derivative works stay free.
 
 **Is it official?**
-No. It is an unofficial hobby project, not made or endorsed by CELSYS. Clip Studio Paint, Companion Mode and the smartphone app belong to CELSYS. Please do not ask CELSYS for support with it.
+No. It is independent and not affiliated with CELSYS. Do not ask CELSYS for support.
 
 **Why does Windows warn about it?**
-The program is not signed with a paid publisher certificate. Signing would do nothing except prove who built it; it costs money every year, and this is a free project. **More info → Run anyway** is the expected path the first time.
+The app is not signed with a paid publisher certificate. Signing proves the publisher and avoids most SmartScreen warnings, but a certificate has a yearly cost. Choose **More info → Run anyway** on first launch.
 
-**Does it work on macOS, iPad or Android?**
-No. It is a Windows program, and it needs Clip Studio Paint running on the same Windows PC.
+**Does it run on macOS, iPad or Android?**
+No. It is a Windows app and needs Clip Studio Paint on the same PC.
 
 **Does it work with other painting programs?**
-No. It speaks only Clip Studio Paint's Companion Mode protocol. Other programs have no equivalent to connect to.
+No. It uses Clip Studio Paint's Companion Mode.
 
-## Privacy and safety
+**Does it upload my data?**
+No account, telemetry or analytics. With **Auto** on, it requests the latest release number from GitHub at startup and daily. Colors, history and layouts stay on the PC.
 
-**Does it upload anything?**
-No. There is no account, no telemetry, no analytics, no crash reporting. Your colours, history and layout stay on your PC.
+**Does it read the screen?**
+Only to find the QR code, locally. It does not save or upload the image. Turn off **Connect automatically** to stop scanning.
 
-**Does it phone home?**
-Only if you press **Check for updates**, which asks GitHub for the newest release number. Nothing about you is sent.
+**Can it damage my artwork or Clip Studio Paint?**
+No. It does not modify your artwork or Clip Studio Paint's program files. It sends colors and commands over the same connection as the phone app.
 
-**Does it watch my screen?**
-Only while it is looking for Clip Studio Paint's QR code, and only on your machine — the image is not saved and nothing is sent anywhere. If **Connect automatically** is on, it does that while disconnected. Turn it off in **Settings ▸ General** and it never looks.
+**Can I use the phone app at the same time?**
+No. Clip Studio Paint allows one phone-side connection at a time.
 
-**Is it safe to leave the pairing saved?**
-The pairing file is `session.json` in Iroiroppa's data folder, and it only works with your Clip Studio Paint on your PC. You can remove it any time with **Forget pairing**.
+**Can I share a palette?**
+Yes. Export it from **Settings → Layout**; the other person imports the file.
 
-**Can it damage my artwork or my Clip Studio Paint installation?**
-It does not touch files. It sends colours and commands over the same connection the phone app uses, and it never patches Clip Studio Paint. If it misbehaves, quit it — your documents are unaffected.
+**Who makes it?**
+An independent developer directs the project; the code and text are written with AI assistance. The code has a test suite but no professional developer review.
 
-## Using it
+**Where do I report a problem?**
+Open an issue on the [repository](https://github.com/daisharaima/Iroiroppa/issues) and include:
 
-**Does it need Clip Studio Paint to be open?**
-Yes, to connect. You can open Iroiroppa first; it will wait and connect when Clip Studio Paint shows its QR code.
+- Iroiroppa version (Settings footer);
+- Windows and Clip Studio Paint versions;
+- steps to reproduce and the result;
+- a screenshot, if visual;
+- the connection state from the Session dot's tooltip.
 
-**Will it slow Clip Studio Paint down?**
-It is a separate small program. On a very heavy document the live update during a drag can feel slow; turn off **Live sync while dragging**.
-
-**Can I use my phone app at the same time?**
-No — Clip Studio Paint allows one phone-side connection at a time. Close one before using the other.
-
-**Can I use it on a second monitor while Clip Studio Paint is on the first?**
-Yes, and it is a good way to use it. See [Arrange your palette](Arrange-your-palette) for popping modules out.
-
-**Does it replace Clip Studio Paint's own colour wheel?**
-It adds to it. You can keep using Clip Studio Paint's pickers; Iroiroppa follows whatever colour they set.
-
-**Can I share my palette layout?**
-Yes — **Settings ▸ Layout ▸ Export** a palette, and the other person can **Import…** it.
-
-## About the project
-
-**Who made it?**
-The direction, feature decisions and testing come from one person who is not a programmer. The code and the prose were written by AI — DeepSeek models driven through an AI coding agent. There is a test suite and there are design notes, but no professional developer has reviewed the code.
-
-**Why say that?**
-Because it is true, and because it is fair to know what you are running. Bug reports and fixes are genuinely welcome — the project exists to be shared.
-
-**Can I contribute?**
-Yes. The repository has a guide for contributors, and honest bug reports are as useful as code.
-
-## Getting help
-
-There is no support desk, but there is a good way to ask.
-
-1. Check [Troubleshooting](Troubleshooting) first — most questions are answered there.
-2. If it is not covered, open an issue on the [repository](https://github.com/daisharaima/Iroiroppa/issues).
-
-Include these, because every one of them shortens the guesswork:
-
-- **Which version** — the Settings window shows it at the bottom.
-- **Your Windows version** and **your Clip Studio Paint version**.
-- **What you did**, step by step, and **what happened instead**.
-- **A screenshot** if it is visual.
-- **The connection state** shown in the Session panel when it went wrong.
-
-Do not include your `session.json` or any personal document contents. If a screenshot shows your private artwork, crop it or describe it instead.
-
----
-
-New to the words? The [Glossary](Glossary) explains every term used here.
+Do not include `session.json` or private artwork.

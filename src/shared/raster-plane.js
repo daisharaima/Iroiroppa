@@ -232,7 +232,7 @@
    * Alpha is 0 when the colour is outside the working gamut; `workingGamut` is null
    * when the working gamut is sRGB itself (the common case, and the fast one).
    */
-  function pixelFromLab(lab, out, workingGamut = null, outAlpha = 255) {
+  function pixelFromLab(lab, out, workingGamut = null, outAlpha = 255, fill = false) {
     const lin = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
     const r = gamma(lin.r);
     const g = gamma(lin.g);
@@ -240,7 +240,14 @@
     if (r < -WIN_TOL || r > 1 + WIN_TOL
       || g < -WIN_TOL || g > 1 + WIN_TOL
       || b < -WIN_TOL || b > 1 + WIN_TOL) {
-      if (!workingGamut || !workingGamut(lab)) { out[3] = 0; return out; }
+      if (!workingGamut || !workingGamut(lab)) {
+        // Outside the document gamut. A slice keeps a hole (it shows only what it
+        // can pick); a map that is a shape (the Disc) fills it with the dimmed
+        // stand-in instead, so the shape never gains a bite.
+        if (fill) paintFitted(out, 0, lab.L, lab.a, lab.b, OUT_ALPHA);
+        else out[3] = 0;
+        return out;
+      }
       // Inside the working gamut but past sRGB: clipped at full opacity (the plain
       // drawing-app look), or the dimmed chroma fit when the caller marks the region.
       if (outAlpha >= 255) {

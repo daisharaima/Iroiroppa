@@ -73,9 +73,9 @@ rather than local:
         { "id": "c_9c01", "width": null,
           "modules": [
             { "instanceId": "i_77b1", "moduleId": "csp-color",
-              "height": { "mode": "auto" } },
+              "height": { "mode": "auto" }, "collapsed": false },
             { "instanceId": "i_2e90", "moduleId": "color-slices",
-              "height": { "mode": "fill", "weight": 1 } }
+              "height": { "mode": "fill", "weight": 1 }, "collapsed": false }
           ] }
       ]
     }
@@ -88,7 +88,8 @@ rather than local:
   the palette it is attached to, and a snapped palette **follows** its anchor's
   moves.
 - `collapsed` is persisted (the old design kept it in a main-process `Set`, so it
-  was lost on restart).
+  was lost on restart). A module's `collapsed` keeps only its header; the field is
+  additive so older documents read as expanded.
 - A column's `width` is CSS px, or `null` to share what is left.
 - Main generates every `paletteId` / `columnId` / `instanceId`; a renderer never
   invents one (the old design repaired duplicate ids after the fact).
@@ -165,6 +166,7 @@ anywhere in a palette lands in that palette's single column at the y-index under
 horizontal insertion line. The reducer still accepts `seam`/`outer` (the drop-matrix tests cover them),
 but the UI can no longer create a second column.
 | `module.setHeight` | `{ instanceId, height }` |
+| `module.setCollapsed` | `{ instanceId, collapsed }` |
 | `column.setWidth` | `{ paletteId, widths: [{ columnId, width }] }` |
 | `palette.rename` | `{ paletteId, name }` |
 | `palette.close` | `{ paletteId }` (refused for the last palette) |
@@ -232,7 +234,13 @@ one question per tick and render the snapshot they are given.
 click-through, always-on-top window covering the union of the displays, carrying
 the drag chip *and* the destination indicator. This is what keeps the indicator
 above every palette, and it removes the column-overflow clipping of the old
-in-board indicator.
+in-board indicator. The 500 ms band watch may hide it only when no menu,
+tooltip, merge card, or drag owns it (`shared/overlay-ownership.js`); the window
+`show` handler uses the same predicate, because the old menu/tooltip-only check hid
+the drag chip/lines and merge card the instant they appeared. Menus/tooltips are
+re-raised after the owner window (immediately and on the next tick), so the 500 ms
+watch is not what makes them visible. On every draw it re-asserts the full work-area
+bounds, because a menu or confirm card may have shrunk it.
 
 **Selection**: click selects one, shift-click extends in document order (column
 order, then module order), ctrl-click toggles, Escape/empty space clears. Dragging
@@ -302,7 +310,9 @@ Payloads: **M1** one module · **M2** shift-selection · **P3** whole palette.
 | **P3** | its modules merge into that column, in order | its columns inserted, width grows by their total | its columns inserted outside, width grows | no-op |
 
 Guards: a drop on its own position is a no-op; a selection dropped inside its own
-span has its index adjusted; P3 on itself is a no-op; a drop while locked is
+span has its index adjusted; P3 on itself is a no-op; a P3 dock that would delete the
+dragged palette asks first (`drag-session.js` returns `pendingMerge`, main draws the
+overlay card; Cancel restores the original rectangles); a drop while locked is
 allowed; a palette emptied by a drop closes (unless it is the last); the dropped
 items' order, count and heights are preserved exactly; a rejected drop leaves the
 document unchanged.
@@ -361,12 +371,13 @@ Built. What the work settled, and what a later change must not undo:
 
 - **`session` is one row and nothing else.** It declares `headless` (the host mounts it with no card
   head, so there is no second header) and `rigid` (it keeps its own height even alone in a column).
-  Its minimum width is **measured from the live row** with the label shortened: when the card cannot
-  fit "Clip Studio Paint" the label becomes **"CSP"**, and that shortened row is the floor.
-- **The proof icon, not a dropdown.** The row is `● Clip Studio Paint [◐] [⚙]`; the ◐ opens the
+  Its minimum width is **measured from the controls**: the dot, the profile dropdown, the lock and
+  the gear; the dropdown ellipsises rather than forcing the palette wider.
+- **The profile dropdown, not an icon.** The row is `● [Profile ▾] [🔒] [⚙]`; the dropdown opens the
   profile switcher, which reuses the Settings window's own rows (`.profile-pinned`, `.profile-item`,
   `.profile-list`) as a *fixed-position* panel — an in-card popup is clipped by the column's
-  `overflow: hidden`. Disconnect lives in the module's own ⋯ panel and the tray, never in the row.
+  `overflow: hidden`. The connection's name/state lives on the dot's tooltip (“Connected to Clip
+  Studio Paint”). Disconnect lives in the module's own ⋯ panel and the tray, never in the row.
 - **`color-stat` is one line too.** Swatch, HEX (copy/paste/type), **one** coordinate cell (click it
   to cycle the document's L/C/H ↔ the screen's sRGB; the choice is a module setting, because a board
   rebuild would otherwise reset it). If a profile makes the two spaces disagree, the tooltips say
@@ -488,7 +499,7 @@ not a finished one.
 - `-webkit-app-region: drag` on the non-activating palette is proven on the float
   grip but must be verified on the palette in V3; the fallback is the existing
   `moveBy` behind the same session API.
-- The overlay must sit above palettes and CSP (`screen-saver` + `moveTop()`, else
-  a per-monitor overlay).
+- The overlay must sit above palettes and CSP (`screen-saver`, raised after the
+  owner window); never `moveTop()`, which drops the topmost band.
 - Overlapping palettes resolve to "topmost = last interacted with" — a rule, not
   an OS fact; documented here so it is not rediscovered.

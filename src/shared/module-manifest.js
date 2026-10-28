@@ -36,14 +36,14 @@
   const MODULES = [
     { id: 'color-disc', name: 'Color Disc', autoHeight: true, instanceable: true, group: 'picker' },
     { id: 'color-history', name: 'Color History', autoHeight: false, instanceable: true, group: 'utility', defaultRatio: 0.36 },
-    { id: 'color-slices', name: 'Color Slices', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 1.42 },
-    { id: 'color-slider', name: 'Color Slider', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 0.33 },
+    { id: 'color-slices', name: 'Color Slices', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 1.0 },
+    { id: 'color-slider', name: 'Color Slider', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 0.36 },
     // The numbers of the colour in hand: the footer's swatch, HEX and coordinates, as a module
     // any palette can hold (docs/LAYOUT.md, "One palette").
     { id: 'color-stat', name: 'Color Stat', autoHeight: true, instanceable: true, group: 'utility' },
     // The hue ring and its inner hue slice (flat or the cusp frame): a fast way
     // to turn hue without hunting the slices' hue axis.
-    { id: 'color-wheel', name: 'Color Wheel', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 1.06 },
+    { id: 'color-wheel', name: 'Color Wheel', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 0.9 },
     { id: 'csp-color', name: 'CSP Color', autoHeight: false, instanceable: false, group: 'core', defaultRatio: 0.12, capabilities: { companion: 'optional' } },
     // CSP's own command shortcuts and tool keys, read from its SQLite files and
     // invoked over the protocol or a native key send.
@@ -55,7 +55,10 @@
   ];
 
   /** The modules of the first-run board, in board order (top to bottom). */
-  const DEFAULT_IDS = ['session', 'csp-color', 'color-stat', 'color-slices', 'color-slider'];
+  const DEFAULT_IDS = [
+    'session', 'csp-color', 'color-wheel', 'color-slices',
+    'color-slider', 'color-history', 'color-stat',
+  ];
 
   // User modules (docs/USER-MODULES.md) are loaded by main from
   // %APPDATA%\Iroiroppa\user-modules and registered here at boot, after the

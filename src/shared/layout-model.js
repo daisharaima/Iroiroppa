@@ -14,9 +14,9 @@
  * the board and main share one implementation of the rules.
  */
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.IroLayoutModel = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) module.exports = factory(require('./module-manifest'));
+  else root.IroLayoutModel = factory(root.IroModuleManifest);
+})(typeof self !== 'undefined' ? self : this, function (Manifest) {
   'use strict';
 
   const SCHEMA_VERSION = 2;
@@ -142,6 +142,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
         instanceId: uniqueId(m.instanceId, 'i', env, used),
         moduleId,
         height: normaliseHeight(m.height, env, moduleId),
+        collapsed: m.collapsed === true,
       });
     }
     const width = finite(raw && raw.width);
@@ -560,6 +561,14 @@ function ratioFromDrag(height, width, minHeight = 24) {
     return {};
   }
 
+  /** Minimize a module to its header (or expand it again). Board layout state. */
+  function intendSetModuleCollapsed(doc, intent) {
+    const ref = instanceRef(doc, intent.instanceId);
+    if (!ref) return { error: 'unknown-instance' };
+    ref.module.collapsed = intent.collapsed === true;
+    return {};
+  }
+
   /**
    * Replace one palette's columns wholesale — a board saving the columns it drew.
    * `columns` is a v2 column list whose module heights are already normalised (the
@@ -663,6 +672,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
           instanceId: env.newId('i'),
           moduleId: m.moduleId,
           height: { ...m.height },
+          collapsed: m.collapsed === true,
         })),
       })),
     };
@@ -700,6 +710,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
             instanceId: env.newId('i'),
             moduleId: m.moduleId,
             height: m.height && typeof m.height === 'object' ? { ...m.height } : defaultHeight(m.moduleId, env),
+            collapsed: m.collapsed === true,
           })),
       })),
     };
@@ -796,6 +807,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
       instanceId: given && !taken ? given : env.newId('i'),
       moduleId,
       height: normaliseHeight(null, env, moduleId),
+      collapsed: false,
     });
     effects.push({ type: 'palette.fit', paletteId: palette.id, change: { kind: 'grow' } });
     return {};
@@ -868,6 +880,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
       instanceId,
       moduleId: entry.moduleId,
       height: normaliseHeight(null, env, entry.moduleId),
+      collapsed: false,
     });
     effects.push({ type: 'palette.fit', paletteId: palette.id, change: { kind: 'grow' } });
     return {};
@@ -915,6 +928,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
   const INTENTS = {
     'layout.place': intendPlace,
     'module.setHeight': intendSetHeight,
+    'module.setCollapsed': intendSetModuleCollapsed,
     'column.setWidth': intendSetWidth,
     'layout.setColumns': intendSetColumns,
     'palette.rename': intendRename,
@@ -977,6 +991,12 @@ function ratioFromDrag(height, width, minHeight = 24) {
   function defaultWorkspace(opts) {
     const env = envOf(opts);
     const ids = env.newId;
+    // The manifest owns the first-run order (AGENTS.md → "Screenshots"); a caller
+    // may override it for tests. Filtering through the registry keeps a removed
+    // module out of a new document.
+    const wanted = (opts && Array.isArray(opts.defaultIds)
+      ? opts.defaultIds
+      : ((Manifest && Manifest.DEFAULT_IDS) || [])).filter((id) => !env.registry || env.registry[id]);
     const doc = {
       version: SCHEMA_VERSION,
       palettes: [{
@@ -990,7 +1010,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
         columns: [{
           id: ids('c'),
           width: null,
-          modules: ['csp-color', 'color-slices', 'color-slider'].map((moduleId) => ({
+          modules: wanted.map((moduleId) => ({
             instanceId: ids('i'),
             moduleId,
             height: normaliseHeight(null, env, moduleId),

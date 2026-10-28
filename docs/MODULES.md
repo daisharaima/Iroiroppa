@@ -133,7 +133,7 @@ behind the page.
 | `inGamut(L,C,H)` / `maxChroma(L,H)` / `cmax()` | the active gamut |
 | `readRecorded(rgb)` / `contentRgb(lch?)` / `appearanceRgb(lch?)` / `contentHex(lch?)` | recorded ↔ appearance |
 | `plotKeyTag()` | cache key for the active gamut + profile |
-| `crosshair` / `dragging` / `lastStored` | shared flags the module reads/sets |
+| `dragging` / `lastStored` | shared flags the module reads/sets |
 
 Modules **read** colour from the store and **request** changes; they never own
 colour state. A map that *is* a shape (the Disc is a disc; a dense model's plane is
@@ -250,11 +250,11 @@ user-modules/        optional user modules (docs/USER-MODULES.md) — one folder
 Two of those modules are worth knowing about before you touch them:
 
 - **`session.js`** — the app's own control panel and the only singleton. It is **one row**: the dot
-  (the connection state *and* the action), the state text while disconnected (Scanning…,
-  Reconnecting…), "Clip Studio Paint" once connected, the profile dropdown and the gear. No
-  connect/scan buttons: the app connects by itself, Disconnect is in the module's ⋯ panel and the
-  tray, and the dropdown is drawn by the overlay (it can leave the palette) and asks for a fresh
-  profile scan so it lists every ICC profile main knows.
+  (the connection state *and* the action; its tooltip carries “Connected to Clip Studio Paint” or the
+  current state), the **profile dropdown** (shows the document's current color profile), the lock and
+  the gear. No connect/scan buttons: the app connects by itself, Disconnect is in the module's ⋯ panel
+  and the tray, and the dropdown is drawn by the overlay (it can leave the palette) and asks for a
+  fresh profile scan so it lists every ICC profile main knows.
 - **`color-stat.js`** — the colour in hand. Swatch, HEX (copy/paste/type), L/C/H in the same display
   units as the OKLCH sliders, sRGB, and a `ΔE` row against the previous stored colour. The swatch and
   the sRGB row are the colour *on screen*; the HEX and L/C/H are what the document *stores* — with a
@@ -457,9 +457,9 @@ Auto-height modules (Color Stat, Session) have no edge. `ratioFromDrag()` in
   **square mode's black-white side** and puts the cusp on x = 0.9. Both map the whole
   square onto the triangle. The inner shape carries the single thin guide (module
   toggle); the hue pointer sits on the **outer** band and is the same small ring as the
-  Color Slider, while the inner pointer is a small ring too. During a drag the canvas
-  is native 1× CSS (full 2× on release); the inner raster and overlay stay crisp, with
-  the raster capped at ~90 ms (150 ms when another module is dragging).
+  Color Slider, while the inner pointer is a small ring too. The canvas uses one
+  native device-pixel backing in idle and drag; `store.interactive` changes only the
+  paced rebuild, so the map does not visibly change quality when a drag begins.
 - **Color Disc** — the hue × chroma plane on a circle, with the third axis (L or V) on
   a Slider-style row below: the same `.rng` gradient, ring thumb, value field,
   steppers and full-colour track as the Color Slider module. The radius is the model's
@@ -475,11 +475,11 @@ Auto-height modules (Color Stat, Session) have no edge. `ratioFromDrag()` in
   The single thin guide follows the model's native lightness; the module has its
   own show/hide toggle. Shift projects a disc drag onto the contour. A native-light
   model can make the whole disc one value, in which case there is no contour and Shift
-  is a no-op. The disc canvas is full 2× when idle and native device pixels while a
-  gesture is in flight; while the L row moves the disc rebuilds live, paced by the
-  measured interactive build. A drag that leaves the disc keeps following the pointer at
-  the rim (the ring is drawn from the event, not from the stored colour), so a locked
-  lightness that cannot be reached never freezes it.
+  is a no-op. The disc canvas uses one native device-pixel backing in idle and drag;
+  while the L row moves the disc rebuilds live, paced by the measured interactive build.
+  A drag that leaves the disc keeps following the pointer at the rim (the ring is drawn
+  from the event, not from the stored colour), so a locked lightness that cannot be
+  reached never freezes it.
 
   The module is **content-sized** (`autoHeight`): the canvas takes the palette width and
   its height follows (`aspect-ratio: 1`), so the card ends under the footer. A column
@@ -499,11 +499,16 @@ Auto-height modules (Color Stat, Session) have no edge. `ratioFromDrag()` in
   workspace `.spws` (falling back to `default.khc` only when that workspace has no
   table), shows the file's saved time, and has a Refresh button that re-resolves the
   current workspace. CSP may not write edits until the workspace is saved/closed.
-  It resolves readable names (`csp-command-names.js`), groups commands vs tools/brushes, and filters by
-  the next pressed shortcut. Tool/brush names come from the Node databases; brush
-  presets themselves carry no shortcut in `BrushPreset.bfps`. The **Iroiroppa** tab
-  edits the app's command bindings and the summon hotkey; a binding whose normalized
-  accelerator matches a CSP command/tool shows a clash warning (`shortcut-match.js`).
+  It resolves readable names (`csp-command-names.js`), groups commands vs tools, and filters by
+  the next pressed shortcut. Tool/subtool names come from the Node databases; there is no brush-level
+  shortcut to show.
+  The **CSP** and **Iroiroppa** tabs share the module width equally; the **All**, **Command** and
+  **Tool** filters keep their text width and stay on one line on a small screen. The
+  **Iroiroppa** tab remains a compact mirror for the module command bindings and the
+  General show/hide key; the full General/Palette manager is **Settings → Shortcuts**, where
+  toggle, hold, after-pick, and appearance position are chosen. A binding whose
+  normalized accelerator matches a CSP command/tool shows a clash warning
+  (`shortcut-match.js`).
   When the folder cannot be found the module offers **Locate CSP data folder…**, and
   Settings → General carries the same pick: the CELSYS folder (which contains
   `CLIPStudioPaintVer…`) or the version folder itself. Empty means Auto (the default

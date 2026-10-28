@@ -42,9 +42,11 @@ public class IroBand {
   const long WS_EX_TOPMOST = 0x8;
   const long WS_EX_NOACTIVATE = 0x08000000;
   // HWND_TOPMOST(-1) / HWND_NOTOPMOST(-2) as the insert-after handle.
-  // SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE — no SWP_FRAMECHANGED: a frame recalc
-  // on every band call is what made the palette flash when a press repaired the band.
-  const uint FLAGS = 0x0001 | 0x0002 | 0x0010;
+  // SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOREDRAW — no SWP_FRAMECHANGED:
+  // a frame recalc on every band call is what made the palette flash when a press
+  // repaired the band. NOREDRAW also keeps a style-only repair from repainting the
+  // whole topmost band every 500 ms.
+  const uint FLAGS = 0x0001 | 0x0002 | 0x0008 | 0x0010;
   const uint SWP_NOZORDER = 0x0004;
 
   public static bool Apply(long hwnd, bool noActivate, bool topmost, bool zorder) {
@@ -56,11 +58,16 @@ public class IroBand {
     else want &= ~WS_EX_NOACTIVATE;
     if (topmost) want |= WS_EX_TOPMOST;
     else want &= ~WS_EX_TOPMOST;
-    if (want != ex) SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(want));
+    bool changed = want != ex;
+    if (changed) SetWindowLongPtr(h, GWL_EXSTYLE, new IntPtr(want));
     // zorder=false repairs the style bit without moving the window in the topmost
-    // band: HWND_TOPMOST would raise it above the Settings/popout for a frame, which
-    // is the "palette flashes on top then goes behind" report.
-    if (!zorder) return SetWindowPos(h, IntPtr.Zero, 0, 0, 0, 0, FLAGS | SWP_NOZORDER);
+    // band. If the bits already match there is nothing to repair: skipping the
+    // SetWindowPos is what stops the 500 ms watchdog from making every window
+    // flash. A style change still needs the call to commit the new extended style.
+    if (!zorder) {
+      if (!changed) return true;
+      return SetWindowPos(h, IntPtr.Zero, 0, 0, 0, 0, FLAGS | SWP_NOZORDER);
+    }
     return SetWindowPos(h, new IntPtr(topmost ? -1 : -2), 0, 0, 0, 0, FLAGS);
   }
 }

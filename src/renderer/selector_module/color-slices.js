@@ -628,7 +628,7 @@
         const p = G.pointOf(model, plane, clamped.axes, store);
         const s = point(plane, p.u, 1 - p.v);
         const x = s.u * (w - 1), y = s.v * (h - 1);
-        if (store.crosshair && crosshair) Overlay.crosshair(c2d, w, h, x, y, { scale });
+        if (crosshair) Overlay.crosshair(c2d, w, h, x, y, { scale });
         Overlay.pointer(c2d, x, y, { clamped: clamped.clamped, scale });
       };
 

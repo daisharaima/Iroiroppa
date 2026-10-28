@@ -1,52 +1,46 @@
 # Install
 
-## Which file to download
+## Download
 
-Open the [Releases page](https://github.com/daisharaima/Iroiroppa/releases) and find the newest release. It has two downloads:
+Open the [Releases page](https://github.com/daisharaima/Iroiroppa/releases) and choose one file:
 
-| File | Use it if |
+| File | Use it when |
 | --- | --- |
-| `Iroiroppa.Setup.<version>.exe` | You want a normal install with a Start menu entry. This is the usual choice. |
-| `Iroiroppa-Portable-<version>.exe` | You want one self-contained file you can move around or keep on a USB stick. |
+| `Iroiroppa.Setup.<version>.exe` | You want a normal installation and a Start menu entry. |
+| `Iroiroppa-Portable-<version>.exe` | You want one self-contained file. |
 
-Both are the same program. Nothing else on the page needs downloading.
+Download only from the Releases page.
 
-## Run it
+## Install
 
-1. Double-click the file you downloaded.
-2. Windows may show a blue **"Windows protected your PC"** box. That happens because the program is free and unsigned — no company is vouched for. Click **More info**, then **Run anyway**.
-3. If you chose the installer, follow it through. It will close a copy of Iroiroppa that is already running before it replaces files.
-4. Iroiroppa opens as a small palette. If Clip Studio Paint is open with its QR code showing, it connects by itself — see [Connect to Clip Studio Paint](Connect-to-Clip-Studio-Paint).
+1. Double-click the downloaded file.
+2. If Windows shows “Windows protected your PC”, choose **More info → Run anyway**. The app is unsigned.
+3. Follow the installer. It closes a running copy of Iroiroppa before replacing files.
+4. Iroiroppa opens with the default palette. If Clip Studio Paint is showing its QR code, it connects automatically.
 
-> **Careful:** only download Iroiroppa from the releases page linked above. Any other site offering it is not the project.
+## Settings location
 
-## Setup versus Portable — where your settings go
+| Build | Data folder |
+| --- | --- |
+| Installed | `%APPDATA%\Iroiroppa` |
+| Portable | `Iroiroppa Data` beside the `.exe` |
 
-- **Installed:** settings, your saved connection, your layout and your colour history live in `%APPDATA%\Iroiroppa`.
-- **Portable:** the same things live in a folder called `Iroiroppa Data` right next to the `.exe`. The whole thing is self-contained — copy the exe and that folder together and your settings travel with it.
+The portable build keeps its settings, connection, layout and history in that folder. The installed and portable builds use separate folders.
 
-The two keep separate folders, so you can have an installed copy and a portable copy on the same PC without them fighting.
+## Updates
+
+**Settings → General** shows an update when one is available. **(About → Check for updates also reports it.)**
+
+- **Quit & install** (installer): downloads the setup, starts it and closes Iroiroppa.
+- **Replace & relaunch** (portable): downloads the new `.exe`, waits for Iroiroppa to exit, replaces the exe and starts it.
+- The release-page link is available for a manual download.
+
+Nothing is downloaded until you press the button. **Auto**, next to **Check for updates**, checks GitHub at startup and once a day; turn it off to check only on demand.
 
 ## First launch
 
-You get the default palette: a **Session** row at the top, then **CSP Color**, **Color Stat**, **Color Slices** and **Color Slider**. Nothing is locked; you can move, resize, hide and duplicate everything. Start with [Connect to Clip Studio Paint](Connect-to-Clip-Studio-Paint).
+The default palette contains **Session**, **CSP Color**, **Color Wheel**, **Color Slices**, **Color Slider**, **Color History** and **Color Stat**. The first time a version runs, a **What's new** window shows its release note. Close it to use the palette; **Settings → About → What's new** reopens it.
 
-Reopen it later from the Start menu, or from the tray icon near the clock — see [The tray icon and the hotkey](Tray-and-hotkey).
+## Remove
 
-## Updating
-
-Download the new version and run it over the old one. Your settings, saved connection, layout, history and workspaces are kept — they live outside the program.
-
-## Getting rid of it
-
-See [Reset, uninstall and back up](Reset-uninstall-and-backup) for removing it completely, settings included.
-
-## What it needs
-
-- Windows 10 or Windows 11, 64-bit.
-- Clip Studio Paint 5.0.4 or a nearby version, with Companion Mode available.
-- An internet connection is only needed to download it and to check for updates. It works offline.
-
----
-
-If Windows refuses to run it, or the window never appears, see [Troubleshooting](Troubleshooting).
+See [Reset, uninstall and back up](Reset-uninstall-and-backup.md).

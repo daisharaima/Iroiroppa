@@ -4,7 +4,7 @@
 //
 // A thin facade over the peer layer: it owns the typed event vocabulary and the
 // peer list main broadcasts, so a module can ask "who else is open" without
-// knowing about IPC. The event names match token-beam (peer-connected,
+// knowing about IPC. The event names match the token layer (peer-connected,
 // peer-disconnected, sync, warning, error).
 
 (function () {

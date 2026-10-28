@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self' module:; style-src 'self' 'unsafe-inline'; img-src 'self' data: theme: module:; font-src 'self' data: theme: module:;" />
+  <title>Iroiroppa — What's new</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="whats-new.css" />
+</head>
+<body class="whats-new-window">
+  <div id="app">
+    <header id="titlebar">
+      <span class="settings-title" data-i18n="whatsNew.title">What's new</span>
+      <button id="whats-new-close" class="icon-btn" data-tip="Close" aria-label="Close">
+        <svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>
+      </button>
+    </header>
+    <div id="whats-new-body" class="sheet-body">
+      <div class="whats-new-head">
+        <span class="whats-new-app">Iroiroppa</span>
+        <span id="whats-new-version" class="whats-new-version"></span>
+      </div>
+      <div id="whats-new-content" class="whats-new-content"></div>
+      <div class="whats-new-actions">
+        <button id="whats-new-release" class="btn" type="button" data-i18n="whatsNew.release">Open the release page</button>
+        <button id="whats-new-done" class="btn primary" type="button" data-i18n="whatsNew.done">Close</button>
+      </div>
+      <div id="whats-new-note" class="hint"></div>
+    </div>
+  </div>
+
+  <script src="../shared/i18n.js"></script>
+  <script src="kernel/i18n.js"></script>
+  <script src="../shared/theme-tokens.js"></script>
+  <script src="kernel/themes.js"></script>
+  <script src="../shared/release-note.js"></script>
+  <script src="whats-new.js"></script>
+</body>
+</html>

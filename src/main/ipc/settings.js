@@ -24,6 +24,11 @@ function register(ctx, h) {
     if (Object.prototype.hasOwnProperty.call(patch, 'autoHide') && typeof ctx.applyAutoHide === 'function') {
       ctx.applyAutoHide(next ? next.autoHide !== false : patch.autoHide !== false);
     }
+    // The auto-update-check toggle owns the timer, not just a stored boolean.
+    if (Object.prototype.hasOwnProperty.call(patch, 'checkUpdatesAutomatically')
+      && typeof ctx.scheduleAutoUpdateCheck === 'function') {
+      ctx.scheduleAutoUpdateCheck();
+    }
     return next;
   });
   ipcMain.handle('clipboard:write', (_e, text) => { clipboard.writeText(String(text ?? '')); return true; });
@@ -97,8 +102,9 @@ function register(ctx, h) {
     ctx.settingsWin.setContentSize(w, h);
     // A content resize can drop the topmost bit on this build, which buried the
     // Settings window behind the palette on the next band tick (the "it disappears
-    // when I switch tabs" report).
-    if (ctx.reassertTopmost) ctx.reassertTopmost(ctx.settingsWin);
+    // when I switch tabs" report). Repair the bit without re-raising the window on
+    // every tab change; that raise flashed the whole Settings frame.
+    if (ctx.repairTopmost) ctx.repairTopmost(ctx.settingsWin);
   });
   ipcMain.on('window:editable', (_e, on) => {
     if (!ctx.popup) return;

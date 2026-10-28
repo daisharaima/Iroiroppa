@@ -46,7 +46,12 @@
       const csp = ctx.csp;
       let mode = 'csp';
       let data = { ok: false, reason: '', commands: [], tools: [], workspace: {} };
-      let app = { commands: [], summonHotkey: '' };
+      let app = {
+        commands: [],
+        app: { mode: 'toggle', toggle: '', hold: '', autoDismiss: false, position: 'keep' },
+        palettes: {},
+        autoHide: true,
+      };
       let conflicts = [];
       let kindFilter = 'all';
       let keyQuery = '';
@@ -69,7 +74,7 @@
       appTab.textContent = 'Iroiroppa';
       const warn = document.createElement('span');
       warn.className = 'csp-shortcuts-warn';
-      tabs.append(cspTab, appTab, warn);
+      tabs.append(cspTab, appTab);
 
       const search = document.createElement('input');
       search.type = 'search';
@@ -95,13 +100,18 @@
 
       const source = document.createElement('div');
       source.className = 'csp-shortcuts-source';
+      // The clash badge shares the source line: the tabs above need the full width
+      // for their equal halves.
+      const meta = document.createElement('div');
+      meta.className = 'csp-shortcuts-meta';
+      meta.append(source, warn);
 
       const sourceHint = document.createElement('div');
       sourceHint.className = 'csp-shortcuts-hint hidden';
 
       const chips = document.createElement('div');
       chips.className = 'csp-shortcuts-chips';
-      const chipDefs = [['all', 'All'], ['command', 'Commands'], ['tool', 'Tools & brushes']];
+      const chipDefs = [['all', 'All'], ['command', 'Command'], ['tool', 'Tool']];
       const chipEls = new Map();
       for (const [value, label] of chipDefs) {
         const b = document.createElement('button');
@@ -137,7 +147,7 @@
 
       const list = document.createElement('div');
       list.className = 'csp-shortcuts-list';
-      root.append(tabs, chips, searchRow, source, sourceHint, status, locate, list);
+      root.append(tabs, chips, searchRow, meta, sourceHint, status, locate, list);
       ctx.el.append(root);
 
       const cspRows = () => {
@@ -194,7 +204,12 @@
         for (const c of app.commands || []) {
           out.push({ key: `${c.instanceId}:${c.command}`, label: `${c.name} · ${c.command}`, accel: c.binding || '' });
         }
-        if (app.summonHotkey) out.push({ key: 'summon', label: 'Summon hotkey', accel: app.summonHotkey });
+        if (app.app && app.app.mode === 'toggle' && app.app.toggle) out.push({ key: 'app-toggle', label: 'Iroiroppa show/hide', accel: app.app.toggle });
+        if (app.app && app.app.mode === 'hold' && app.app.hold) out.push({ key: 'app-hold', label: 'Iroiroppa hold', accel: app.app.hold });
+        for (const [id, pair] of Object.entries(app.palettes || {})) {
+          if (pair.mode === 'toggle' && pair.toggle) out.push({ key: `palette:${id}:toggle`, label: `${id} show/hide`, accel: pair.toggle });
+          if (pair.mode === 'hold' && pair.hold) out.push({ key: `palette:${id}:hold`, label: `${id} hold`, accel: pair.hold });
+        }
         return out;
       };
 
@@ -217,7 +232,7 @@
           let res;
           try {
             res = entry.summon
-              ? await csp.setSummonHotkey(accel)
+              ? await csp.setShortcut({ target: 'app', action: 'toggle', accel })
               : await csp.setCommandBinding(entry.key, accel);
           } catch {
             res = { ok: false };
@@ -225,7 +240,7 @@
           if (res && res.ok) {
             input.value = accel;
             input.classList.remove('invalid');
-            if (entry.summon) app.summonHotkey = accel;
+            if (entry.summon) app.app.toggle = accel;
             else {
               const target = app.commands.find((c) => `${c.instanceId}:${c.command}` === entry.key);
               if (target) target.binding = accel;
@@ -284,16 +299,16 @@
               ? 'No shortcut bound to that key'
               : ((data.commands || []).length || (data.tools || []).length ? 'no match' : (data.reason || 'no shortcuts found'));
             status.classList.remove('hidden');
-          } else if (kindFilter === 'tool' && !(data.tools || []).some((t) => t.kind === 'brush')) {
-            status.textContent = 'No brush-preset shortcuts here; tool/subtool shortcuts are listed.';
+          } else if (kindFilter === 'tool' && !(data.tools || []).length) {
+            status.textContent = 'no tool shortcuts found';
             status.classList.remove('hidden');
           }
           return;
         }
 
         const appRows = [];
-        if (app.summonHotkey) {
-          appRows.push({ template: 'summon', label: 'Summon hotkey', accel: app.summonHotkey });
+        if (app.app && app.app.mode === 'toggle' && app.app.toggle) {
+          appRows.push({ template: 'summon', label: window.Iro.t('settings.shortcuts.showAll'), accel: app.app.toggle });
         }
         for (const c of app.commands || []) {
           appRows.push({
@@ -362,8 +377,24 @@
           ]);
           data = cspData || data;
           app = Array.isArray(appData)
-            ? { commands: appData, summonHotkey: '' }
-            : (appData || app);
+            ? {
+              commands: appData,
+              app: { mode: 'toggle', toggle: '', hold: '', autoDismiss: false, position: 'keep' },
+              palettes: {},
+              autoHide: true,
+            }
+            : {
+              commands: (appData && appData.commands) || [],
+              app: (appData && appData.app) || {
+                mode: 'toggle',
+                toggle: (appData && appData.summonHotkey) || '',
+                hold: '',
+                autoDismiss: false,
+                position: 'keep',
+              },
+              palettes: (appData && appData.palettes) || {},
+              autoHide: !appData || appData.autoHide !== false,
+            };
           const saved = Number((data.workspace || {}).savedMs) || 0;
           const unchanged = Boolean(initial === false && saved && seenSavedMs && saved === seenSavedMs);
           seenSavedMs = saved || seenSavedMs;

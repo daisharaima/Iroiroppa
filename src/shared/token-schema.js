@@ -1,7 +1,7 @@
 /*
  * Token validation and consumer helpers (docs/STATE.md, §12.2).
  *
- * Clean-room reimplementation of token-beam's zod schema and consumer helpers,
+ * Clean-room reimplementation of the token layer's zod schema and consumer helpers,
  * with **no dependency**. Every validator returns `{ ok, value }` or
  * `{ ok:false, error }` and never throws, so a malformed message from any window
  * (or, later, an external tool) is rejected at the boundary instead of crashing.
@@ -15,7 +15,7 @@
 })(typeof self !== 'undefined' ? self : this, function (Model) {
   'use strict';
 
-  // The same caps token-beam enforces, so we accept exactly what it accepts.
+  // The same caps the token layer enforces, so we accept exactly what it accepts.
   const LIMITS = {
     name: 256, string: 10000, tokens: 10000, modes: 100, collections: 500,
   };

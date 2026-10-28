@@ -23,8 +23,27 @@
 
   const tipOf = (el) => (el && el.getAttribute ? el.getAttribute('data-tip') : '');
 
+  /**
+   * Some buttons set a native `title` at runtime (module lights, restore/delete
+   * actions). A native tooltip is an OS window outside the band, so move the title
+   * onto `data-tip` the first time the pointer reaches it and let the overlay draw
+   * it. This also catches titles changed after page load.
+   */
+  const tipTarget = (target) => {
+    if (!target || !target.closest) return null;
+    const direct = target.closest('[data-tip]');
+    if (direct) return direct;
+    const titled = target.closest('[title]');
+    if (!titled) return null;
+    const text = titled.getAttribute('title');
+    if (!text) return null;
+    titled.setAttribute('data-tip', text);
+    titled.removeAttribute('title');
+    return titled;
+  };
+
   document.addEventListener('pointerover', (event) => {
-    const el = event.target && event.target.closest ? event.target.closest('[data-tip]') : null;
+    const el = tipTarget(event.target);
     if (!el || el === current) return;
     current = el;
     if (timer) clearTimeout(timer);
@@ -43,7 +62,7 @@
   });
 
   document.addEventListener('pointerout', (event) => {
-    const el = event.target && event.target.closest ? event.target.closest('[data-tip]') : null;
+    const el = tipTarget(event.target);
     if (el && el === current) hide();
   });
   document.addEventListener('pointerdown', hide, true);

@@ -1,6 +1,6 @@
 # Emits left-button events over Clip Studio Paint (pen and mouse both arrive as
 # the left mouse button):
-#   {"event":"down","canvas":<bool>,"alt":<bool>,"process":"..."}
+#   {"event":"down","canvas":<bool>,"alt":<bool>,"ctrl":<bool>,"shift":<bool>,"process":"..."}
 #   {"event":"up","process":"..."}
 #
 # History uses `up` as the precise end of a pick gesture, and `down` (canvas only,
@@ -26,6 +26,8 @@ public static class CspPointerHook {
     private const int WM_LBUTTONUP = 0x0202;
     private const int WM_TIMER = 0x0113;
     private const int VK_MENU = 0x12;
+    private const int VK_CONTROL = 0x11;
+    private const int VK_SHIFT = 0x10;
     private const uint GA_ROOT = 2;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -166,6 +168,8 @@ public static class CspPointerHook {
         if (probe) Console.Error.WriteLine("down over " + name + " canvas=" + canvas + " alt=" + alt);
         Write("{\"event\":\"down\",\"canvas\":" + (canvas ? "true" : "false")
             + ",\"alt\":" + (alt ? "true" : "false")
+            + ",\"ctrl\":" + (Ctrl() ? "true" : "false")
+            + ",\"shift\":" + (Shift() ? "true" : "false")
             + ",\"process\":\"" + Escape(name) + "\"}");
     }
 
@@ -212,6 +216,14 @@ public static class CspPointerHook {
 
     private static bool Alt() {
         return (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    }
+
+    private static bool Ctrl() {
+        return (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
+    }
+
+    private static bool Shift() {
+        return (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
     }
 
     private static bool IsCsp(string name) {

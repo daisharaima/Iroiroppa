@@ -11,6 +11,7 @@ const {
 const { migrateV1 } = require('../layout-store');
 const { createCommandRouter } = require('../command-router');
 const ModuleManifest = require('../../shared/module-manifest');
+const ShortcutModel = require('../../shared/shortcut-model');
 const { sendTo } = require('../broadcast');
 const { isChannel255 } = require('../ipc-sender');
 
@@ -51,11 +52,12 @@ function register(ctx, h) {
 
   // The summon hotkey (docs/DEV.md). Register first; only persist when it took,
   // so a key another app already owns is not remembered as if it worked.
-  ipcMain.handle('shortcut:setSummon', (_e, accel) => {
-    const res = ctx.applySummonHotkey(accel);
-    if (res.ok) ctx.settings.set({ summonHotkey: res.accelerator });
-    return res;
-  });
+  ipcMain.handle('shortcut:setSummon', (_e, accel) => ctx.setShowShortcut({ target: 'app', action: 'toggle', accel }));
+
+  // The unified General/Palette binding editor (Settings → Shortcuts).
+  ipcMain.handle('shortcut:set', (_e, spec = {}) => ctx.setShowShortcut(spec));
+  ipcMain.handle('shortcut:setOption', (_e, spec = {}) => ctx.setShortcutOption(spec));
+  ipcMain.handle('shortcut:setAltClick', (_e, spec = {}) => ctx.setAltClickTarget(spec.target));
 
   // The commands a Settings hotkey can bind, named for a human: every mounted
   // instance's module name plus its command, resolved from the workspace document.
@@ -98,8 +100,15 @@ function register(ctx, h) {
       }
     }
     out.sort((a, b) => `${a.name} ${a.command}`.localeCompare(`${b.name} ${b.command}`));
-    const summonHotkey = ctx.settings.get().summonHotkey || '';
-    return { commands: out, summonHotkey };
+    const shortcuts = ShortcutModel.normalise(ctx.settings.get().shortcuts);
+    return {
+      commands: out,
+      app: shortcuts.app,
+      palettes: shortcuts.palettes,
+      autoHide: ctx.settings.get().autoHide !== false,
+      active: typeof ctx.isShortcutActive === 'function' ? ctx.isShortcutActive() : true,
+      summonHotkey: shortcuts.app.toggle,
+    };
   });
 
   // Bind (or clear) one `<instanceId>:<command>` hotkey. Register first; only persist
@@ -111,6 +120,12 @@ function register(ctx, h) {
     const trial = { ...current };
     const a = String(accel || '').trim();
     if (a) trial[k] = a; else delete trial[k];
+    if (a) {
+      const clash = ShortcutModel.findConflict(
+        a, ctx.settings.get().shortcuts, trial, `command:${k}`,
+      );
+      if (clash) return { ok: false, failures: [{ key: k, error: 'conflict' }], conflictWith: clash.key };
+    }
     const res = ctx.applyCommandHotkeys(trial);
     if (a && res.failures.some((f) => f.key === k)) {
       ctx.applyCommandHotkeys(current);

@@ -253,6 +253,13 @@ function register(ctx, h) {
     if (!instanceId) return { ok: false, error: 'bad-instance' };
     return ctx.applyLayoutIntent({ type: 'module.setHeight', instanceId, height: spec.height });
   });
+  ipcMain.handle('module:setCollapsed', (_e, spec = {}) => {
+    // Minimize/expand one module card. The board owns the render; this is the
+    // one writer for the document's `collapsed` flag.
+    const instanceId = instanceOf(spec);
+    if (!instanceId) return { ok: false, error: 'bad-instance' };
+    return ctx.applyLayoutIntent({ type: 'module.setCollapsed', instanceId, collapsed: spec.collapsed === true });
+  });
   ipcMain.handle('module:duplicate', (_e, spec = {}) => {
     const instanceId = instanceOf(spec);
     const found = instanceId ? findInstance(instanceId) : null;

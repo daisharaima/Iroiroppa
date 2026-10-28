@@ -17,8 +17,8 @@
 //
 // It reads the shared colour store like any other module; it owns nothing but its own view choice.
 //
-// What the footer could also do, and where it went: the crosshair toggle is a Settings row, and the
-// layout lock is dropped for now.
+// What the footer could also do, and where it went: the Slices module owns its own crosshair
+// toggle now, and the layout lock is dropped for now.
 
 (function () {
   const reg = (window.Iro = window.Iro || {});

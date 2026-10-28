@@ -76,11 +76,27 @@ body.settings-window #titlebar .icon-btn { -webkit-app-region: no-drag; }
 .instance-add:hover { background: var(--hover); color: var(--accent); }
 .instance-add:disabled { opacity: 0.5; cursor: default; }
 
-/* The section heading in the module list (Core / Color Picker / Utility). */
+/* The section heading in the module list (Core / Color Picker / Utility) and
+   in the Shortcuts list (General / Palette / Modules). */
 .module-group-title {
-  padding: 6px 8px 2px; font-size: calc(var(--font-size) - 0.5px);
-  text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim);
-  position: sticky; top: 0; background: var(--card);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 8px 8px 5px;
+  font-size: calc(var(--font-size) + 1px);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 1;
+}
+.module-group-title::before {
+  content: '';
+  width: 3px; height: 13px; border-radius: 2px;
+  background: var(--accent);
+  flex: 0 0 auto;
 }
 
 /* --- sections and rows ---------------------------------------------------- */
@@ -233,6 +249,7 @@ body.settings-window #titlebar .icon-btn { -webkit-app-region: no-drag; }
 }
 .module-row {
   display: flex; align-items: center; gap: 8px;
+  margin: 1px 4px;
   padding: 7px 8px;
   border: none; border-radius: 6px;
   background: transparent; color: var(--text);
@@ -343,7 +360,7 @@ body.settings-window #titlebar .icon-btn { -webkit-app-region: no-drag; }
 /* --- version -------------------------------------------------------------- */
 
 .settings-version { font-size: calc(var(--font-size) - 0.5px); color: var(--text-faint); }
-.foot-right { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+.foot-right { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 /* "A newer release is available" — only shown when the check found one. */
 .settings-update {
   border: none; background: none; padding: 0;
@@ -358,6 +375,16 @@ body.settings-window #titlebar .icon-btn { -webkit-app-region: no-drag; }
 }
 .settings-check:hover { color: var(--text); }
 .settings-check:disabled { opacity: 0.6; cursor: default; }
+.settings-auto {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: var(--text-dim); font-size: var(--font-size);
+  white-space: nowrap; cursor: pointer; user-select: none;
+}
+.settings-auto input {
+  width: 14px; height: 14px; margin: 0;
+  accent-color: var(--accent); cursor: pointer;
+}
+.settings-auto:hover { color: var(--text); }
 
 /* --- the Layout tab: each palette with its modules, and export/import ------ */
 
@@ -403,8 +430,67 @@ body.settings-window #titlebar .icon-btn { -webkit-app-region: no-drag; }
 .command-list { display: flex; flex-direction: column; gap: 4px; }
 .command-empty { font-size: var(--font-size); color: var(--text-dim); padding: 2px 0; }
 
+/* --- Shortcuts tab: General / Palette / Modules on the left ---------------- */
+.shortcuts-split {
+  display: flex;
+  height: 520px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.shortcut-targets { min-width: 0; }
+.shortcut-instance-title {
+  margin: 12px 0 3px;
+  padding: 5px 0 4px;
+  font-size: calc(var(--font-size) + 1px);
+  font-weight: 700;
+  color: var(--text);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.shortcut-hint { margin: 4px 0 2px; }
+.shortcut-position { width: 148px; }
+.shortcut-mode { width: 148px; }
+.hotkey-input:disabled { opacity: 0.55; cursor: default; }
+
 /* Copy / paste a module's settings in Settings → Modules (kernel/settings-transfer.js). */
 .ms-transfer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 8px; }
 .ms-transfer-actions { display: flex; gap: 4px; align-items: center; }
 .ms-menu { display: flex; flex-direction: column; gap: 4px; width: 100%; }
 .ms-note { width: 100%; font-size: var(--font-size); color: var(--text-dim); }
+
+/* --- About tab ------------------------------------------------------------ */
+/* Scroll inside the tab: the credits + license text would otherwise make the
+   Settings window taller than a laptop screen. */
+#tab-about { max-height: 620px; overflow-y: auto; padding-right: 4px; }
+.about-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.about-app { font-size: calc(var(--font-size) + 6px); font-weight: 600; color: var(--text); }
+.about-version { font-size: var(--font-size); color: var(--text-dim); }
+.about-links { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 2px; }
+.about-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; min-height: 24px; font-size: calc(var(--font-size) + 1px); color: var(--text);
+}
+.about-credits { display: flex; flex-direction: column; gap: 3px; }
+.about-credit { display: flex; flex-direction: column; gap: 1px; padding: 2px 0; }
+.about-credit-name {
+  align-self: flex-start; border: none; background: transparent; padding: 0;
+  color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; text-align: left;
+}
+span.about-credit-name { color: var(--text); }
+.about-credit-meta { font-size: calc(var(--font-size) - 1px); color: var(--text-dim); }
+.about-details { margin: 2px 0 4px; }
+.about-details summary {
+  cursor: pointer; font-size: var(--font-size); color: var(--accent); padding: 2px 0;
+}
+.about-text {
+  margin: 4px 0 0; padding: 8px; max-height: 220px; overflow: auto;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--input-bg);
+  font-family: var(--mono); font-size: calc(var(--font-size) - 2px); line-height: 1.35;
+  color: var(--text); white-space: pre-wrap; word-break: break-word;
+}
+.about-actions {
+  display: flex; justify-content: flex-end; gap: 6px;
+  position: sticky; bottom: 0; padding: 8px 0 2px;
+  border-top: 1px solid var(--line); background: var(--bg);
+}

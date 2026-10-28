@@ -1,23 +1,23 @@
 ### Getting started
-- [Home](Home)
-- [Install](Install)
-- [Connect to Clip Studio Paint](Connect-to-Clip-Studio-Paint)
-- [Pick a colour](Pick-a-colour)
+- [Home](Home.md)
+- [Install](Install.md)
+- [Connect to Clip Studio Paint](Connect-to-Clip-Studio-Paint.md)
+- [Pick a color](Pick-a-color.md)
 
 ### Every day
-- [The tray icon and the hotkey](Tray-and-hotkey)
-- [Arrange your palette](Arrange-your-palette)
-- [Colour pickers](Colour-pickers)
-- [The smaller panels](Colour-info-panels)
-- [CSP Shortcuts panel](CSP-Shortcuts-panel)
+- [The tray icon and the hotkey](Tray-and-hotkey.md)
+- [Arrange your palette](Arrange-your-palette.md)
+- [Color pickers](Color-pickers.md)
+- [The smaller panels](Color-info-panels.md)
+- [CSP Shortcuts panel](CSP-Shortcuts-panel.md)
 
-### Colour and settings
-- [Colour profiles and gamut](Colour-profiles-and-gamut)
-- [Settings](Settings)
-- [Appearance and language](Appearance-and-language)
+### Color and settings
+- [Color profiles and gamut](Color-profiles-and-gamut.md)
+- [Settings](Settings.md)
+- [Appearance and language](Appearance-and-language.md)
 
 ### Help
-- [Troubleshooting](Troubleshooting)
-- [Reset, uninstall and back up](Reset-uninstall-and-backup)
-- [FAQ and getting help](FAQ-and-getting-help)
-- [Glossary](Glossary)
+- [Troubleshooting](Troubleshooting.md)
+- [Reset, uninstall and back up](Reset-uninstall-and-backup.md)
+- [FAQ and getting help](FAQ-and-getting-help.md)
+- [Glossary](Glossary.md)

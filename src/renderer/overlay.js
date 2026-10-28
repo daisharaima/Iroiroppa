@@ -46,6 +46,40 @@
 
   const menu = document.getElementById('overlay-menu');
   const tooltip = document.getElementById('overlay-tooltip');
+  const confirmEl = document.getElementById('overlay-confirm');
+  const confirmTitle = document.getElementById('overlay-confirm-title');
+  const confirmMessage = document.getElementById('overlay-confirm-message');
+  const confirmDetail = document.getElementById('overlay-confirm-detail');
+  const confirmOk = document.getElementById('overlay-confirm-ok');
+  const confirmCancel = document.getElementById('overlay-confirm-cancel');
+
+  function answerConfirm(ok) {
+    if (!confirmEl || confirmEl.classList.contains('hidden')) return;
+    confirmEl.classList.add('hidden');
+    csp.overlayConfirmPick(ok);
+  }
+
+  /** The merge warning. The surface is already sized to this card by main. */
+  function renderConfirm(spec) {
+    if (!confirmEl) return;
+    if (!spec) {
+      confirmEl.classList.add('hidden');
+      chip.style.display = '';
+      return;
+    }
+    confirmEl.classList.remove('hidden');
+    chip.style.display = 'none';
+    confirmTitle.textContent = String(spec.title || '');
+    confirmMessage.textContent = String(spec.message || '');
+    confirmDetail.textContent = String(spec.detail || '');
+    confirmDetail.classList.toggle('hidden', !spec.detail);
+    confirmOk.textContent = String(spec.confirmLabel || 'OK');
+    confirmCancel.textContent = String(spec.cancelLabel || 'Cancel');
+    confirmOk.classList.toggle('danger', spec.danger === true);
+  }
+
+  confirmOk?.addEventListener('click', (event) => { event.stopPropagation(); answerConfirm(true); });
+  confirmCancel?.addEventListener('click', (event) => { event.stopPropagation(); answerConfirm(false); });
 
   /** A tooltip for a page that cannot paint over the palettes (Settings, a popout). */
   function renderTooltip(spec) {
@@ -70,6 +104,7 @@
     const items = (spec && Array.isArray(spec.items)) ? spec.items : [];
     if (!items.length) {
       menu.classList.add('hidden');
+      menu.classList.remove('scrolling');
       return;
     }
     items.forEach((item, index) => {
@@ -111,8 +146,16 @@
       menu.append(btn);
     });
     menu.classList.remove('hidden');
+    menu.classList.remove('scrolling');
     // A fresh menu starts at the top; the profile list can be long.
     menu.scrollTop = 0;
+    // `menuBox` sizes the window, but CSS borders/gaps can still leave a 1–2 px
+    // overflow. Only expose a scrollbar when the content really exceeds the box;
+    // an all-items-visible menu must not show one.
+    requestAnimationFrame(() => {
+      if (!menu || menu.classList.contains('hidden')) return;
+      menu.classList.toggle('scrolling', menu.scrollHeight > menu.clientHeight + 2);
+    });
   }
 
   async function init() {
@@ -133,8 +176,13 @@
     });
 
     csp.onOverlayMenu(renderMenu);
+    if (typeof csp.onOverlayConfirm === 'function') csp.onOverlayConfirm(renderConfirm);
     if (typeof csp.onOverlayTooltip === 'function') csp.onOverlayTooltip(renderTooltip);
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') csp.overlayMenuClose(); });
+    window.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (confirmEl && !confirmEl.classList.contains('hidden')) answerConfirm(false);
+      else csp.overlayMenuClose();
+    });
     // A click on the little surface that is not an item closes the menu. Anything *outside* the menu
     // is outside this window too (main sizes it to the menu), so it never takes those clicks.
     document.addEventListener('mousedown', (event) => {

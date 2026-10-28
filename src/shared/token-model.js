@@ -6,7 +6,7 @@
  * the *interop* shape — the live colour stays OKLab in the renderer and a token
  * carries hex only at the export edge (§12.5).
  *
- * Clean-room reimplementation of meodai's token-beam types/format (see the
+ * Clean-room reimplementation of the token layer types/format (see the
  * licence boundary in docs/STATE.md). Loads as CommonJS in Node and as the global
  * `IroTokenModel` in the renderer, like capabilities.js.
  */
@@ -24,7 +24,7 @@
     return typeof value === 'string' && HEX_RE.test(value.trim());
   }
 
-  /** Infer a token type from its value (token-beam's `resolveToken`). */
+  /** Infer a token type from its value (the token layer's `resolveToken`). */
   function inferType(value) {
     if (typeof value === 'number') return 'number';
     if (typeof value === 'boolean') return 'boolean';

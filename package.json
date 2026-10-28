@@ -1,8 +1,8 @@
 {
   "name": "iroiroppa",
   "productName": "Iroiroppa",
-  "version": "1.2.1",
-  "description": "Iroiroppa - an OKLCH color picker popup for Clip Studio Paint that connects through Companion Mode (smartphone mode).",
+  "version": "1.2.2",
+  "description": "Iroiroppa - a color picker for Clip Studio Paint that connects through Companion Mode (smartphone mode).",
   "main": "src/main/main.js",
   "license": "GPL-3.0-or-later",
   "author": "daisharaima",
@@ -20,7 +20,7 @@
     "icc": "node scripts/make-icc.js",
     "vendor:helmlab": "node scripts/vendor-helmlab.js",
     "screenshot": "node scripts/screenshot.js",
-    "wiki:images": "node scripts/screenshot.js --out wiki/images/palette.png && node scripts/screenshot.js --settings --settings-tab general --out wiki/images/settings.png",
+    "wiki:images": "node scripts/screenshot.js --out wiki/images/palette.png && node scripts/screenshot.js --settings --settings-tab general --out wiki/images/settings.png && node scripts/screenshot.js --settings --settings-tab appearance --out wiki/images/settings-appearance.png && node scripts/screenshot.js --settings --settings-tab modules --out wiki/images/settings-modules.png && node scripts/screenshot.js --settings --settings-tab shortcuts --out wiki/images/settings-shortcuts.png && node scripts/screenshot.js --settings --settings-tab layout --out wiki/images/settings-layout.png",
     "wiki:check": "node scripts/wiki.js check",
     "wiki:publish": "node scripts/wiki.js publish",
     "bench": "node scripts/bench.js",
@@ -54,7 +54,11 @@
     "files": [
       "src/**/*",
       "package.json",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "LICENSE",
+      "NOTICE",
+      "THIRD_PARTY.md",
+      "release-notes/**/*.md"
     ],
     "asarUnpack": [
       "src/main/workers/**",

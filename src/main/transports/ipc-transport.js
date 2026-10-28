@@ -2,7 +2,7 @@
 
 // The IPC transport (docs/STATE.md, §12.4).
 //
-// token-beam's `SyncClient` lifecycle, adapted to run over injected IPC instead of
+// the token layer's `SyncClient` lifecycle, adapted to run over injected IPC instead of
 // a WebSocket: a handshake with a timeout, a keepalive that reaps a silent peer,
 // exponential backoff on reconnect, and a manual-disconnect guard so a deliberate
 // close never triggers a reconnect. It is Electron-free (the scheduler and `send`

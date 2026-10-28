@@ -13,6 +13,8 @@
 
 const ROW_H = 24;
 const PADDING = 8;
+const BORDER = 2;
+const GAP = 1;
 const INSET = 4;
 const MIN_WIDTH = 132;
 const MAX_WIDTH = 360;
@@ -54,9 +56,11 @@ function menuBox(opts = {}) {
   // and the menu can never show every family.
   const extras = items.reduce((n, item) => n
     + (item && item.kind === 'heading' ? heightOf(item) : Math.max(0, heightOf(item) - rowHeight)), 0);
-  const natural = items.reduce((n, item) => n + heightOf(item), 0) + padding;
+  const gap = GAP * Math.max(0, items.length - 1);
+  const natural = items.reduce((n, item) => n + heightOf(item), 0) + padding + BORDER + gap;
   const visibleRows = Math.max(1, Math.min(normalRows || 1, maxRows));
-  const rowHeightCap = visibleRows * rowHeight + padding + extras;
+  const rowHeightCap = visibleRows * rowHeight + padding + BORDER
+    + extras + GAP * Math.max(0, visibleRows - 1);
   const areaCap = Number.isFinite(opts.maxHeight) ? opts.maxHeight : Math.round(area.height * 0.7);
   const height = Math.round(clamp(Math.min(natural, rowHeightCap), MIN_HEIGHT, Math.max(MIN_HEIGHT, areaCap)));
 

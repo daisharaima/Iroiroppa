@@ -64,7 +64,7 @@ unit-tested (`test/state-*.test.js`, `test/peer-*.test.js`,
 ## The session layer
 
 `peer-hub` (main) is the source/hub; every window is a peer. It speaks the same
-typed vocabulary as token-beam so the mental model transfers: `state`,
+typed vocabulary as the token layer so the mental model transfers: `state`,
 `connected`, `disconnected`, `paired`, `peer-connected`, `peer-disconnected`,
 `sync`, `warning`, `error`. A peer is `{ peerId, wcId, kind, title }`. The
 state machine is `idle → connected → paired → disconnected`.
@@ -74,7 +74,7 @@ Companion "session" are the *pairing* — a different thing; never conflate them
 
 ## Transports
 
-`ipc-transport` implements the token-beam `SyncClient` lifecycle over injected
+`ipc-transport` implements the the token layer `SyncClient` lifecycle over injected
 IPC: a 5 s handshake timeout, a 30 s keepalive that reaps an unresponsive peer
 after 2 missed pongs, exponential backoff (1 s → 30 s), and a manual-disconnect
 guard. `--peer-bus` additionally hands each window a `MessagePort` for transient
@@ -92,9 +92,9 @@ keeps the in-main decoder (`scanOnce`) available.
 
 ## The token bridge & library boundary
 
-The token model is a **clean-room** adaptation of meodai's **token-beam**
-(AGPL-3.0 OR Commercial) — architecture and interfaces only, no copied code, so
-Iroiroppa stays `GPL-3.0-or-later`. A DTCG payload is the *interop* shape; the app's
+The token model is a **clean-room** implementation of the shared token shape:
+architecture and interfaces only, no copied code, so Iroiroppa stays
+`GPL-3.0-or-later`. A DTCG payload is the *interop* shape; the app's
 canonical colour is never replaced by it.
 
 **culori** (MIT) is vendored (`src/renderer/vendor/culori/`) behind

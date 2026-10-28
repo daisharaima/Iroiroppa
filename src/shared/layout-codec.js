@@ -72,6 +72,7 @@
         moduleId: m.moduleId,
         weight: heightToV1(m.height),
         ratio: heightRatioToV1(m.height),
+        collapsed: m.collapsed === true,
       })),
     }));
   }
@@ -84,6 +85,7 @@
     }
     return (columns || []).map((column) => {
       const storedCol = (storedColumns || []).find((c) => String(c.id) === String(column && column.id));
+      const storedMods = new Map(((storedCol && storedCol.modules) || []).map((m) => [m.instanceId, m]));
       // A v1 write whose module entries carry no instance id must not mint a fresh one for
       // every save. Only when the incoming column is the *same set* of modules as the stored
       // one (same length, same module ids, in order) do we borrow the stored ids, so a
@@ -103,6 +105,10 @@
               instanceId: instanceId || ctx.newId('i'),
               moduleId: String(m.moduleId),
               height: heightEntryFromV1(m, stored.get(String(instanceId)), ctx.registry, m.moduleId),
+              // A v1 writer may omit it (older board); keep what the document had.
+              collapsed: Object.prototype.hasOwnProperty.call(m, 'collapsed')
+                ? m.collapsed === true
+                : (storedMods.get(String(instanceId)) || {}).collapsed === true,
             };
           }),
       };

@@ -206,7 +206,7 @@
     name: 'Color Wheel',
     version: 2,
     defaults: {
-      model: 'oklch', shape: 'triangle', ringWidth: 0.12, hideNumbers: false,
+      model: 'okhsv', shape: 'triangle', ringWidth: 0.12, hideNumbers: false,
       guideLines: true, hueRotation: 0, innerRotate: 0, innerFlipH: false, innerFlipV: false,
     },
     settingsUI,
@@ -393,7 +393,7 @@
       const innerRingPlot = (w, h, model, geo, third) => {
         // No hold: a single conic gradient is cheap enough to rebuild per frame, and the
         // old 200 ms hold is what made dragging the wheel look laggy.
-        const thirdPaint = store.interactive ? Math.round(third * 200) / 200 : third;
+        const thirdPaint = Math.round(third * 200) / 200;
         const lightAxes = currentAxes();
         lightAxes[lightAxis(model)] = thirdPaint;
         const lightLab = model.toLab(lightAxes);
@@ -786,7 +786,9 @@
       };
 
       const render = () => {
-        const { w, h } = sizeCanvas(2, store.interactive);
+        // One map resolution for idle and drag: the canvas must not change shape
+        // or quality when a gesture starts, only its rebuild cadence may change.
+        const { w, h } = sizeCanvas(2, true);
         // A module that is still unmeasured draws nothing (the box arrives via
         // onResize); arc() with a negative radius throws and would abort the board.
         if (w < 12 || h < 12) return;
@@ -821,7 +823,7 @@
         const box = innerBox(geo, proj);
         // Supersampled when idle, native device pixels while a gesture is in flight:
         // the map must never stall the pointer, and it stays 1:1 with the screen.
-        const innerScale = store.interactive ? Math.max(1, Math.round(dpr)) : 1;
+        const innerScale = Math.max(1, Math.round(dpr));
         drawInner(c2d, buildInner(w, h, model, hue, proj, box, innerScale), box, w, h);
 
         // The single lightness guide through the selected colour.

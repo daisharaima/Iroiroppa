@@ -1,63 +1,56 @@
-# The tray icon and the hotkey
+# The tray icon and shortcuts
 
-This is the page to read the first time the palette seems to disappear. It is almost certainly still running.
+With **Auto-hide** on, Iroiroppa is visible only while Clip Studio Paint is in front. It is still running when the palette disappears.
 
-## Why it hides
+## Restore the palette
 
-**Auto-hide** is on by default. Iroiroppa shows itself while Clip Studio Paint is the program in front, and hides when you switch to something else — your browser, Explorer, another window. That is deliberate: a colour picker floating over your email is not useful, and it should never sit in the way.
+1. Click into Clip Studio Paint.
+2. Or right-click the tray icon (near the clock) and choose **Show / hide palette**.
+3. Or press the show/hide shortcut, if one is set.
 
-So the palette "vanishing" usually means: you clicked another window.
+## Tray menu
 
-## Getting it back
-
-Three ways, in order of convenience:
-
-1. **Click back into Clip Studio Paint.** The palette returns by itself.
-2. **Use the tray icon** — the small Iroiroppa icon near the clock, bottom-right of the screen. It may be tucked under the **^** arrow. Right-click it for the menu, or double-click to show and hide the palette.
-3. **Use the summon hotkey**, if you have set one (below).
-
-## The tray menu
-
-| Item | What it does |
+| Item | Action |
 | --- | --- |
-| **Show / hide palette** | The same as double-clicking the icon. |
-| **Bring floats back on screen** | If a module was popped out into its own window and left on a monitor you unplugged, this brings it back. |
-| **Settings…** | Opens the Settings window. |
-| **Reconnect** | Retries the remembered connection. |
-| **Connect (scan QR)...** | Shows the palette and looks for a fresh QR code. |
-| **Disconnect** | Drops the connection, keeping the pairing. |
-| **Forget pairing** | Throws the pairing away. |
-| **Quit** | Closes Iroiroppa completely. |
+| **Show / hide palette** | Toggle the palette. |
+| **Bring floats back on screen** | Recover popped-out modules. |
+| **Settings…** | Open Settings. |
+| **Reconnect** | Retry the saved connection. |
+| **Connect (scan QR)...** | Show the palette and scan a fresh QR code. |
+| **Disconnect** | Drop the connection but keep the pairing. |
+| **Forget pairing** | Delete the pairing. |
+| **Quit** | Exit Iroiroppa. |
 
-## Turning auto-hide off
+## Turn off Auto-hide
 
-If you would rather the palette stayed put while you work in other windows:
+Open **Settings → General → Auto-hide** and switch it off. Iroiroppa then stays visible until you hide it, without taking focus from other programs.
 
-**Settings ▸ General ▸ Auto-hide** — switch it off.
+## Set a shortcut
 
-Now Iroiroppa stays visible until you hide it yourself. It still will not steal focus from your other programs.
+![The Shortcuts tab](images/settings-shortcuts.png)
 
-## Setting a summon hotkey
+1. Open **Settings → Shortcuts**.
+2. Select **General → Iroiroppa**.
+3. Click **Show / hide all windows** and press the key.
 
-Out of the box there is **no hotkey**. If you want one:
+Press **Esc** to clear a binding. A single key or an F-key works; single keys are ignored while you are typing.
 
-1. Open **Settings ▸ General**.
-2. Click the **Summon hotkey** box.
-3. Press the key combination you want. It must include at least one modifier — Ctrl, Alt or Shift — so it cannot swallow ordinary typing.
-4. Press **Esc** to clear it again.
+Shortcuts act only while Clip Studio Paint or an Iroiroppa window is active. If a key is unavailable, another program owns it.
 
-Now that combination shows and hides the palette from anywhere, even while Clip Studio Paint has focus.
+## Reveal modes
 
-> If Windows says the key is unavailable, another program already owns it. Pick a different combination.
+| Mode | Behavior |
+| --- | --- |
+| **Toggle** | Press to show; press again to hide. Optionally hide after the next Clip Studio Paint click. |
+| **Hold** | Show while the key is held; restore the previous state on release. |
+| **After color pick** | Plain **Alt + left-click** on the canvas samples the color, then shows the target. The next stroke, or 8 seconds, closes it. |
 
-## Starting with Windows
+**When it appears** can keep the remembered position or place the window at the pointer. Ctrl+Alt and Shift+Alt are ignored.
 
-**Settings ▸ General ▸ Start when Windows starts** launches Iroiroppa when you sign in, so it is already there when you open Clip Studio Paint.
+## Start with Windows
 
-## Quitting properly
+Enable **Settings → General → Start when Windows starts**.
 
-Closing the palette window is not the same as quitting. Use **Quit** in the tray menu, or **Settings ▸ Quit**. Otherwise it keeps running — which is usually what you want, since it will reconnect for you next time.
+## Quit
 
----
-
-Palette not coming back at all? See [Troubleshooting](Troubleshooting).
+Closing the palette does not quit Iroiroppa. Use **Quit** in the tray or Settings.

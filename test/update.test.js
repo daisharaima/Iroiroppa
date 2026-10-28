@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { parseVersion, isNewer, checkForUpdates, DEFAULT_REPO } = require('../src/main/update-check');
+const { parseVersion, isNewer, checkForUpdates, pickReleaseAssets, DEFAULT_REPO } = require('../src/main/update-check');
 
 test('parseVersion accepts tags, bare versions and prereleases', () => {
   assert.deepEqual(parseVersion('v1.2.3'), { major: 1, minor: 2, patch: 3, pre: '' });
@@ -56,4 +56,37 @@ test('falls back to the known repository when there is no fetch', async () => {
   const info = await checkForUpdates({ currentVersion: '0.1.0', fetchImpl: null });
   assert.deepEqual(info, { available: false });
   assert.equal(DEFAULT_REPO, 'daisharaima/Iroiroppa');
+});
+
+test('pickReleaseAssets finds the installer and portable exe for a version', () => {
+  const assets = [
+    { name: 'Iroiroppa.Setup.1.2.3.exe', browser_download_url: 'https://example.test/setup.exe' },
+    { name: 'Iroiroppa-Portable-1.2.3.exe', browser_download_url: 'https://example.test/portable.exe' },
+    { name: 'Iroiroppa.Setup.1.2.3.blockmap', browser_download_url: 'https://example.test/setup.blockmap' },
+  ];
+  assert.deepEqual(pickReleaseAssets(assets, '1.2.3'), {
+    setup: 'https://example.test/setup.exe',
+    portable: 'https://example.test/portable.exe',
+  });
+  assert.deepEqual(pickReleaseAssets(assets, '9.9.9'), { setup: '', portable: '' });
+  assert.deepEqual(pickReleaseAssets(null, '1.2.3'), { setup: '', portable: '' });
+});
+
+test('a release with assets returns both downloads', async () => {
+  const info = await checkForUpdates({
+    currentVersion: '1.2.2',
+    fetchImpl: okJson({
+      tag_name: 'v1.2.3',
+      html_url: 'https://github.com/x/y/releases/tag/v1.2.3',
+      assets: [
+        { name: 'Iroiroppa.Setup.1.2.3.exe', browser_download_url: 'https://example.test/setup.exe' },
+        { name: 'Iroiroppa-Portable-1.2.3.exe', browser_download_url: 'https://example.test/portable.exe' },
+      ],
+    }),
+  });
+  assert.equal(info.available, true);
+  assert.deepEqual(info.downloads, {
+    setup: 'https://example.test/setup.exe',
+    portable: 'https://example.test/portable.exe',
+  });
 });

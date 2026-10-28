@@ -7,6 +7,7 @@
 
 (function () {
   const SETTINGS_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>';
+  const MINIMIZE_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>';
   const DOCK = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v8"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 15.5h12"/></svg>';
   // The eye that collapses a float; a lone module shows it in its header (it has
   // no window grip to carry one). The CSS swaps the two icons on body.float-collapsed.
@@ -99,6 +100,19 @@
         // header) and a press-and-release opens the settings, so the handler has to live where the
         // drag does (kernel/layout.js, `_beginDrag`). A second handler here would open it twice.
         head.append(title, settingsBtn);
+        // The collapse-to-header button. It is created here (the card chrome lives
+        // here) and wired by the board, which owns the layout document. Compact and
+        // headless modules never get one: they are already a single line.
+        if (!options.compact && !options.headless) {
+          const minBtn = document.createElement('button');
+          minBtn.type = 'button';
+          minBtn.className = 'module-collapse';
+          minBtn.title = window.Iro.t('ui.module.collapse');
+          minBtn.setAttribute('aria-label', window.Iro.t('ui.module.collapse'));
+          minBtn.setAttribute('aria-expanded', 'true');
+          minBtn.innerHTML = MINIMIZE_ICON;
+          head.insertBefore(minBtn, settingsBtn);
+        }
       }
 
       const body = document.createElement('div');

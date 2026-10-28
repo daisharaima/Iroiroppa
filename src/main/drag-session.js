@@ -41,6 +41,13 @@ function createDragSession(options) {
   // and settles them on release (commit the position, then join the nearest edge or come free).
   const moveWindows = typeof o.moveWindows === 'function' ? o.moveWindows : () => {};
   const settleWindows = typeof o.settleWindows === 'function' ? o.settleWindows : () => ({ ok: false });
+  // A whole-palette drop over another palette is destructive (the source palette
+  // disappears), so main can ask for a confirmation before committing it. In that
+  // mode the session returns a `pendingMerge` plan instead of dispatching; main
+  // shows the card and commits/restores. `restoreWindows` is used by Cancel and by
+  // a cancelled drag, so a moved palette returns exactly where it started.
+  const deferPaletteMerge = o.deferPaletteMerge === true;
+  const restoreWindows = typeof o.restoreWindows === 'function' ? o.restoreWindows : () => {};
   const setTimer = o.setInterval || setInterval;
   const clearTimer = o.clearInterval || clearInterval;
 
@@ -206,6 +213,16 @@ function createDragSession(options) {
         const target = plan.kind === 'column'
           ? { kind: 'column', paletteId: plan.paletteId, columnId: plan.columnId, index: plan.index }
           : { kind: 'outer', paletteId: plan.paletteId, side: plan.side };
+        if (deferPaletteMerge) {
+          return {
+            ok: true,
+            pendingMerge: {
+              payload: { ...payload },
+              plan,
+              target,
+            },
+          };
+        }
         const out = dispatch({
           type: 'layout.place',
           sourcePaletteId: payload.sourcePaletteId,
@@ -253,6 +270,9 @@ function createDragSession(options) {
 
   function cancel() {
     if (!current) return false;
+    // A palette drag moves real windows before it commits; cancelling one must put
+    // them back, or the document and the screen disagree until the next launch.
+    if (current.kind === 'palette' && current.payload) restoreWindows(current.payload.members);
     stop();
     current = null;
     return true;

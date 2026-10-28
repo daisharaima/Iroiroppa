@@ -9,7 +9,7 @@ const items = (n) => Array.from({ length: n }, (_, i) => ({ label: `Profile ${i}
 
 test('a short menu sizes to its rows', () => {
   const box = menuBox({ items: items(4), anchor: { x: 100, y: 100 }, area });
-  assert.equal(box.height, 4 * 24 + 8);
+  assert.equal(box.height, 4 * ROW_H + 8 + 2 + 3);
   assert.equal(box.visibleRows, 4);
   assert.equal(box.scrolls, false);
 });
@@ -27,7 +27,7 @@ test('an invalid anchor never produces a non-finite box', () => {
 test('a long menu shows ten rows and scrolls', () => {
   const box = menuBox({ items: items(200), anchor: { x: 1870, y: 546 }, area: { x: 0, y: 0, width: 3840, height: 1552 } });
   assert.equal(box.visibleRows, 10);
-  assert.equal(box.height, 10 * 24 + 8);
+  assert.equal(box.height, 10 * ROW_H + 8 + 2 + 9);
   assert.equal(box.scrolls, true);
   assert.ok(box.x + box.width <= 3840);
   assert.ok(box.y + box.height <= 1552);

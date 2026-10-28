@@ -19,14 +19,31 @@ later (see LICENSE). It builds on the following work:
 * jsQR (Apache-2.0) — QR decoding.
   https://github.com/cozmo/jsQR
 
+* jsColorEngine (MPL-2.0) — ICC profile and CMYK proofing engine. Its source is
+  available at https://github.com/glennwilton/jsColorEngine.
+
+* culori (MIT) — color conversion; vendored in src/renderer/vendor/culori.
+  https://github.com/Evercoder/culori
+
+* Helmlab (MIT) — GenSpace / MetricSpace color spaces; vendored in
+  src/renderer/vendor/helmlab. https://helmlab.space/
+
 * OKLab / OKLCH — Björn Ottosson.
   https://bottosson.github.io/posts/oklab/
+
+* Inter (SIL OFL 1.1) — interface typeface.
+  https://github.com/rsms/inter
+
+* DejaVu Sans (Bitstream Vera / Arev) — fallback glyphs.
+  https://dejavu-fonts.github.io/
 
 * PaintPalette by echo-tree (Bilibili) — this app borrows heavily from it.
 
 * Kroma by 秫稻_ (Bilibili) — likewise a major reference for this app.
 
 * Electron and electron-builder (MIT) — the desktop shell and packaging.
+  Electron's LICENSE.electron.txt and LICENSES.chromium.html are included with
+  the packaged app.
 
 Clip Studio Paint is a trademark of CELSYS, Inc. This project is unofficial and
 is not affiliated with, or endorsed by, CELSYS.

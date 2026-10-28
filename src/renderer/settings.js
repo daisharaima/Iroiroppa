@@ -1,8 +1,8 @@
 'use strict';
 
-/* Settings window. Segmented tabs (General / Appearance); General holds the
- * connection + behaviour rows, Appearance the crosshair toggle, UI scale and
- * theme. Talks to main through window.csp only. */
+/* Settings window. Segmented tabs (General / Appearance / Modules / Shortcuts /
+ * Layout / About); General holds the connection + behaviour rows, Appearance the
+ * UI scale and theme. Talks to main through window.csp only. */
 
 const $ = (id) => document.getElementById(id);
 
@@ -14,6 +14,9 @@ const el = {
   state: $('settings-state'),
   version: $('settings-version'),
   update: $('settings-update'),
+  install: $('settings-update-install'),
+  note: $('settings-note'),
+  autoCheck: $('settings-auto-check'),
   check: $('settings-check'),
   btnConn: $('btn-conn'),
   btnForget: $('btn-forget'),
@@ -23,11 +26,8 @@ const el = {
   setLive: $('set-live'),
   setAutoHide: $('set-autohide'),
   setMarkOutOfDisplay: $('set-mark-out-of-display'),
-  setCross: $('set-cross'),
   setViewFamily: $('set-view-family'),
   setLogin: $('set-login'),
-  setSummon: $('set-summon'),
-  commandList: $('set-command-list'),
   setUiScale: $('set-ui-scale'),
   uiScaleValue: $('ui-scale-value'),
   btnScaleUp: $('btn-scale-up'),
@@ -45,6 +45,8 @@ const el = {
   setCspPath: $('set-csp-path'),
   setCspState: $('set-csp-state'),
   moduleList: $('module-list'),
+  shortcutTargets: $('shortcut-targets'),
+  shortcutDetail: $('shortcut-detail'),
   btnTrash: $('btn-trash'),
   btnPurge: $('btn-purge'),
   trashPanel: $('trash-panel'),
@@ -191,13 +193,57 @@ function accentPopupOpen() {
 // --- update notice ---------------------------------------------------------
 
 let updateUrl = '';
+let updateInstallable = false;
+let installLabel = '';
+let installing = false;
 
-/** Show "Update available" only when the main-process check found one. */
+/** The label for the one-button download-and-hand-over action. */
+function installLabelFor(build) {
+  return window.Iro.t(build === 'portable' ? 'settings.update.replace' : 'settings.update.install');
+}
+
+/** Show the release notice and, when this release has our asset, the install action. */
 function showUpdate(info) {
   const on = Boolean(info && info.available && info.url);
+  const downloads = (info && info.downloads) || {};
+  const build = info && info.build === 'portable' ? 'portable' : 'installer';
+  const asset = build === 'portable' ? downloads.portable : downloads.setup;
   updateUrl = on ? info.url : '';
+  updateInstallable = Boolean(on && asset);
+  installLabel = installLabelFor(build);
+  installing = false;
   el.update.classList.toggle('hidden', !on);
+  if (el.install) {
+    el.install.classList.toggle('hidden', !updateInstallable);
+    el.install.disabled = false;
+    el.install.textContent = installLabel;
+  }
   if (on) el.update.textContent = window.Iro.t('settings.update.available', { version: info.version });
+}
+
+/** Download the asset here, then let the main process close us and hand over. */
+async function installUpdate() {
+  if (!updateInstallable || installing) return;
+  installing = true;
+  el.install.disabled = true;
+  el.install.textContent = window.Iro.t('settings.update.downloading');
+  if (el.note) el.note.textContent = '';
+  try {
+    const res = await csp.installUpdate();
+    if (!res || !res.ok) {
+      installing = false;
+      el.install.disabled = false;
+      el.install.textContent = installLabel;
+      if (el.note) el.note.textContent = `${window.Iro.t('settings.update.failed')} ${(res && res.error) || ''}`.trim();
+    } else {
+      el.install.textContent = window.Iro.t('settings.update.closing');
+    }
+  } catch (err) {
+    installing = false;
+    el.install.disabled = false;
+    el.install.textContent = installLabel;
+    if (el.note) el.note.textContent = `${window.Iro.t('settings.update.failed')} ${err.message || ''}`.trim();
+  }
 }
 
 /** Manual re-check; it reports "Up to date" briefly, or shows the release link. */
@@ -226,20 +272,21 @@ function applySettings(s) {
   liveSettings = s;
   el.setLive.checked = s.liveSync !== false;
   el.setAutoHide.checked = s.autoHide !== false;
+  if (el.autoCheck) el.autoCheck.checked = s.checkUpdatesAutomatically !== false;
   if (el.setMarkOutOfDisplay) el.setMarkOutOfDisplay.checked = s.markOutOfDisplay === true;
   el.setAutoConnect.checked = s.autoConnect !== false;
   el.setNames.checked = s.hideModuleNames === true;
   currentProfileValue = s.proofMode === 'default' ? '' : (s.proofProfile || '');
   renderProfiles();
-  el.setCross.checked = s.crosshair !== false;
   if (el.setViewFamily) {
     el.setViewFamily.value = window.IroColorModels
       ? window.IroColorModels.normalizeFamily(s.viewFamily)
       : (s.viewFamily || 'all');
   }
   el.setLogin.checked = s.launchAtLogin === true;
-  el.setSummon.value = s.summonHotkey || '';
-  renderCommandList();
+  if (activeTab === 'shortcuts' && !el.shortcutDetail.contains(document.activeElement)) {
+    refreshShortcutTab();
+  }
   const scale = Number(s.uiScale) || 1;
   el.setUiScale.value = String(scale);
   if (document.activeElement !== el.uiScaleValue) el.uiScaleValue.value = String(Math.round(scale * 100));
@@ -247,14 +294,22 @@ function applySettings(s) {
   accents = { ...(s.accents || {}) };
   themeId = themeRegistry.themes.some((t) => t.id === s.theme) ? s.theme : 'default-light';
   el.setTheme.value = themeId;
-  if (el.setLanguage) el.setLanguage.value = s.language || '';
+  if (el.setLanguage) {
+    el.setLanguage.value = s.language || '';
+    const auto = el.setLanguage.querySelector('option[value=""]');
+    if (auto) auto.textContent = window.Iro.t('settings.language.auto');
+  }
   // The whole Settings window follows the same locale as the palette. Re-applying it
   // rewrites every [data-i18n] node, including the connection row that updateStatus
   // owns — so only switch when the language actually changed, then repaint the status.
   const language = s.language || navigator.language || 'en';
   if (language !== appliedLanguage) {
     appliedLanguage = language;
-    window.Iro.i18n.use(language).then(() => { if (lastStatus) updateStatus(lastStatus); });
+    window.Iro.i18n.use(language).then(() => {
+      if (lastStatus) updateStatus(lastStatus);
+      const auto = el.setLanguage && el.setLanguage.querySelector('option[value=""]');
+      if (auto) auto.textContent = window.Iro.t('settings.language.auto');
+    });
   }
   themeRegistry.apply(themeId, accents[themeId]);
   updateAccentTrigger();
@@ -311,7 +366,7 @@ function fitWindow() {
 /** The tab currently shown, so a layout change can refresh the right pane. */
 let activeTab = 'appearance';
 
-const TABS = new Set(['general', 'appearance', 'modules', 'layout']);
+const TABS = new Set(['general', 'appearance', 'modules', 'shortcuts', 'layout', 'about']);
 
 function selectTab(name) {
   if (!TABS.has(name)) name = 'appearance';
@@ -322,11 +377,15 @@ function selectTab(name) {
   $('tab-general').classList.toggle('hidden', name !== 'general');
   $('tab-appearance').classList.toggle('hidden', name !== 'appearance');
   $('tab-modules').classList.toggle('hidden', name !== 'modules');
+  $('tab-shortcuts').classList.toggle('hidden', name !== 'shortcuts');
   $('tab-layout').classList.toggle('hidden', name !== 'layout');
+  $('tab-about').classList.toggle('hidden', name !== 'about');
   if (name === 'modules') refreshModules();
+  else if (name === 'shortcuts') refreshShortcutTab();
   else destroyPreview();
   if (name === 'layout') renderLayoutTab();
   if (name === 'general') loadProfiles(true);
+  if (name === 'about') loadAbout();
   requestAnimationFrame(fitWindow);
 }
 
@@ -450,7 +509,7 @@ let selectedInstance = '';
  * window can never be narrowed onto a horizontal scrollbar in the settings
  * column.
  */
-const MODULE_DETAIL_MIN = 200;
+const MODULE_DETAIL_MIN = 260;
 function applySettingsMinWidth() {
   if (!el.moduleList || !window.csp.setSettingsMinWidth) return;
   let widest = 0;
@@ -466,7 +525,7 @@ function applySettingsMinWidth() {
   // light (10) + row gap (8) + row padding (8×2) + list padding (4×2) + a
   // little slack for the scrollbar and borders.
   const listWidth = Math.ceil(widest) + 62;
-  const needed = Math.min(560, Math.max(300, listWidth + MODULE_DETAIL_MIN + 26));
+  const needed = Math.min(728, Math.max(390, listWidth + MODULE_DETAIL_MIN + 26));
   Promise.resolve(window.csp.setSettingsMinWidth(needed)).catch(() => {});
 }
 
@@ -647,12 +706,11 @@ function destroyPreview() {
   if (previewHost) previewHost.reset();
 }
 
-/** Mirror the live appearance: colour mode, proof gamut, crosshair and colour. */
+/** Mirror the live appearance: colour mode, proof gamut and colour. */
 async function syncPreview() {
   const store = getPreviewStore();
   const mode = liveSettings.proofMode === 'proof' ? 'proof' : 'default';
   store.mode = mode;
-  store.crosshair = liveSettings.crosshair !== false;
   store.setViewFamily(liveSettings.viewFamily);
   if (mode === 'proof') {
     try {
@@ -1345,63 +1403,425 @@ async function renderWorkspaces() {
 
 
 // The per-module command shortcuts. The catalog comes from main (which resolves each
-// mounted instance's module name); each row binds one command to a system-wide key.
-// The list is rebuilt only when the catalog changes and no field is being edited, so
-// a keypress does not steal focus by re-rendering the row under the pointer.
-let commandCatalogSig = '';
+// mounted instance's module name); the Shortcuts tab groups them by module.
+// --- shortcuts tab ---------------------------------------------------------
+// Three sections on the left (General, Palette, Modules) and the selected
+// target's bindings on the right. The module commands reuse the existing
+// catalog; General/Palette rows use the new shortcut:set channel.
+let shortcutData = null;
+let shortcutSelection = 'app';
+let shortcutLoading = false;
 
-async function renderCommandList() {
-  if (!el.commandList) return;
-  let list = [];
-  try { list = await csp.shortcutCatalog(); } catch { list = []; }
-  list = Array.isArray(list) ? list : (list && list.commands) || [];
-  if (!Array.isArray(list)) list = [];
-  const sig = list.map((e) => `${e.instanceId}:${e.command}`).join('|');
-  if (el.commandList.contains(document.activeElement)) return;
-  if (sig === commandCatalogSig && el.commandList.childElementCount > 0) return;
-  commandCatalogSig = sig;
-  el.commandList.replaceChildren();
-  if (!list.length) {
-    const empty = document.createElement('div');
-    empty.className = 'command-empty';
-    empty.textContent = window.Iro.t('settings.commands.empty');
-    el.commandList.append(empty);
+function normaliseCatalog(raw) {
+  const cat = Array.isArray(raw) ? { commands: raw } : (raw || {});
+  const pair = (value) => ({
+    mode: value && ['toggle', 'hold', 'afterPick'].includes(value.mode) ? value.mode : 'toggle',
+    toggle: value && typeof value.toggle === 'string' ? value.toggle : '',
+    hold: value && typeof value.hold === 'string' ? value.hold : '',
+    autoDismiss: Boolean(value && value.autoDismiss),
+    position: value && typeof value.position === 'string' ? value.position : 'keep',
+  });
+  const palettes = {};
+  for (const [id, value] of Object.entries(cat.palettes && typeof cat.palettes === 'object' ? cat.palettes : {})) {
+    palettes[id] = pair(value);
+  }
+  return {
+    commands: Array.isArray(cat.commands) ? cat.commands : [],
+    app: pair(cat.app),
+    palettes,
+    autoHide: cat.autoHide !== false,
+  };
+}
+
+async function refreshShortcutTab() {
+  if (!el.shortcutTargets || !el.shortcutDetail || shortcutLoading) return;
+  shortcutLoading = true;
+  try {
+    let catalog = null;
+    let palettes = [];
+    let hidden = [];
+    try { catalog = await csp.shortcutCatalog(); } catch { catalog = null; }
+    try { palettes = await csp.listPalettes(); } catch { palettes = []; }
+    try { hidden = await csp.listHidden(); } catch { hidden = []; }
+    await loadBoardLayout();
+    shortcutData = {
+      catalog: normaliseCatalog(catalog),
+      palettes: Array.isArray(palettes) ? palettes : [],
+      hidden: Array.isArray(hidden) ? hidden : [],
+    };
+    if (shortcutSelection !== 'app'
+      && !shortcutSelection.startsWith('palette:')
+      && !shortcutSelection.startsWith('module:')) shortcutSelection = 'app';
+    renderShortcutTargets();
+    renderShortcutDetail();
+    requestAnimationFrame(fitWindow);
+  } finally {
+    shortcutLoading = false;
+  }
+}
+
+/** Every placed or hidden instance, with the palette it lives in. */
+function shortcutInstances() {
+  if (!shortcutData) return [];
+  const out = [];
+  const palettes = shortcutData.palettes;
+  const primaryId = palettes[0] ? palettes[0].id : '';
+  const visit = (columns, paletteId) => {
+    for (const col of columns || []) {
+      for (const m of col.modules || []) {
+        if (m && m.instanceId && m.moduleId) {
+          out.push({ instanceId: m.instanceId, moduleId: m.moduleId, paletteId, hidden: false });
+        }
+      }
+    }
+  };
+  if (boardLayout) {
+    visit(boardLayout.columns, primaryId);
+    for (const f of boardLayout.floats || []) visit(f.columns, f.floatId);
+  }
+  for (const h of shortcutData.hidden) {
+    if (h && h.instanceId && h.moduleId) {
+      out.push({ instanceId: h.instanceId, moduleId: h.moduleId, paletteId: '', hidden: true });
+    }
+  }
+  const seen = new Set();
+  return out.filter((x) => (seen.has(x.instanceId) ? false : seen.add(x.instanceId)));
+}
+
+function shortcutModuleGroups(instances) {
+  const groups = new Map();
+  for (const inst of instances) {
+    if (!groups.has(inst.moduleId)) groups.set(inst.moduleId, []);
+    groups.get(inst.moduleId).push(inst);
+  }
+  return [...groups.entries()]
+    .map(([moduleId, list]) => ({ moduleId, instances: list }))
+    .sort((a, b) => moduleName(a.moduleId).localeCompare(moduleName(b.moduleId)));
+}
+
+function shortcutSection(title) {
+  const head = document.createElement('div');
+  head.className = 'module-group-title';
+  head.textContent = title;
+  el.shortcutTargets.append(head);
+}
+
+function shortcutTargetRow(label, target) {
+  const row = document.createElement('button');
+  row.type = 'button';
+  row.className = 'module-row';
+  row.dataset.target = target;
+  row.classList.toggle('selected', shortcutSelection === target);
+  const name = document.createElement('span');
+  name.className = 'module-name';
+  name.textContent = label;
+  row.append(name);
+  row.addEventListener('click', () => {
+    shortcutSelection = target;
+    for (const btn of el.shortcutTargets.querySelectorAll('.module-row')) {
+      btn.classList.toggle('selected', btn.dataset.target === target);
+    }
+    renderShortcutDetail();
+    requestAnimationFrame(fitWindow);
+  });
+  el.shortcutTargets.append(row);
+}
+
+function renderShortcutTargets() {
+  if (!el.shortcutTargets || !shortcutData) return;
+  el.shortcutTargets.replaceChildren();
+  shortcutSection(window.Iro.t('settings.shortcuts.general'));
+  shortcutTargetRow('Iroiroppa', 'app');
+  shortcutSection(window.Iro.t('settings.shortcuts.palettes'));
+  shortcutData.palettes.forEach((p, i) => {
+    shortcutTargetRow(p.name || `Palette ${i + 1}`, `palette:${p.id}`);
+  });
+  shortcutSection(window.Iro.t('settings.shortcuts.modules'));
+  for (const group of shortcutModuleGroups(shortcutInstances())) {
+    shortcutTargetRow(moduleName(group.moduleId), `module:${group.moduleId}`);
+  }
+  // The selection may point at a palette/module that just vanished.
+  if (!el.shortcutTargets.querySelector(`.module-row[data-target="${CSS.escape(shortcutSelection)}"]`)) {
+    shortcutSelection = 'app';
+    el.shortcutTargets.querySelector('.module-row')?.classList.add('selected');
+  }
+}
+
+function shortcutInfo(tip) {
+  const info = document.createElement('span');
+  info.className = 'info';
+  info.setAttribute('data-tip', tip);
+  info.setAttribute('aria-hidden', 'true');
+  info.textContent = 'i';
+  return info;
+}
+
+function shortcutLabelRow(label, control, tip) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  const name = document.createElement('span');
+  name.className = 'row-label';
+  name.textContent = label;
+  if (tip) name.append(shortcutInfo(tip));
+  row.append(name);
+  if (control) row.append(control);
+  el.shortcutDetail.append(row);
+  return row;
+}
+
+function shortcutHint(text) {
+  const hint = document.createElement('div');
+  hint.className = 'hint shortcut-hint';
+  hint.textContent = text;
+  el.shortcutDetail.append(hint);
+}
+
+/** A read-only capture field; Esc clears it. */
+function shortcutInput(value, commit, { allowBare = false } = {}) {
+  const input = document.createElement('input');
+  input.className = 'text-input hotkey-input';
+  input.readOnly = true;
+  input.spellcheck = false;
+  input.placeholder = window.Iro.t('settings.commands.none');
+  input.value = value || '';
+  input.addEventListener('focus', () => input.select());
+  input.addEventListener('keydown', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const clearing = e.key === 'Escape';
+    const accel = clearing ? '' : summonAccelerator(e, { allowBare });
+    if (!clearing && !accel) return;
+    const res = await commit(accel);
+    if (res && res.ok) {
+      input.value = accel;
+      input.classList.remove('invalid');
+      input.title = window.Iro.t('settings.commands.recordHint');
+    } else {
+      input.classList.add('invalid');
+      input.title = window.Iro.t(res && res.error === 'conflict'
+        ? 'settings.shortcuts.conflict'
+        : 'settings.commands.taken');
+    }
+  });
+  return input;
+}
+
+function shortcutMode(value, target) {
+  const select = document.createElement('select');
+  select.className = 'text-input shortcut-mode';
+  const options = [
+    ['toggle', 'settings.shortcuts.modeToggle'],
+    ['hold', 'settings.shortcuts.modeHold'],
+    ['afterPick', 'settings.shortcuts.modeAfterPick'],
+  ];
+  for (const [key, label] of options) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = window.Iro.t(label);
+    select.append(opt);
+  }
+  select.value = value || 'toggle';
+  select.addEventListener('change', async () => {
+    try {
+      await csp.setShortcutOption({ target, option: 'mode', value: select.value });
+    } catch { /* the refresh shows the truth */ }
+    await refreshShortcutTab();
+  });
+  return select;
+}
+
+function shortcutAutoDismiss(checked, target) {
+  const label = document.createElement('label');
+  label.className = 'tgl';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.checked = checked;
+  box.addEventListener('change', async () => {
+    try {
+      await csp.setShortcutOption({ target, option: 'autoDismiss', value: box.checked });
+    } catch { /* the refresh shows the truth */ }
+    await refreshShortcutTab();
+  });
+  const track = document.createElement('span');
+  track.className = 'tgl-track';
+  label.append(box, track);
+  return label;
+}
+
+function shortcutPosition(value, target) {
+  const select = document.createElement('select');
+  select.className = 'text-input shortcut-position';
+  const options = [
+    ['keep', 'settings.shortcuts.positionKeep'],
+    ['center', 'settings.shortcuts.positionCenter'],
+    ['top-left', 'settings.shortcuts.positionTopLeft'],
+    ['top-right', 'settings.shortcuts.positionTopRight'],
+    ['bottom-left', 'settings.shortcuts.positionBottomLeft'],
+    ['bottom-right', 'settings.shortcuts.positionBottomRight'],
+  ];
+  for (const [key, label] of options) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = window.Iro.t(label);
+    select.append(opt);
+  }
+  select.value = value || 'keep';
+  select.addEventListener('change', async () => {
+    try {
+      await csp.setShortcutOption({ target, option: 'position', value: select.value });
+    } catch { /* the refresh shows the truth */ }
+    await refreshShortcutTab();
+  });
+  return select;
+}
+
+function renderShortcutDetail() {
+  if (!el.shortcutDetail || !shortcutData) return;
+  el.shortcutDetail.replaceChildren();
+  const title = document.createElement('div');
+  title.className = 'module-detail-title';
+  el.shortcutDetail.append(title);
+
+  if (shortcutSelection === 'app') {
+    title.textContent = 'Iroiroppa';
+    const app = shortcutData.catalog.app;
+    shortcutLabelRow(
+      window.Iro.t('settings.shortcuts.mode'),
+      shortcutMode(app.mode, 'app'),
+      window.Iro.t('settings.shortcuts.gateHint'),
+    );
+    if (app.mode === 'toggle') {
+      shortcutLabelRow(
+        window.Iro.t('settings.shortcuts.showAll'),
+        shortcutInput(app.toggle, async (accel) => {
+          const res = await csp.setShortcut({ target: 'app', action: 'toggle', accel });
+          if (res && res.ok) app.toggle = accel;
+          return res;
+        }, { allowBare: true }),
+        window.Iro.t('settings.shortcuts.bareHint'),
+      );
+      shortcutLabelRow(
+        window.Iro.t('settings.shortcuts.autoDismiss'),
+        shortcutAutoDismiss(Boolean(app.autoDismiss), 'app'),
+        window.Iro.t('settings.shortcuts.autoDismissHint'),
+      );
+    } else if (app.mode === 'hold') {
+      shortcutLabelRow(
+        window.Iro.t('settings.shortcuts.holdAll'),
+        shortcutInput(app.hold, async (accel) => {
+          const res = await csp.setShortcut({ target: 'app', action: 'hold', accel });
+          if (res && res.ok) app.hold = accel;
+          return res;
+        }, { allowBare: true }),
+        window.Iro.t('settings.shortcuts.bareHint'),
+      );
+    } else {
+      shortcutLabelRow(
+        window.Iro.t('settings.shortcuts.trigger'),
+        null,
+        window.Iro.t('settings.shortcuts.afterPickHint'),
+      );
+    }
+    shortcutLabelRow(
+      window.Iro.t('settings.shortcuts.whenShown'),
+      shortcutPosition(app.position, 'app'),
+      window.Iro.t('settings.shortcuts.positionHint'),
+    );
     return;
   }
-  const bindings = (liveSettings && liveSettings.commandBindings) || {};
-  for (const entry of list) {
-    const key = `${entry.instanceId}:${entry.command}`;
-    const row = document.createElement('div');
-    row.className = 'row';
-    const label = document.createElement('span');
-    label.className = 'row-label';
-    label.textContent = `${entry.name} · ${entry.command}`;
-    const input = document.createElement('input');
-    input.className = 'text-input hotkey-input';
-    input.readOnly = true;
-    input.spellcheck = false;
-    input.placeholder = window.Iro.t('settings.commands.none');
-    input.value = bindings[key] || '';
-    input.setAttribute('aria-label', `${entry.name} ${entry.command} shortcut`);
-    input.addEventListener('focus', () => input.select());
-    input.addEventListener('keydown', async (e) => {
-      e.preventDefault();
-      const clearing = e.key === 'Escape';
-      const accel = clearing ? '' : summonAccelerator(e);
-      if (!clearing && !accel) return;
-      const res = await csp.setCommandBinding(key, accel);
-      if (res && res.ok) {
-        input.value = accel;
-        input.classList.remove('invalid');
-        input.title = window.Iro.t('settings.commands.recordHint');
-      } else {
-        input.classList.add('invalid');
-        input.title = window.Iro.t('settings.commands.taken');
+
+  if (shortcutSelection.startsWith('palette:')) {
+    const id = shortcutSelection.slice('palette:'.length);
+    const palette = shortcutData.palettes.find((p) => p.id === id);
+    if (!palette) {
+      shortcutSelection = 'app';
+      renderShortcutDetail();
+      return;
+    }
+    title.textContent = palette.name || 'Palette';
+    const pair = shortcutData.catalog.palettes[id] || {
+      mode: 'toggle', toggle: '', hold: '', autoDismiss: false, position: 'keep',
+    };
+    shortcutLabelRow(
+      window.Iro.t('settings.shortcuts.mode'),
+      shortcutMode(pair.mode, `palette:${id}`),
+      window.Iro.t('settings.shortcuts.gateHint'),
+    );
+    if (pair.mode === 'toggle') {
+      shortcutLabelRow(
+        window.Iro.t('settings.shortcuts.showPalette'),
+        shortcutInput(pair.toggle, async (accel) => {
+          const res = await csp.setShortcut({ target: `palette:${id}`, action: 'toggle', accel });
+          if (res && res.ok) pair.toggle = accel;
+          return res;
+        }, { allowBare: true }),
+        window.Iro.t('settings.shortcuts.bareHint'),
+      );
+      shortcutLabelRow(
+        window.Iro.t('settings.shortcuts.autoDismiss'),
+        shortcutAutoDismiss(Boolean(pair.autoDismiss), `palette:${id}`),
+        window.Iro.t('settings.shortcuts.autoDismissHint'),
+      );
+    } else if (pair.mode === 'hold') {
+      shortcutLabelRow(
+        window.Iro.t('settings.shortcuts.holdPalette'),
+        shortcutInput(pair.hold, async (accel) => {
+          const res = await csp.setShortcut({ target: `palette:${id}`, action: 'hold', accel });
+          if (res && res.ok) pair.hold = accel;
+          return res;
+        }, { allowBare: true }),
+        window.Iro.t('settings.shortcuts.bareHint'),
+      );
+    } else {
+      shortcutLabelRow(
+        window.Iro.t('settings.shortcuts.trigger'),
+        null,
+        window.Iro.t('settings.shortcuts.afterPickHint'),
+      );
+    }
+    shortcutLabelRow(
+      window.Iro.t('settings.shortcuts.whenShown'),
+      shortcutPosition(pair.position, `palette:${id}`),
+      window.Iro.t('settings.shortcuts.positionHint'),
+    );
+    return;
+  }
+
+  if (shortcutSelection.startsWith('module:')) {
+    const moduleId = shortcutSelection.slice('module:'.length);
+    title.textContent = moduleName(moduleId);
+    const instances = shortcutInstances().filter((i) => i.moduleId === moduleId);
+    const commands = shortcutData.catalog.commands || [];
+    if (!instances.length) {
+      shortcutHint(window.Iro.t('settings.shortcuts.noInstance'));
+      return;
+    }
+    instances.forEach((inst, index) => {
+      const head = document.createElement('div');
+      head.className = 'shortcut-instance-title';
+      head.textContent = `${moduleName(moduleId)} ${index + 1}${inst.hidden ? ` (${window.Iro.t('settings.shortcuts.hidden')})` : ''}`;
+      el.shortcutDetail.append(head);
+      const rows = commands.filter((c) => c.instanceId === inst.instanceId);
+      if (!rows.length) {
+        shortcutHint(window.Iro.t('settings.shortcuts.noCommands'));
+        return;
+      }
+      for (const entry of rows) {
+        const key = `${entry.instanceId}:${entry.command}`;
+        shortcutLabelRow(
+          `${entry.name} · ${entry.command}`,
+          shortcutInput(entry.binding || '', async (accel) => {
+            const res = await csp.setCommandBinding(key, accel);
+            if (res && res.ok) entry.binding = accel;
+            return res;
+          }),
+        );
       }
     });
-    row.append(label, input);
-    el.commandList.append(row);
+    return;
   }
+  shortcutSelection = 'app';
+  renderShortcutDetail();
 }
 
 /**
@@ -1409,7 +1829,7 @@ async function renderCommandList() {
  * modifier-only press, an unsupported key, or a plain key with no modifier
  * (which would swallow typing system-wide). Esc is handled by the caller.
  */
-function summonAccelerator(e) {
+function summonAccelerator(e, { allowBare = false } = {}) {
   const NAMED = {
     ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
     Enter: 'Return', Backspace: 'Backspace', Delete: 'Delete', Home: 'Home', End: 'End',
@@ -1426,7 +1846,7 @@ function summonAccelerator(e) {
   if (e.altKey) mods.push('Alt');
   if (e.shiftKey) mods.push('Shift');
   if (e.metaKey) mods.push('Super');
-  if (mods.length === 0 && !/^F\d{1,2}$/.test(main)) return '';
+  if (mods.length === 0 && !/^F\d{1,2}$/.test(main) && !allowBare) return '';
   mods.push(main);
   return mods.join('+');
 }
@@ -1436,10 +1856,11 @@ function wire() {
   // window) changes the instance list this tab is built from, so re-read the
   // layout and re-render whatever tab is showing.
   csp.onLayoutChanged?.(() => {
-    if (activeTab !== 'modules' && activeTab !== 'layout') return;
+    if (activeTab !== 'modules' && activeTab !== 'layout' && activeTab !== 'shortcuts') return;
     loadBoardLayout().then(() => {
       refreshModuleLights();
       if (activeTab === 'modules') renderModuleDetail();
+      else if (activeTab === 'shortcuts') refreshShortcutTab();
       else renderLayoutTab();
     });
   });
@@ -1573,29 +1994,6 @@ function wire() {
   if (el.setCspBrowse) el.setCspBrowse.addEventListener('click', browseCspFolder);
   if (el.setCspAuto) el.setCspAuto.addEventListener('click', () => window.csp.updateSettings({ cspDataDir: '' }).then(refreshCspFolder));
   el.setLogin.addEventListener('change', () => csp.updateSettings({ launchAtLogin: el.setLogin.checked }));
-  // The summon hotkey: capture the keys (never typing into the box) and hand the
-  // accelerator to main, which registers it and reports whether it took.
-  el.setSummon.addEventListener('focus', () => el.setSummon.select());
-  el.setSummon.addEventListener('keydown', async (e) => {
-    e.preventDefault();
-    if (e.key === 'Escape') {
-      const res = await csp.setSummonHotkey('');
-      if (res && res.ok) { el.setSummon.value = ''; el.setSummon.classList.remove('invalid'); }
-      return;
-    }
-    const accel = summonAccelerator(e);
-    if (!accel) return;
-    const res = await csp.setSummonHotkey(accel);
-    if (res && res.ok) {
-      el.setSummon.value = res.accelerator || '';
-      el.setSummon.classList.remove('invalid');
-      el.setSummon.title = window.Iro.t('settings.commands.recordHint');
-    } else {
-      el.setSummon.classList.add('invalid');
-      el.setSummon.title = window.Iro.t('settings.commands.taken');
-    }
-  });
-  el.setCross.addEventListener('change', () => csp.updateSettings({ crosshair: el.setCross.checked }));
   if (el.setViewFamily) {
     el.setViewFamily.addEventListener('change', () => csp.updateSettings({ viewFamily: el.setViewFamily.value }));
   }
@@ -1628,20 +2026,169 @@ function wire() {
   csp.onStatus(updateStatus);
   csp.onSettings(applySettings);
   csp.onUpdate(showUpdate);
+  // About: fixed local file links and the external links named in the credits list.
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!target || !target.closest) return;
+    const link = target.closest('[data-about-url]');
+    if (link) { csp.openExternal(link.dataset.aboutUrl).catch(() => {}); return; }
+    const open = target.closest('[data-about-open]');
+    if (open) csp.openAboutFile(open.dataset.aboutOpen).catch(() => {});
+  });
+  for (const [id, name] of [['about-license-text', 'license'], ['about-third-party', 'thirdParty']]) {
+    const box = document.getElementById(id);
+    const details = box && box.closest('details');
+    if (!details) continue;
+    details.addEventListener('toggle', async () => {
+      if (!details.open || box.textContent) return;
+      const text = await csp.aboutText(name).catch(() => '');
+      box.textContent = text || window.Iro.t('settings.about.unavailable');
+      requestAnimationFrame(fitWindow);
+    });
+  }
+  const aboutLicense = $('about-license-open');
+  if (aboutLicense) aboutLicense.addEventListener('click', () => csp.openAboutFile('license').catch(() => {}));
+  const aboutElectron = $('about-electron-license');
+  if (aboutElectron) aboutElectron.addEventListener('click', () => csp.openAboutFile('electronLicense').catch(() => {}));
+  const aboutChromium = $('about-chromium-notices');
+  if (aboutChromium) aboutChromium.addEventListener('click', () => csp.openAboutFile('chromiumNotices').catch(() => {}));
+  const aboutWhats = $('about-whats-new');
+  if (aboutWhats) aboutWhats.addEventListener('click', () => csp.openWhatsNew().catch(() => {}));
+  const aboutCheck = $('about-check');
+  if (aboutCheck) {
+    aboutCheck.addEventListener('click', async () => {
+      aboutCheck.disabled = true;
+      const note = $('about-note');
+      try {
+        const info = await csp.checkForUpdates();
+        showUpdate(info);
+        if (note) {
+          note.textContent = info && info.available
+            ? window.Iro.t('settings.update.available', { version: info.version })
+            : window.Iro.t('settings.conn.upToDate');
+        }
+      } catch {
+        if (note) note.textContent = window.Iro.t('settings.conn.checking');
+      } finally {
+        aboutCheck.disabled = false;
+      }
+    });
+  }
   el.update.addEventListener('click', () => {
     if (updateUrl) csp.openExternal(updateUrl).catch(() => {});
   });
+  if (el.install) {
+    el.install.addEventListener('click', installUpdate);
+    csp.onUpdateProgress((p) => {
+      if (!installing || !el.install) return;
+      if (p && p.phase === 'download') {
+        el.install.textContent = p.percent == null
+          ? window.Iro.t('settings.update.downloading')
+          : window.Iro.t('settings.update.downloadingPercent', { percent: p.percent });
+      } else if (p && p.phase === 'ready') {
+        el.install.textContent = window.Iro.t('settings.update.closing');
+      }
+    });
+  }
   el.check.addEventListener('click', checkUpdates);
+  if (el.autoCheck) {
+    el.autoCheck.addEventListener('change', async () => {
+      const on = el.autoCheck.checked;
+      try { await csp.updateSettings({ checkUpdatesAutomatically: on }); } catch { /* shown by the check */ }
+      // Turning it on is a request to know now; the main process also arms the timer.
+      if (on) checkUpdates();
+    });
+  }
+}
+
+// --- About tab -------------------------------------------------------------
+
+let aboutLoaded = false;
+
+/** One external-link button for the About tab. */
+function aboutLinkButton(label, url) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn tiny';
+  btn.textContent = label;
+  btn.dataset.aboutUrl = url;
+  return btn;
+}
+
+function renderAboutLinks() {
+  const box = document.getElementById('about-links');
+  if (!box || !window.IroCredits) return;
+  const links = window.IroCredits.links;
+  const rows = [
+    ['settings.about.repo', links.repo],
+    ['settings.about.releases', links.releases],
+    ['settings.about.issues', links.issues],
+    ['settings.about.guide', links.guide],
+    ['settings.about.contributing', links.contributing],
+    ['settings.about.changelog', links.changelog],
+  ];
+  box.replaceChildren(...rows.map(([key, url]) => aboutLinkButton(window.Iro.t(key), url)));
+  const data = document.createElement('button');
+  data.type = 'button';
+  data.className = 'btn tiny';
+  data.textContent = window.Iro.t('settings.about.dataFolder');
+  data.dataset.aboutOpen = 'data';
+  box.append(data);
+}
+
+function renderAboutCredits() {
+  const box = document.getElementById('about-credits');
+  if (!box || !window.IroCredits) return;
+  box.replaceChildren();
+  for (const credit of window.IroCredits.credits) {
+    const row = document.createElement('div');
+    row.className = 'about-credit';
+    if (credit.url) {
+      const name = document.createElement('button');
+      name.type = 'button';
+      name.className = 'about-credit-name';
+      name.textContent = credit.name;
+      name.dataset.aboutUrl = credit.url;
+      row.append(name);
+    } else {
+      const name = document.createElement('span');
+      name.className = 'about-credit-name';
+      name.textContent = credit.name;
+      row.append(name);
+    }
+    const meta = document.createElement('span');
+    meta.className = 'about-credit-meta';
+    meta.textContent = credit.license ? `${credit.role} — ${credit.license}` : credit.role;
+    row.append(meta);
+    box.append(row);
+  }
+}
+
+/** The About tab: version/build, links, credits and the license notices. */
+async function loadAbout() {
+  const about = await csp.getAbout().catch(() => null);
+  if (about) {
+    document.getElementById('about-version').textContent = `v${about.version}`;
+    const build = about.build === 'portable'
+      ? window.Iro.t('settings.about.buildPortable')
+      : about.build === 'installer'
+        ? window.Iro.t('settings.about.buildInstaller')
+        : window.Iro.t('settings.about.buildDev');
+    document.getElementById('about-build').textContent =
+      `${build} · Electron ${about.electron} · Chromium ${about.chrome} · Node ${about.node}`;
+  }
+  renderAboutLinks();
+  renderAboutCredits();
+  aboutLoaded = true;
+  requestAnimationFrame(fitWindow);
 }
 
 async function init() {
   wire();
   await themeRegistry.load();
   populateThemes();
-  populateLanguages();
   await loadProfiles();
   await loadModules();
-  renderModules();
   const snap = await csp.snapshot();
   previewColor = snap.color || null;
   // Load the catalog *before* the first paint: `applySettings` asks for it without
@@ -1652,7 +2199,9 @@ async function init() {
     await window.Iro.i18n.use(initialLanguage);
     appliedLanguage = initialLanguage;
   } catch { /* English fallback */ }
+  await populateLanguages();
   applySettings(snap.settings);
+  renderModules();
   // Reopen where the user left it; Appearance is only the first-run default.
   selectTab(snap.settings.settingsTab || 'appearance');
   updateStatus(snap.status);

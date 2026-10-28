@@ -126,14 +126,24 @@ test('a snapTo that does not exist clears the snap', () => {
   assert.equal(doc.palettes[0].snapTo, null);
 });
 
-test('defaultWorkspace is one palette with the three base modules', () => {
+test('defaultWorkspace follows the manifest order, filtered by the registry', () => {
   const doc = Model.defaultWorkspace({ registry: REGISTRY, newId: idGen() });
   assert.equal(doc.palettes.length, 1);
   assert.equal(doc.palettes[0].columns.length, 1);
   const modules = doc.palettes[0].columns[0].modules;
+  // The test registry only knows these three, so the rest of DEFAULT_IDS is filtered.
   assert.deepEqual(modules.map((m) => m.moduleId), ['csp-color', 'color-slices', 'color-slider']);
   assert.deepEqual(modules.map((m) => m.height.mode), ['auto', 'fill', 'auto']);
   assert.equal(doc.nextPaletteNumber, 2);
+});
+
+test('the shipped default workspace is Session first, then the pickers and the numbers', () => {
+  const Manifest = require('../src/shared/module-manifest');
+  const doc = Model.defaultWorkspace({ registry: Manifest.registry(), newId: idGen() });
+  assert.deepEqual(doc.palettes[0].columns[0].modules.map((m) => m.moduleId), [
+    'session', 'csp-color', 'color-wheel', 'color-slices',
+    'color-slider', 'color-history', 'color-stat',
+  ]);
 });
 
 // --- reduce: shape of the result ------------------------------------------
@@ -736,4 +746,24 @@ test('showing a hidden module as lone gives it its own column', () => {
   assert.equal(out.ok, true);
   assert.equal(out.doc.palettes[0].columns.length, 2);
   assert.deepEqual(out.doc.palettes[0].columns[1].modules.map((m) => m.instanceId), ['i2']);
+});
+
+// --- module minimize (collapsed) -------------------------------------------
+
+test('a module can be minimized and expanded, and the flag survives normalise', () => {
+  const doc = base();
+  const out = Model.reduce(doc, { type: 'module.setCollapsed', instanceId: 'i1', collapsed: true }, OPT);
+  assert.equal(out.ok, true);
+  const found = out.doc.palettes[0].columns[0].modules[0];
+  assert.equal(found.collapsed, true);
+  const again = Model.normalise(out.doc, OPT);
+  assert.equal(again.palettes[0].columns[0].modules[0].collapsed, true);
+  const back = Model.reduce(out.doc, { type: 'module.setCollapsed', instanceId: 'i1', collapsed: false }, OPT);
+  assert.equal(back.doc.palettes[0].columns[0].modules[0].collapsed, false);
+});
+
+test('module.setCollapsed refuses an unknown instance', () => {
+  const out = Model.reduce(base(), { type: 'module.setCollapsed', instanceId: 'nope', collapsed: true }, OPT);
+  assert.equal(out.ok, false);
+  assert.equal(out.error, 'unknown-instance');
 });

@@ -292,6 +292,40 @@ plausible refactor silently breaks it (that is the test for the core list).
   is transparent rather than stretched; `resizable` is dropped while collapsed
   and restored to `!locked` on expand. Wiring `board.setLocked()` in float.js is
   what keeps that restore correct.
+- **A module can be minimized to its header, and the flag is document state.**
+  `layout.js` writes `module.setCollapsed`; a minimized card hides only
+  `.module-body`, keeps its header (the drag and the ⋯), drops any locked
+  `aspect-ratio`, and contributes just the header height to the column minimum.
+  It counts as content-sized (`_isNatural`), so minimizing shrinks the parent
+  palette and expanding grows it again. A fill module's expanded height cannot be
+  derived from content, so the first minimize snapshots the window and the last
+  expand restores at least that height; without it the palette stayed at the
+  collapsed size and the expanded map was clipped. The minimized chevron points
+  left. Session and Color Stat are already one line and never get the button. Do not
+  store this in module settings: a workspace export must carry it, and an older
+  board that omits `collapsed` must read as expanded.
+- **A palette merge is confirmed, and Cancel restores the rectangles.** A whole
+  palette dropped over another would delete the source, so `drag-session.js`
+  returns a `pendingMerge` instead of committing. The overlay card answers it;
+  Cancel restores each member's original `x/y/width/height` and leaves the snap
+  graph untouched. A new drag, a hide, or a workspace load cancels the pending
+  merge first, so the card can never outlive the windows it describes.
+- **Show/hide shortcuts are gated by the foreground process.** A global key only
+  acts while CSP or an Iroiroppa window is foreground; if the watcher is down the
+  gate allows the action (it cannot know). A palette hidden by its own shortcut is
+  *suppressed*: `showPopupAuto` and `showFloats(true)` skip it, and General
+  show-all is what clears the set. Hold-to-show is a snapshot, not a toggle: it
+  reveals the target ignoring suppression and restores every window's previous
+  visibility on release. Hold works with Auto-hide on or off; focus loss ends it.
+- **One reveal mode per target, and bare keys use a hook.** `ShortcutModel` stores
+  `mode: toggle | hold | afterPick`; keys for the other modes are kept but
+  `bindings()` emits only the active one. A bare key is never a globalShortcut: a
+  `bare-keys.ps1` keyboard hook asks foreground/caret/dialog/IME/I-beam and the
+  Iroiroppa text-focus IPC before it blocks the key, and passes it through when
+  unsure. Toggle's optional auto-dismiss records what the toggle opened and hides it
+  on the next left down over CSP. The shortcut placement is ephemeral:
+  `saveWindowPlacement` and the float `report()` skip a window marked by
+  `markShortcutPlacement`, so repeated cursor reveals do not overwrite its home.
 
 ## UI & modules
 
@@ -484,10 +518,36 @@ plausible refactor silently breaks it (that is the test for the core list).
   palette. The Settings Auto-hide switch calls `applyAutoHide` at once. The watcher
   keeps running when Auto-hide is off, because the Companion worktime gate needs the
   foreground process; `focusState` then returns `keep`, so visibility is unchanged.
-- **The overlay profile menu is ten rows and never shrinks its rows.** `menuBox` caps
-  at `maxRows = 10`, sizes the overlay window before showing it, and the menu list
-  scrolls. `.overlay-menu-item` must keep `flex: 0 0 auto` and a line-height that does
-  not clip; the old flex-shrink squashed every row into half a line.
+- **The overlay is a helper surface, never the last-interacted window.** The band
+  watch may hide it only when nothing owns it: a menu, a tooltip, the merge
+  confirmation card, or an in-flight drag. **The window `show` handler uses the same
+  predicate**: it used to know only menu/tooltip, so the drag chip/lines and merge
+  card were hidden the instant they appeared. Menus/tooltips are re-raised after the
+  owner's raise (immediately, then at 40/160 ms), and while an **activatable** tool
+  window (Settings or the module popout) owns one, the watch re-asserts the overlay on
+  every tick: Windows can put the owner back above its menu when the click activates
+  it. A new menu resets the raise throttle, and a throttled raise still schedules its
+  trailing re-raise (the tooltip → menu burst used to swallow it). Otherwise the
+  500 ms band tick makes them blink behind Settings. Whenever it is owned the watch
+  raises it above the palette, and `showOverlay` re-asserts the full work-area surface
+  before drawing (a just-closed card used to leave it card-sized).
+- **A native `<select>`/`title=` may not own the visible list.** The OS popup and
+  native tooltip are outside the topmost band. `kernel/select-overlay.js` intercepts
+  the select's open and shows its options on the overlay; `kernel/tooltip.js` moves a
+  runtime `title` to `data-tip` on hover. Both settings hosts and the module popout
+  load the select helper.
+- **The overlay profile menu caps at ten rows and never shrinks them.** `menuBox`
+  sizes the window before showing it and includes the menu's border and flex gaps;
+  `renderMenu` enables scrolling only when `scrollHeight > clientHeight + 2`.
+  `.overlay-menu-item` must keep `flex: 0 0 auto` and a line-height that does not
+  clip; the old flex-shrink squashed every row into half a line, and an unconditional
+  `overflow-y:auto` showed a scrollbar on menus that already fit.
+- **The band is repaired, not re-raised, on a timer.** The 500 ms watch calls
+  `ensureBand(..., zorder:false)`; `topmost.ps1` returns without `SetWindowPos` when
+  the extended style already matches and uses `SWP_NOREDRAW` otherwise. Raises are
+  event-driven (`markInteracted` + dirty flag, `reassertBand`, a show) — a `zorder:true`
+  call every tick made every window flash. Focus-follow also does not re-show an
+  already-visible float or Settings window.
 - **The Modules light is a live indicator of *visible* instances.** `module-usage.js`
   counts columns and floats; hidden instances are counted separately. A light turns
   green for `visible > 0`, grey when every instance is hidden or none exists, and its

@@ -13,11 +13,17 @@ const { ForegroundWatcher } = require('./foreground');
 const { focusAction } = require('./focus-policy');
 const { overlayBounds } = require('./overlay-bounds');
 const { menuBox } = require('./overlay-menu-box');
+const { confirmBox } = require('./overlay-confirm-box');
+const { overlayShouldStay } = require('../shared/overlay-ownership');
 const { drawIcon, rgbaToBgra } = require('../shared/icon-art');
+const Match = require('../shared/shortcut-match');
 const { sendTo } = require('./broadcast');
 const { ensureBand, ensureTopmost, forgetBand } = require('./topmost');
 
-const SETTINGS_WIDTH = 360;
+const ShortcutModel = require('../shared/shortcut-model');
+const { positionBox } = require('../shared/shortcut-position');
+
+const SETTINGS_WIDTH = 468;
 
 function createWindows(ctx) {
   /**
@@ -26,28 +32,105 @@ function createWindows(ctx) {
    * dropped, src/main/topmost.js sets the flag with SetWindowPos instead. It is
    * a no-op once the window reports itself on top.
    */
-  const raiseTopmost = (win) => { ensureTopmost(win).catch(() => {}); };
+  function raiseTopmost(win) {
+    ensureTopmost(win).catch(() => {});
+  }
+
+  /** Re-add the topmost *bit* without moving the window in the band. */
+  function repairTopmost(win) {
+    ensureTopmost(win, { zorder: false }).catch(() => {});
+  }
   // The palette/float band: topmost *and* out of the activation path (topmost.js).
-  const raiseBand = (win, opts = {}) => { ensureBand(win, { noActivate: true, ...opts }).catch(() => {}); };
+  const raiseBand = (win, opts = {}) => {
+    ensureBand(win, { noActivate: true, ...opts }).catch(() => {});
+  };
+
+  /** Is the overlay still carrying something the user can see? */
+  function overlayOwned() {
+    return overlayShouldStay({
+      menu: Boolean(ctx.overlayMenu),
+      tooltip: Boolean(ctx.overlayTooltip),
+      confirm: Boolean(ctx.overlayConfirm),
+      dragging: Boolean(ctx.dragSession && typeof ctx.dragSession.active === 'function'
+        && ctx.dragSession.active()),
+      preview: Boolean(ctx.overlayPreview),
+    });
+  }
+
+  /** Raise the overlay above whichever window just raised itself. */
+  function raiseOverlayIfOwned() {
+    const ov = ctx.overlayWin;
+    if (!ov || ov.isDestroyed() || !ov.isVisible() || !overlayOwned()) return;
+    ensureTopmost(ov).catch(() => {});
+  }
+
+  /**
+   * Show-order repair: the window that opened a menu/tooltip may raise itself a
+   * moment later, so re-assert the overlay once on the next tick and once after
+   * the owner's show settles. Without this the overlay was covered for up to the
+   * 500 ms band-watch interval (the dropdown/tooltip "flash").
+   */
+  function raiseOverlayNow() {
+    const now = Date.now();
+    if (ctx.overlayRaisedAt && now - ctx.overlayRaisedAt < 120) {
+      // A burst (a tooltip then its menu) must not swallow the trailing raise.
+      setTimeout(() => raiseOverlayIfOwned(), 60);
+      return;
+    }
+    ctx.overlayRaisedAt = now;
+    raiseOverlayIfOwned();
+    // The owner may activate itself a moment later (Settings is an activatable
+    // window); these trailing raises land after that activation.
+    setTimeout(raiseOverlayIfOwned, 40);
+    setTimeout(raiseOverlayIfOwned, 160);
+  }
+
+  let bandDirty = false;
+  let raiseScheduled = false;
+  let overlayWasOwned = false;
+
+  /** Coalesce the focus/show burst into one immediate raise. */
+  function scheduleRaise() {
+    if (raiseScheduled) return;
+    raiseScheduled = true;
+    setImmediate(() => {
+      raiseScheduled = false;
+      raiseInteracted();
+    });
+  }
 
   // Window order follows the user: a focus (Settings, the popout) or a show (a palette
   // coming back, the overlay menu opening) makes that window the one to raise.
   app.on('browser-window-focus', (_event, win) => {
     if (!win || win.isDestroyed()) return;
     // A click anywhere else dismisses an open menu or tooltip (they live on the overlay).
-    if (win !== ctx.overlayWin && (ctx.overlayMenu || ctx.overlayTooltip)) {
+    // The owner window keeping focus must not dismiss its own dropdown.
+    const menuOwner = ctx.overlayMenu && ctx.overlayMenu.ownerWinId;
+    const tipOwner = ctx.overlayTooltip && ctx.overlayTooltip.ownerWinId;
+    const sameOwner = Boolean((menuOwner && win.id === menuOwner) || (tipOwner && win.id === tipOwner));
+    if (win !== ctx.overlayWin && (ctx.overlayMenu || ctx.overlayTooltip) && !sameOwner) {
       closeOverlayMenu();
       hideTooltip();
     }
-    ctx.lastInteracted = win;
+    markInteracted(win);
+    if (win !== ctx.overlayWin) scheduleRaise();
+    // The owner of an open menu/tooltip keeps its helper above it, even when the
+    // focus event is the activation that raised the owner over the menu.
+    if (sameOwner) raiseOverlayIfOwned();
   });
   app.on('browser-window-created', (_event, win) => {
     win.on('show', () => {
       if (!win.isDestroyed()) markInteracted(win);
       ensureOnScreen(win);
-      // A helper surface shown with nothing on it is a bug: hide it rather than leave a
-      // full-desktop transparent window in the band (and in Alt-Tab).
-      if (win === ctx.overlayWin && !ctx.overlayMenu && !ctx.overlayTooltip) win.hide();
+      if (win === ctx.overlayWin) {
+        // A helper surface shown with nothing on it is a bug; hide it rather than
+        // leave a full-desktop transparent window in the band. A drag, merge card,
+        // menu, or tooltip all count as an owner.
+        if (!overlayOwned()) win.hide();
+        else raiseOverlayNow();
+      } else {
+        scheduleRaise();
+      }
     });
   });
 
@@ -72,7 +155,7 @@ function createWindows(ctx) {
       }
       // Our own tool windows join the same list: order now follows the user, not a
       // fixed "tools last" rule.
-      for (const tool of [ctx.moduleSettingsWin, ctx.settingsWin, ctx.overlayWin]) {
+      for (const tool of [ctx.moduleSettingsWin, ctx.settingsWin, ctx.whatsNewWin, ctx.overlayWin]) {
         if (tool && !tool.isDestroyed() && tool.isVisible()) wins.push(tool);
       }
       // Order follows the user: every band window's *bit* is repaired without touching
@@ -82,18 +165,29 @@ function createWindows(ctx) {
       // made the palette flash over Settings (the "palette flashes on top then goes
       // behind" report).
       for (const win of wins) raiseBand(win, { zorder: false });
-      // Self-heal: the overlay is only for a menu or a tooltip.
+      // Self-heal: the overlay is only for a menu, a tooltip, the merge card, or an
+      // in-flight drag. The drag chip/line and the merge card have no menu/tooltip
+      // flag of their own; hiding them here made all four vanish every 500 ms.
+      const owned = overlayOwned();
       if (ctx.overlayWin && !ctx.overlayWin.isDestroyed() && ctx.overlayWin.isVisible()
-        && !ctx.overlayMenu && !ctx.overlayTooltip) ctx.overlayWin.hide();
+        && !owned) ctx.overlayWin.hide();
       raiseInteracted();
-      // The overlay (a menu or a tooltip) must stay above the window that opened it:
-      // raising that window every 500 ms put the palette over the menu half a second after
-      // it appeared ("it appears for a moment then disappears").
-      const ov = ctx.overlayWin;
-      if (ov && !ov.isDestroyed() && ov.isVisible() && (ctx.overlayMenu || ctx.overlayTooltip)) {
-        raiseTopmost(ov);
-        ov.moveTop();
+      // The overlay must stay above whatever opened it, but only when its
+      // ownership starts or the owner was just raised — not on every tick.
+      // The overlay (a menu or a tooltip) must stay above the window that opened it.
+      // Re-asserting it is safe; the old flash came from raising the *owner* every
+      // tick. While the owner is an activatable tool window (Settings, the popout),
+      // Windows can reorder it over the menu on a later activation, so keep the
+      // helper on top there as well.
+      if (owned && !overlayWasOwned) raiseOverlayNow();
+      if (owned) {
+        const ownerId = ctx.overlayMenu ? ctx.overlayMenu.ownerWinId
+          : (ctx.overlayTooltip ? ctx.overlayTooltip.ownerWinId : null);
+        const settingsId = ctx.settingsWin && !ctx.settingsWin.isDestroyed() ? ctx.settingsWin.id : null;
+        const popoutId = ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed() ? ctx.moduleSettingsWin.id : null;
+        if (ownerId && (ownerId === settingsId || ownerId === popoutId)) raiseOverlayIfOwned();
       }
+      overlayWasOwned = owned;
       if (!wins.length) stopBandWatch();
     }, 500);
     if (bandTimer.unref) bandTimer.unref();
@@ -290,6 +384,7 @@ function createPopup() {
       : (ctx.popupDesign || fallback);
     const paletteId = ctx.primaryPaletteId();
     if (!paletteId) return;
+    if (typeof ctx.isShortcutPlacement === 'function' && ctx.isShortcutPlacement(paletteId)) return;
     ctx.dispatchLayout({
       type: 'palette.setBounds',
       paletteId,
@@ -383,9 +478,9 @@ function createSettingsWindow() {
     return ctx.settingsWin;
   }
   ctx.settingsWin = new BrowserWindow({
-    width: 360,
+    width: 468,
     height: 480,
-    minWidth: 300,
+    minWidth: 390,
     minHeight: 200,
     show: false,
     frame: false,
@@ -421,27 +516,101 @@ function createSettingsWindow() {
 }
 
 /**
+ * The one-time What's New window. It reads the checked-in release note for the
+ * running version, follows the theme/language, and never takes focus from CSP
+ * (`showInactive`). Closing it records `lastSeenVersion` (main does that too, so an
+ * Alt+F4 still counts as seen).
+ */
+function createWhatsNewWindow() {
+  if (ctx.whatsNewWin && !ctx.whatsNewWin.isDestroyed()) {
+    ctx.whatsNewWin.showInactive();
+    raiseBand(ctx.whatsNewWin, { zorder: true });
+    return ctx.whatsNewWin;
+  }
+  const win = new BrowserWindow({
+    width: 430,
+    height: 520,
+    minWidth: 360,
+    minHeight: 300,
+    show: false,
+    frame: false,
+    resizable: true,
+    maximizable: false,
+    minimizable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    backgroundColor: ctx.themeBackground(ctx.settings.get().theme),
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      additionalArguments: ctx.windowArgs || [],
+      sandbox: false,
+    },
+  });
+  ctx.whatsNewWin = win;
+  win.setAlwaysOnTop(true, 'screen-saver');
+  win.loadFile(path.join(__dirname, '..', 'renderer', 'whats-new.html'));
+  win.webContents.on('did-finish-load', () => applyZoom(win));
+  win.once('ready-to-show', () => {
+    win.showInactive();
+    // The note is one-time and must outrank the palette; the palette's own band
+    // raise otherwise puts it behind.
+    raiseBand(win, { zorder: true });
+  });
+  win.on('closed', () => {
+    ctx.whatsNewWin = null;
+    if (typeof ctx.markWhatsNewSeen === 'function') ctx.markWhatsNewSeen();
+  });
+  return win;
+}
+
+/** Close the What's New window (the palette hiding does the same, without recording it). */
+function closeWhatsNewWindow() {
+  if (!ctx.whatsNewWin || ctx.whatsNewWin.isDestroyed()) return;
+  ctx.whatsNewWin.close();
+}
+
+/** Open (or focus) What's New, if the running version has a checked-in note. */
+function openWhatsNew() {
+  const info = typeof ctx.getWhatsNew === 'function' ? ctx.getWhatsNew() : null;
+  if (!info) return false;
+  createWhatsNewWindow();
+  return true;
+}
+
+/**
  * Show the palette. It never takes focus (the window is non-activating), so
  * clicking it does not pull focus away from Clip Studio Paint.
+ *
+ * `clearSuppression` is what separates "show everything" (the General shortcut,
+ * the tray, Alt+click) from the focus watcher: the watcher must not resurrect a
+ * palette the user hid with its own shortcut.
  */
-function showPopup() {
+function showPopup({ includeSettings = true, atCursor = false, clearSuppression = true, forceFloats = false } = {}) {
+  if (clearSuppression) suppressedPalettes.clear();
   resetInputState();
   if (!ctx.popup) createPopup();
   if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.webContents.isCrashed()) {
     try { ctx.popup.webContents.reload(); } catch { /* recovery already scheduled */ }
   }
-  // Position only the first time; afterwards remember where the user put it.
-  if (!ctx.hasPositioned) {
-    positionPopup();
-    ctx.hasPositioned = true;
+  if (atCursor) positionWindowAtCursor(ctx.popup);
+  else if (!ctx.hasPositioned) positionPopup();
+  ctx.hasPositioned = true;
+  if (ctx.popup && !ctx.popup.isDestroyed()) {
+    if (!ctx.popup.isVisible()) ctx.popup.showInactive();
+    raiseBand(ctx.popup, { zorder: true });
+    markInteracted(ctx.popup);
   }
-  if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.showInactive();
-  raiseBand(ctx.popup);
   startBandWatch();
   traceVisibility('show');
-  ctx.showFloats(true);
-  if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.showInactive();
-  raiseTopmost(ctx.settingsWin);
+  ctx.showFloats(true, { force: forceFloats });
+  if (includeSettings && ctx.settingsWin && !ctx.settingsWin.isDestroyed()) {
+    if (!ctx.settingsWin.isVisible()) ctx.settingsWin.showInactive();
+    raiseTopmost(ctx.settingsWin);
+    markInteracted(ctx.settingsWin);
+  }
+  bandDirty = false;
   // A palette that just appeared is the moment to look for the QR, not the next timer tick.
   scheduleAutoConnect({ immediate: true });
 }
@@ -453,22 +622,38 @@ function showPopupAuto() {
   if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.webContents.isCrashed()) {
     try { ctx.popup.webContents.reload(); } catch { /* recovery already scheduled */ }
   }
-  // Keep wherever the user last put it; only place it the first time.
-  if (!ctx.hasPositioned) {
-    positionPopup();
-    ctx.hasPositioned = true;
+  const primaryId = ctx.primaryPaletteId();
+  const primaryHidden = primaryId && suppressedPalettes.has(primaryId);
+  if (!primaryHidden) {
+    // Keep wherever the user last put it; only place it the first time.
+    if (!ctx.hasPositioned) {
+      positionPopup();
+      ctx.hasPositioned = true;
+    }
+    if (ctx.popup && !ctx.popup.isDestroyed()) {
+      if (!ctx.popup.isVisible()) ctx.popup.showInactive();
+      raiseBand(ctx.popup, { zorder: true });
+      markInteracted(ctx.popup);
+      bandDirty = false;
+    }
+    traceVisibility('show');
   }
-  if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.showInactive();
-  raiseBand(ctx.popup);
-  startBandWatch();
-  traceVisibility('show');
   ctx.showFloats(true);
-  if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.showInactive();
-  raiseTopmost(ctx.settingsWin);
+  if (anyBandVisible()) startBandWatch();
+  // Keep an already-open Settings window's band bit; do not re-show or re-raise it
+  // from focus-follow (that flashed Settings whenever the palette reappeared).
+  if (ctx.settingsWin && !ctx.settingsWin.isDestroyed() && ctx.settingsWin.isVisible()) {
+    repairTopmost(ctx.settingsWin);
+  }
   scheduleAutoConnect({ immediate: true });
 }
 
 function hidePopup() {
+  // An unanswered merge question cannot outlive the windows it is asking about.
+  if (typeof ctx.cancelPendingMerge === 'function') ctx.cancelPendingMerge();
+  // The automatic after-pick reveal is over; do not try to hide its windows
+  // again after `showFloats(false)` below.
+  if (typeof ctx.clearAfterPickShortcut === 'function') ctx.clearAfterPickShortcut();
   // The palette menu is drawn by the overlay: it must not outlive the palette.
   closeOverlayMenu();
   hideTooltip();
@@ -476,6 +661,8 @@ function hidePopup() {
   ctx.showFloats(false);
   // The Settings window goes away with the palette and returns with it.
   if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.hide();
+  // What's New is a one-time dialog, not a palette tool: it stays until its own
+  // Close button (auto-hide must not hide the note before it is read).
   if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.hide();
   stopBandWatch();
   traceVisibility('hide');
@@ -501,6 +688,177 @@ function togglePopup() {
   else showPopup();
 }
 
+/** Is any palette (the popup or a float) currently on screen? */
+function anyBandVisible() {
+  if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.isVisible()) return true;
+  for (const win of (ctx.floatWins ? ctx.floatWins.values() : [])) {
+    if (win && !win.isDestroyed() && win.isVisible()) return true;
+  }
+  return false;
+}
+
+/**
+ * The General shortcut: hide everything when anything is visible, otherwise
+ * show everything. This is deliberately broader than `togglePopup`, which the
+ * tray still uses for the primary window alone.
+ */
+function toggleAllWindows() {
+  if (anyBandVisible()) hidePopup();
+  else showPopup({ includeSettings: true });
+}
+
+// --- per-palette visibility -------------------------------------------------
+// A palette hidden by its own shortcut is *suppressed*: the Auto-hide watcher
+// must not revive it on the next focus change. The set is session-only and is
+// cleared by General show-all, Alt+click's app target, or a restart.
+const suppressedPalettes = new Set();
+
+const paletteIds = () => (ctx.currentWorkspace().palettes || []).map((p) => p.id);
+const paletteExists = (id) => Boolean(id && (ctx.currentWorkspace().palettes || []).some((p) => p.id === id));
+const paletteVisible = (id) => {
+  const win = id ? ctx.windowForPalette(id) : null;
+  return Boolean(win && !win.isDestroyed() && win.isVisible());
+};
+
+// A shortcut placement is visible but not the palette's remembered home. The
+// window's own debounced bounds report is skipped for a moment so repeated
+// Toggle/After-pick reveals do not keep overwriting layout.json.
+const shortcutPlacements = new Map(); // paletteId -> expiresAt
+function markShortcutPlacement(id) {
+  if (!id) return;
+  shortcutPlacements.set(id, Date.now() + 800);
+}
+function isShortcutPlacement(id) {
+  const until = shortcutPlacements.get(id);
+  if (!until) return false;
+  if (Date.now() > until) { shortcutPlacements.delete(id); return false; }
+  return true;
+}
+function clearShortcutPlacement(id) {
+  if (id) shortcutPlacements.delete(id);
+  else shortcutPlacements.clear();
+}
+
+/** Place a revealed window relative to the pointer without persisting the move. */
+function positionShortcutWindow(paletteId, mode) {
+  if (!paletteId || !mode || mode === 'keep') return false;
+  const win = ctx.windowForPalette(paletteId);
+  if (!win || win.isDestroyed()) return false;
+  const cursor = screen.getCursorScreenPoint();
+  const area = screen.getDisplayNearestPoint(cursor).workArea;
+  const b = win.getBounds();
+  const box = positionBox({ mode, cursor, size: { width: b.width, height: b.height }, area });
+  if (!box) return false;
+  markShortcutPlacement(paletteId);
+  win.setBounds({ x: box.x, y: box.y, width: b.width, height: b.height });
+  return true;
+}
+
+/** Put a window's top-left beside the cursor, clamped into that display's work area. */
+function positionWindowAtCursor(win) {
+  if (!win || win.isDestroyed()) return;
+  const point = screen.getCursorScreenPoint();
+  const area = screen.getDisplayNearestPoint(point).workArea;
+  const b = win.getBounds();
+  const x = Math.max(area.x + 4, Math.min(Math.round(point.x + 12), area.x + area.width - b.width - 4));
+  const y = Math.max(area.y + 4, Math.min(Math.round(point.y + 12), area.y + area.height - b.height - 4));
+  win.setBounds({ x, y, width: b.width, height: b.height });
+}
+
+function showPaletteWindow(paletteId, { atCursor = false, keepSuppressed = false } = {}) {
+  if (!paletteExists(paletteId)) return false;
+  if (!keepSuppressed) suppressedPalettes.delete(paletteId);
+  if (paletteId === ctx.primaryPaletteId() && !ctx.popup) createPopup();
+  let win = ctx.windowForPalette(paletteId);
+  if (!win && typeof ctx.openPane === 'function') win = ctx.openPane(paletteId);
+  if (!win || win.isDestroyed()) return false;
+  if (atCursor) positionWindowAtCursor(win);
+  win.showInactive();
+  raiseBand(win);
+  startBandWatch();
+  return true;
+}
+
+function hidePaletteWindow(paletteId, { suppress = true } = {}) {
+  const win = ctx.windowForPalette(paletteId);
+  if (suppress) suppressedPalettes.add(paletteId);
+  if (win && !win.isDestroyed()) win.hide();
+  if (!anyBandVisible()) stopBandWatch();
+}
+
+function togglePaletteWindow(paletteId) {
+  const win = ctx.windowForPalette(paletteId);
+  if (win && !win.isDestroyed() && win.isVisible()) hidePaletteWindow(paletteId);
+  else showPaletteWindow(paletteId);
+}
+
+const isPaletteSuppressed = (id) => suppressedPalettes.has(id);
+
+/** Forget hidden flags for palettes that no longer exist. */
+function pruneSuppressed() {
+  const live = new Set(paletteIds());
+  for (const id of [...suppressedPalettes]) if (!live.has(id)) suppressedPalettes.delete(id);
+}
+
+// --- hold-to-show -----------------------------------------------------------
+// A hold is momentary: capture what was visible, reveal the target ignoring the
+// hidden set, then put every window back exactly as it was on release. The
+// suppression set is never touched, so a hidden palette returns to hidden.
+function captureShortcutVisibility(target) {
+  const parsed = ShortcutModel.parseTarget(target) || { kind: 'app' };
+  const ids = parsed.kind === 'palette' ? [parsed.paletteId] : paletteIds();
+  const palette = {};
+  for (const id of ids) {
+    const win = ctx.windowForPalette(id);
+    palette[id] = Boolean(win && !win.isDestroyed() && win.isVisible());
+  }
+  return { palette, settings: Boolean(ctx.settingsWin && !ctx.settingsWin.isDestroyed() && ctx.settingsWin.isVisible()) };
+}
+
+function showShortcutTarget(target, { clearSuppression = false, includeSettings = true } = {}) {
+  const parsed = ShortcutModel.parseTarget(target) || { kind: 'app' };
+  if (parsed.kind === 'app') {
+    showPopup({ includeSettings, clearSuppression, forceFloats: true });
+    return;
+  }
+  showPaletteWindow(parsed.paletteId, { keepSuppressed: !clearSuppression });
+}
+
+function restoreShortcutVisibility(snapshot) {
+  if (!snapshot) return;
+  for (const [id, wasVisible] of Object.entries(snapshot.palette || {})) {
+    const win = ctx.windowForPalette(id);
+    if (!win || win.isDestroyed()) continue;
+    if (wasVisible) {
+      win.showInactive();
+      raiseBand(win);
+    } else {
+      win.hide();
+    }
+  }
+  if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) {
+    if (snapshot.settings) {
+      ctx.settingsWin.showInactive();
+      raiseTopmost(ctx.settingsWin);
+    } else {
+      ctx.settingsWin.hide();
+    }
+  }
+  if (anyBandVisible()) startBandWatch();
+  else stopBandWatch();
+}
+
+/**
+ * Shortcuts are only meaningful while the user is drawing or configuring:
+ * CSP foreground, or one of our own windows. If the foreground watcher is
+ * down we cannot know, so we keep them working rather than strand the user.
+ */
+function isShortcutActive() {
+  if (!ctx.fgWatcher || !ctx.fgHealthy) return true;
+  const name = ctx.fgName || '';
+  return isCspProcess(name) || isOwnProcess(name);
+}
+
 /**
  * Clear every transient input owner before showing the palette: a menu, the
  * module-settings popout, or a pointer capture left over from a drag can
@@ -518,9 +876,9 @@ function resetInputState() {
   }
   for (const win of wins) {
     try { win.setEnabled(true); } catch { /* closing */ }
-    // The band is re-applied on every show: the window may have been hidden and
-    // re-shown, and Chromium drops the topmost bit when it rewrites the style.
-    raiseBand(win);
+    // This is an input reset, not a show/raise: a focus-follow show already has its
+    // own one raise. Re-applying the band here raised every palette and float on
+    // every show and was a source of whole-band flashing.
     sendTo(win, 'input:reset');
   }
   if (process.argv.includes('--trace-input') || ctx.traceInput) {
@@ -575,7 +933,9 @@ function reassertBand(webContents) {
     // window it resolves, never for a window id from the payload.
     if (webContents && win.webContents !== webContents) continue;
     markInteracted(win);
-    raiseBand(win);
+    raiseBand(win, { zorder: true });
+    bandDirty = false;
+    if (overlayOwned()) raiseOverlayIfOwned();
   }
 }
 
@@ -614,17 +974,27 @@ function markInteracted(win) {
   // The overlay is a helper surface (a menu or a tooltip), not a window the user works
   // in: it must never become the one window the watchdog raises.
   if (win === ctx.overlayWin) return;
-  if (win && !win.isDestroyed()) ctx.lastInteracted = win;
+  if (win && !win.isDestroyed()) {
+    ctx.lastInteracted = win;
+    bandDirty = true;
+  }
 }
 
 function raiseInteracted() {
+  if (!bandDirty) return;
   const win = ctx.lastInteracted;
   // `lastInteracted` must be a BrowserWindow: an IPC sender is a webContents, and
   // calling isVisible() on one threw inside the watchdog (the "isVisible is not a
   // function" crash).
-  if (!win || typeof win.isVisible !== 'function' || win.isDestroyed() || !win.isVisible()) return;
+  if (!win || typeof win.isVisible !== 'function' || win.isDestroyed() || !win.isVisible()) {
+    bandDirty = false;
+    return;
+  }
   if (isBandWindow(win)) raiseBand(win, { zorder: true });
   else raiseTopmost(win);
+  bandDirty = false;
+  // Keep a menu/tooltip above the owner we just raised, once per real raise.
+  if (overlayOwned()) raiseOverlayIfOwned();
 }
 
 /** Palettes and floats are kept out of the activation path; tool windows may activate. */
@@ -661,48 +1031,24 @@ async function setPaletteEditable(on) {
   }
 }
 
-// --- the summon hotkey -------------------------------------------------------
-// A system-wide key that shows/hides the palette even while Clip Studio Paint has
-// focus (docs/DEV.md). Only one is registered at a time; the accelerator is
-// stored in `settings.summonHotkey` (empty = none).
-let summonRegistered = '';
+// --- the summon hotkey (legacy name) -----------------------------------------
+// The General show/hide binding lives in `settings.shortcuts.app.toggle` now. This
+// wrapper exists for the `--summon-hotkey` development flag and old IPC; the real
+// registration is owned by src/main/shortcut-actions.js.
 
 /** A non-F-key accelerator needs at least one modifier, or it would swallow typing. */
 function validAccelerator(accel) {
-  if (!accel) return true;
-  const parts = String(accel).split('+').map((p) => p.trim()).filter(Boolean);
-  const mods = parts.filter((p) => /^(Ctrl|Control|Alt|Shift|Super|Meta|CommandOrControl|CmdOrCtrl|Command|Cmd)$/i.test(p));
-  const key = parts[parts.length - 1] || '';
-  return mods.length > 0 || /^F([1-9]|1[0-9]|2[0-4])$/i.test(key);
+  return Match.validAccelerator(accel);
 }
 
-/**
- * Register the palette's summon hotkey. Returns `{ ok, registered, accelerator,
- * error? }`; `ok:false` means the accelerator is invalid or already taken, so the
- * caller should not persist it.
- */
 function applySummonHotkey(accel) {
-  const next = String(accel || '').trim();
-  if (summonRegistered === next) return { ok: true, registered: Boolean(next), accelerator: next };
-  if (!validAccelerator(next)) return { ok: false, registered: false, accelerator: next, error: 'invalid' };
-  if (summonRegistered) {
-    try { globalShortcut.unregister(summonRegistered); } catch { /* keep going */ }
-    summonRegistered = '';
-  }
-  if (!next) return { ok: true, registered: false, accelerator: '' };
-  let ok = false;
-  try { ok = globalShortcut.register(next, togglePopup); } catch { ok = false; }
-  if (ok) summonRegistered = next;
-  return ok
-    ? { ok: true, registered: true, accelerator: next }
-    : { ok: false, registered: false, accelerator: next, error: 'taken' };
+  if (typeof ctx.applySummonShortcut === 'function') return ctx.applySummonShortcut(accel);
+  return { ok: false, registered: false, accelerator: String(accel || ''), error: 'unavailable' };
 }
 
-/** Release the summon hotkey (on quit). */
+/** Release the show/hide shortcuts (on quit). */
 function unregisterSummonHotkey() {
-  if (!summonRegistered) return;
-  try { globalShortcut.unregister(summonRegistered); } catch { /* keep going */ }
-  summonRegistered = '';
+  if (typeof ctx.stopShowShortcuts === 'function') ctx.stopShowShortcuts();
 }
 
 // --- per-module command hotkeys ---------------------------------------------
@@ -734,6 +1080,7 @@ function applyCommandHotkeys(bindings) {
     let ok = false;
     try {
       ok = globalShortcut.register(accel, () => {
+        if (!ctx.isShortcutActive || !ctx.isShortcutActive()) return;
         try {
           const p = ctx.commandRouter && ctx.commandRouter.call({ target, command, args: [] });
           if (p && typeof p.catch === 'function') p.catch(() => {});
@@ -790,6 +1137,7 @@ function applyUiScale() {
     win.setContentSize(Math.round(cssW * scale), Math.round(cssH * scale));
   }
   if (ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed()) applyZoom(ctx.moduleSettingsWin);
+  if (ctx.whatsNewWin && !ctx.whatsNewWin.isDestroyed()) applyZoom(ctx.whatsNewWin);
   // Grow each window's physical size with the zoom, keeping its CSS layout size
   // constant (so content is not clipped and the layout does not reflow).
   if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popupDesign) {
@@ -873,6 +1221,7 @@ function ensureOverlayWin() {
     // A menu may have been asked for before this window had a renderer to draw it (the window is
     // created lazily on first use), so it is re-sent here — the same reason the chip state is.
     if (ctx.overlayMenu) sendTo(ctx.overlayWin, 'overlay:menu', { items: ctx.overlayMenu.items });
+    if (ctx.overlayConfirm) sendTo(ctx.overlayWin, 'overlay:confirm', ctx.overlayConfirm);
   });
   ctx.overlayWin.on('closed', () => { ctx.overlayWin = null; });
   return ctx.overlayWin;
@@ -880,30 +1229,77 @@ function ensureOverlayWin() {
 
 /** Hide the drag chip (also used when a window disappears mid-drag). */
 function hideOverlay() {
+  // The merge card owns the same surface; a drag cleanup must not erase it.
+  if (ctx.overlayConfirm) return;
+  ctx.overlayPreview = false;
+  ctx.overlayRaisedAt = 0;
   if (ctx.overlayWin && !ctx.overlayWin.isDestroyed()) ctx.overlayWin.hide();
+}
+
+/**
+ * Show the merge warning on the overlay. The surface is sized to the card, so a
+ * click outside it reaches the app/window below instead of being swallowed by a
+ * full-desktop transparent window. Main owns the copy; the renderer only draws.
+ */
+function showOverlayConfirm(spec = {}) {
+  closeOverlayMenu();
+  hideTooltip();
+  const win = ensureOverlayWin();
+  const anchor = spec.anchor && Number.isFinite(spec.anchor.x) && Number.isFinite(spec.anchor.y)
+    ? spec.anchor
+    : screen.getCursorScreenPoint();
+  const area = screen.getDisplayNearestPoint({ x: Math.round(anchor.x), y: Math.round(anchor.y) }).workArea;
+  const box = confirmBox({ anchor, area, message: spec.message, detail: spec.detail });
+  // Mark it owned before resizing: a band-watch tick between the setBounds and the
+  // flag would otherwise see an ownerless overlay and hide the card.
+  ctx.overlayConfirm = {
+    title: String(spec.title || ''),
+    message: String(spec.message || ''),
+    detail: String(spec.detail || ''),
+    confirmLabel: String(spec.confirmLabel || 'OK'),
+    cancelLabel: String(spec.cancelLabel || 'Cancel'),
+    danger: spec.danger === true,
+  };
+  win.setBounds(box);
+  ctx.overlayBox = win.getBounds();
+  win.setIgnoreMouseEvents(false);
+  sendTo(win, 'overlay:confirm', ctx.overlayConfirm);
+  win.setAlwaysOnTop(true, 'screen-saver');
+  if (!win.isVisible()) win.showInactive();
+  raiseOverlayNow();
+}
+
+function closeOverlayConfirm() {
+  ctx.overlayConfirm = null;
+  ctx.overlayRaisedAt = 0;
+  const win = ctx.overlayWin;
+  if (!win || win.isDestroyed()) return;
+  sendTo(win, 'overlay:confirm', null);
+  win.setIgnoreMouseEvents(true);
+  win.hide();
 }
 
 /** Show, move or hide the drag chip and the drop indicator. */
 function showOverlay(sender, spec = {}) {
   if (spec.hide) {
+    ctx.overlayPreview = false;
     hideOverlay();
     return;
   }
+  // The dev `--drag-overlay` screenshot is not backed by a live drag session; it is
+  // a preview owner on the same surface.
+  if (spec.preview) ctx.overlayPreview = true;
   const win = ensureOverlayWin();
   // The surface covers the union of the displays' work areas (not a whole display:
   // that is what Windows 11 reads as full-screen and turns Do Not Disturb on), and it
-  // must stay **still** for the whole drag: moving it mid-drag changes the origin every
-  // position is measured against, which is what made the chip and the line jump between
-  // "cut off" and "whole" in a loop (the user's report). So it is re-asserted
-  // once, at the start of a drag (the first tick, when the window is not yet visible), and positions
-  // are then clamped into it rather than the window being chased after the pointer.
-  if (!win.isVisible()) {
-    const wanted = overlayBox();
-    const now = win.getBounds();
-    if (now.x !== wanted.x || now.y !== wanted.y
-      || now.width !== wanted.width || now.height !== wanted.height) {
-      win.setBounds(wanted);
-    }
+  // must stay **still** for the whole drag. Re-assert the full bounds whenever they
+  // differ: a just-closed menu/confirm card shrank the window, and a drag started
+  // after that used to keep the card-sized surface (the chip was clipped away).
+  const wanted = overlayBox();
+  const now = win.getBounds();
+  if (now.x !== wanted.x || now.y !== wanted.y
+    || now.width !== wanted.width || now.height !== wanted.height) {
+    win.setBounds(wanted);
   }
   let box = win.getBounds();
   const px = Number(spec.x) || 0;
@@ -953,8 +1349,11 @@ function showOverlay(sender, spec = {}) {
   })) : [];
   ctx.overlayState = { text: String(spec.text || ''), hint: Boolean(spec.hint), chip, line, zones, previews };
   sendTo(win, 'overlay:update', ctx.overlayState);
-  if (!win.isVisible()) win.showInactive();
-  else win.moveTop(); // keep it above the palette and every float
+  const wasVisible = win.isVisible();
+  if (!wasVisible) win.showInactive();
+  if (!wasVisible) raiseTopmost(win);
+  // Never call `moveTop()` here: Chromium's HWND_TOP move removes the topmost
+  // band, so the drag chip/line would drop behind the palette on every tick.
 }
 
 /**
@@ -965,6 +1364,7 @@ function showOverlay(sender, spec = {}) {
  * else is covered. `setIgnoreMouseEvents(false)` lasts only as long as the menu is open.
  */
 function showOverlayMenu(sender, spec = {}) {
+  if (ctx.overlayConfirm) return; // the merge card owns the surface
   // The profile list can be long. The window shows at most 10 rows and scrolls
   // the rest; the CSS completes the fix by refusing to shrink the rows.
   const items = Array.isArray(spec.items) ? spec.items.slice(0, 200) : [];
@@ -989,7 +1389,16 @@ function showOverlayMenu(sender, spec = {}) {
   ctx.overlayBox = win.getBounds();
   // `menu` tells the pick handler which window asked; `palette` is the default so the
   // old palette menu keeps working unchanged.
-  ctx.overlayMenu = { items, menu: spec.menu || 'palette', senderId: sender ? sender.id : null };
+  ctx.overlayMenu = {
+    items,
+    menu: spec.menu || 'palette',
+    senderId: sender ? sender.id : null,
+    ownerWinId: (() => {
+      const owner = sender && typeof sender.isDestroyed === 'function'
+        ? sender : BrowserWindow.fromWebContents(sender);
+      return owner && !owner.isDestroyed() ? owner.id : null;
+    })(),
+  };
   win.setIgnoreMouseEvents(false);
   sendTo(win, 'overlay:menu', { items });
   // Above the palette: on Windows every always-on-top window is the same level, so
@@ -997,12 +1406,16 @@ function showOverlayMenu(sender, spec = {}) {
   // raised (a click, a drag) could sit over the menu (the user's report).
   win.setAlwaysOnTop(true, 'screen-saver');
   if (!win.isVisible()) win.showInactive();
-  win.moveTop();
+  // A new menu always gets its own raise; do not let a just-shown tooltip's
+  // throttle skip it.
+  ctx.overlayRaisedAt = 0;
+  raiseOverlayNow();
 }
 
 /** Close the palette menu and give the overlay back its click-through behaviour. */
 function closeOverlayMenu() {
   ctx.overlayMenu = null;
+  ctx.overlayRaisedAt = 0;
   const win = ctx.overlayWin;
   if (!win || win.isDestroyed()) return;
   sendTo(win, 'overlay:menu', null);
@@ -1018,6 +1431,7 @@ function closeOverlayMenu() {
  * `sender` is the window that asked; it stays the last-interacted window.
  */
 function showTooltip(sender, spec = {}) {
+  if (ctx.overlayConfirm) return;
   const text = String(spec.text || '').slice(0, 300);
   if (!text) { hideTooltip(); return; }
   if (ctx.overlayMenu) return; // A menu owns the surface while it is open (never close it).
@@ -1031,7 +1445,14 @@ function showTooltip(sender, spec = {}) {
   const x = Math.max(area.x + 4, Math.min(Math.round(anchorX + 12), area.x + area.width - width - 4));
   const y = Math.max(area.y + 4, Math.min(Math.round(anchorY + 14), area.y + area.height - height - 4));
   win.setBounds({ x, y, width, height });
-  ctx.overlayTooltip = { text };
+  ctx.overlayTooltip = {
+    text,
+    ownerWinId: (() => {
+      const owner = sender && typeof sender.isDestroyed === 'function'
+        ? sender : BrowserWindow.fromWebContents(sender);
+      return owner && !owner.isDestroyed() ? owner.id : null;
+    })(),
+  };
   win.setIgnoreMouseEvents(true);
   sendTo(win, 'overlay:tooltip', { text });
   win.setAlwaysOnTop(true, 'screen-saver');
@@ -1041,12 +1462,13 @@ function showTooltip(sender, spec = {}) {
     ? sender
     : BrowserWindow.fromWebContents(sender);
   if (senderWin && !senderWin.isDestroyed()) ctx.lastInteracted = senderWin;
-  win.moveTop();
+  raiseOverlayNow();
 }
 
 /** Hide the overlay tooltip; a menu on the same surface stays open. */
 function hideTooltip() {
   ctx.overlayTooltip = null;
+  ctx.overlayRaisedAt = 0;
   const win = ctx.overlayWin;
   if (!win || win.isDestroyed()) return;
   sendTo(win, 'overlay:tooltip', null);
@@ -1253,6 +1675,12 @@ function startFollowFocus() {
     ctx.fgHealthy = true;
     ctx.fgName = name;
     if (isCspProcess(name)) ctx.lastCspAt = Date.now();
+    // Leaving our own windows/CSP ends a hold: its snapshot must be restored even
+    // if the key-up arrives after focus moved.
+    if (!isCspProcess(name) && !isOwnProcess(name) && typeof ctx.endHoldShortcut === 'function') {
+      ctx.endHoldShortcut();
+    }
+    if (typeof ctx.setBareActiveShortcut === 'function') ctx.setBareActiveShortcut(ctx.isShortcutActive());
     if (!ctx.popup) return;
     const action = focusState(name);
     traceFocus('change', JSON.stringify({ name, action }));
@@ -1280,6 +1708,8 @@ function startFollowFocus() {
   ctx.fgSafety = setInterval(async () => {
     if (!ctx.popup || ctx.popup.isDestroyed() || ctx.popup.isVisible()) return;
     if (ctx.settings.get().autoHide === false) return;
+    // An explicit per-palette hide is the user's choice; do not fight it every 5 s.
+    if (typeof isPaletteSuppressed === 'function' && isPaletteSuppressed(ctx.primaryPaletteId())) return;
     let name = '';
     try { name = await ctx.fgWatcher.refresh(); } catch { name = ''; }
     if (!name || !isCspProcess(name)) return;
@@ -1419,7 +1849,7 @@ function refreshTray() {
 }
 
   return {
-    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, resetInputState, reassertBand, reassertTopmost: raiseTopmost, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayMenu, closeOverlayMenu, showTooltip, hideTooltip, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
+    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, createWhatsNewWindow, openWhatsNew, closeWhatsNewWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, toggleAllWindows, showPaletteWindow, hidePaletteWindow, togglePaletteWindow, paletteIds, paletteExists, paletteVisible, isPaletteSuppressed, pruneSuppressed, anyBandVisible, positionWindowAtCursor, positionShortcutWindow, markShortcutPlacement, isShortcutPlacement, clearShortcutPlacement, captureShortcutVisibility, showShortcutTarget, restoreShortcutVisibility, isShortcutActive, resetInputState, reassertBand, reassertTopmost: raiseTopmost, repairTopmost, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayConfirm, closeOverlayConfirm, showOverlayMenu, closeOverlayMenu, showTooltip, hideTooltip, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
   };
 }
 

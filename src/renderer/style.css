@@ -115,7 +115,12 @@ html, body {
   background: transparent; color: var(--text-faint); cursor: pointer;
 }
 .module-collapse:hover { color: var(--accent); }
-.module-collapse svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.module-collapse svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.12s; }
+/* A minimized card is its header: the body is gone, the chevron points up, and
+   the header stays draggable so it can be moved or expanded again. */
+.module.module-min > .module-body { display: none; }
+.module.module-min .module-collapse svg { transform: rotate(90deg); }
+.module.module-min { overflow: hidden; }
 
 .brand { display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
 .logo {
@@ -620,7 +625,20 @@ html, body {
 .session-state { font-size: var(--font-size); color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .session-name { flex: 0 0 auto; font-size: var(--font-size); white-space: nowrap; }
 .session-btn { flex: 0 0 auto; padding: 3px 8px; font-size: var(--font-size); }
-.session-profile { flex: 1 1 auto; min-width: 0; font-size: var(--font-size); padding: 2px 4px; }
+.session-profile { flex: 1 1 auto; min-width: 0; font-size: var(--font-size); padding: 2px 6px; }
+/* The profile dropdown: a small select-like control in the row. The list itself is
+   the overlay (a native <select> popup is outside the always-on-top band). */
+.session .session-profile {
+  display: inline-flex; align-items: center; gap: 4px; height: 22px;
+  border: 1px solid var(--line); border-radius: 5px; background: var(--input-bg);
+  color: var(--text); cursor: pointer; text-align: left;
+}
+.session .session-profile:hover { border-color: var(--accent); }
+.session-profile-name {
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.session-profile-chevron { flex: 0 0 auto; display: inline-flex; width: 10px; height: 10px; opacity: 0.65; }
+.session-profile-chevron svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* The dot is a *button* now - it is the connection action - so it must not look like
    one. The button is the hit area (>=12px, the `--shot` UI floor); the dot stays 7px,
    drawn by the pseudo, so the control is easy to press without growing visually. */
@@ -1293,13 +1311,16 @@ html[dir="rtl"] .slider-value,
 html[dir="rtl"] .slice-footer { direction: ltr; }
 html[dir="rtl"] .module-title,
 html[dir="rtl"] .module-head { text-align: right; }
-.csp-shortcuts-tabs { display: flex; gap: 2px; align-items: center; }
+.csp-shortcuts-tabs { display: flex; gap: 2px; align-items: stretch; }
 .csp-shortcuts-tab {
+  flex: 1 1 0; width: 50%; min-width: 0; text-align: center;
   font: inherit; font-size: 0.8em; padding: 1px 6px; border: 1px solid var(--line);
   border-radius: 4px; background: transparent; color: var(--text-dim); cursor: pointer;
 }
 .csp-shortcuts-tab.active { color: var(--text); background: var(--hover); }
-.csp-shortcuts-warn { margin-left: auto; color: var(--error); font-size: 0.75em; white-space: nowrap; }
+.csp-shortcuts-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.csp-shortcuts-meta .csp-shortcuts-source { flex: 1 1 auto; min-width: 0; }
+.csp-shortcuts-warn { flex: 0 0 auto; color: var(--error); font-size: 0.75em; white-space: nowrap; }
 .csp-shortcut-row.app { align-items: center; cursor: default; }
 .csp-shortcut-binding {
   width: 74px; flex: 0 0 auto; font: inherit; font-size: 0.8em; text-align: right;
@@ -1308,8 +1329,14 @@ html[dir="rtl"] .module-head { text-align: right; }
 }
 .csp-shortcut-binding:focus { border-bottom-color: var(--accent); }
 .csp-shortcut-binding.invalid { color: var(--error); }
-.csp-shortcuts-chips { display: flex; gap: 2px; flex-wrap: wrap; }
-.csp-shortcuts-chip { font: inherit; font-size: 0.72em; padding: 1px 5px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-dim); cursor: pointer; }
+.csp-shortcuts-chips { display: flex; gap: 2px; flex-wrap: nowrap; justify-content: flex-start; }
+.csp-shortcuts-chip {
+  flex: 0 0 auto; width: max-content; max-width: 100%; text-align: center;
+  font: inherit; font-size: 0.68em; padding: 1px 6px;
+  border: 1px solid var(--line); border-radius: 999px; background: transparent;
+  color: var(--text-dim); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .csp-shortcuts-chip.active { color: var(--text); background: var(--hover); border-color: var(--accent); }
 .csp-shortcuts-searchrow { display: flex; gap: 3px; align-items: center; }
 .csp-shortcuts-search { flex: 1 1 auto; min-width: 0; }

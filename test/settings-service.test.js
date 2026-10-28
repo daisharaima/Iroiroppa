@@ -23,6 +23,7 @@ function baseHooks(record = []) {
     stopFollowFocus: () => record.push(['stopFollowFocus']),
     scheduleAutoConnect: () => record.push(['scheduleAutoConnect']),
     applyLocked: (v) => record.push(['applyLocked', v]),
+    applyShortcuts: (next) => record.push(['applyShortcuts', next.shortcuts]),
     applySummonHotkey: noop,
     applyCommandHotkeys: noop,
     clearProofCaches: () => record.push(['clearProofCaches']),
@@ -62,6 +63,20 @@ test('commit runs the side effects a changed setting calls for', () => {
   assert.equal(svc.get().autoHide, true);
   assert.equal(svc.get().locked, true);
   assert.equal(svc.get().historyGate, true);
+});
+
+test('commit re-applies shortcuts when the block changes', () => {
+  const calls = [];
+  const svc = createSettingsService({
+    file: tmpFile(),
+    defaults: { shortcuts: { app: { mode: 'toggle', toggle: '', hold: '', autoDismiss: false, position: 'keep' } } },
+    hooks: baseHooks(calls),
+  });
+  svc.commit({ shortcuts: { app: { mode: 'afterPick', toggle: 'Ctrl+Alt+P', hold: '', autoDismiss: false, position: 'keep' } } });
+  assert.ok(calls.some((c) => c[0] === 'applyShortcuts'), 'a shortcut change re-registers');
+  calls.length = 0;
+  svc.commit({ autoHide: false });
+  assert.ok(calls.some((c) => c[0] === 'applyShortcuts'), 'Auto-hide still re-applies the holds');
 });
 
 test('commit keeps a most-recently-used proof-profile list (max 8)', () => {

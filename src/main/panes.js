@@ -148,6 +148,7 @@ function openFloatWindow(entry) {
     geo = setTimeout(() => {
       geo = null;
       if (win.isDestroyed()) return;
+      if (typeof ctx.isShortcutPlacement === 'function' && ctx.isShortcutPlacement(entry.floatId)) return;
       const b = win.getBounds();
       const z = ctx.uiScaleValue();
       // Geometry is document state, written as one intent (the layout service is
@@ -455,13 +456,19 @@ function floatWinFor(id) {
   return f ? ctx.floatWins.get(f.floatId) : null;
 }
 
-/** Show or hide every float alongside the palette. */
-function showFloats(show) {
-  for (const win of ctx.floatWins.values()) {
+/** Show or hide every float alongside the palette. A palette the user hid with its
+ *  own shortcut stays hidden unless `force` is set (a hold-to-show reveal). */
+function showFloats(show, { force = false } = {}) {
+  for (const [floatId, win] of ctx.floatWins) {
     if (win.isDestroyed()) continue;
     if (show) {
-      win.showInactive();
-      ensureBand(win, { noActivate: true }).catch(() => {});
+      if (!force && typeof ctx.isPaletteSuppressed === 'function' && ctx.isPaletteSuppressed(floatId)) continue;
+      // A focus-follow show calls this even when the float is already up. Calling
+      // showInactive/ensureBand again made every float blink on each palette show.
+      if (!win.isVisible()) {
+        win.showInactive();
+        ensureBand(win, { noActivate: true }).catch(() => {});
+      }
     } else {
       win.hide();
     }

@@ -249,6 +249,16 @@ function runShot(ctx) {
         if (moduleShow) dumpWorkspace('module show:', ctx.applyLayoutIntent({ type: 'module.show', instanceId: String(moduleShow).trim() }));
         const moduleRemove = argValue('--module-remove');
         if (moduleRemove) dumpWorkspace('module remove:', ctx.applyLayoutIntent({ type: 'module.remove', instanceId: String(moduleRemove).trim() }));
+        const moduleMin = argValue('--module-min');
+        if (moduleMin !== undefined) {
+          // `--module-min <instanceId>[:0]` collapses (or expands with :0) one card.
+          const [instanceId, mode] = String(moduleMin).split(':');
+          dumpWorkspace('module minimize:', ctx.applyLayoutIntent({
+            type: 'module.setCollapsed',
+            instanceId: instanceId.trim(),
+            collapsed: mode !== '0',
+          }));
+        }
         const summonAccel = argValue('--summon-hotkey');
         if (summonAccel !== undefined) {
           // Register the summon hotkey and report whether it took (docs/DEV.md).
@@ -603,6 +613,11 @@ function runShot(ctx) {
             const menuText = await ow.webContents.executeJavaScript(
               `JSON.stringify([...document.querySelectorAll('.overlay-menu-item')].map((n) => n.textContent))`,
             );
+            const menuScroll = await ow.webContents.executeJavaScript(
+              `(() => { const m = document.getElementById('overlay-menu');
+                 return m ? { scrollHeight: m.scrollHeight, clientHeight: m.clientHeight,
+                   scrolling: m.classList.contains('scrolling') } : null; })()`,
+            );
             const img = await ow.webContents.capturePage();
             const menuPath = shotPath.replace(/\.png$/i, '-menu.png');
             fs.writeFileSync(menuPath, img.toPNG());
@@ -610,6 +625,7 @@ function runShot(ctx) {
               overlayBounds: ow.getBounds(),
               paletteBounds: popup.getBounds(),
               items: JSON.parse(menuText),
+              scroll: menuScroll,
               file: menuPath,
             }));
           } else {
@@ -1034,6 +1050,24 @@ function runShot(ctx) {
               );
               await new Promise((r) => setTimeout(r, 400));
             }
+            if (process.argv.includes('--fake-update') && typeof ctx.setUpdateInfo === 'function') {
+              const portable = process.argv.includes('--fake-portable');
+              const v = '9.9.9';
+              ctx.setUpdateInfo({
+                available: true,
+                version: v,
+                url: `https://github.com/daisharaima/Iroiroppa/releases/tag/v${v}`,
+                build: portable ? 'portable' : 'installer',
+                downloads: {
+                  setup: `https://github.com/daisharaima/Iroiroppa/releases/download/v${v}/Iroiroppa.Setup.${v}.exe`,
+                  portable: `https://github.com/daisharaima/Iroiroppa/releases/download/v${v}/Iroiroppa-Portable-${v}.exe`,
+                },
+                downloadUrl: portable
+                  ? `https://github.com/daisharaima/Iroiroppa/releases/download/v${v}/Iroiroppa-Portable-${v}.exe`
+                  : `https://github.com/daisharaima/Iroiroppa/releases/download/v${v}/Iroiroppa.Setup.${v}.exe`,
+              });
+              await new Promise((r) => setTimeout(r, 250));
+            }
             const settingsShot = argValue('--settings-shot');
             if (settingsShot && ctx.settingsWin) {
               const b = ctx.settingsWin.getBounds();
@@ -1137,6 +1171,19 @@ function runShot(ctx) {
               } else {
                 console.log('menu shot late: the overlay is not visible');
               }
+            }
+          }
+        }
+        // The What's New dialog, for a scripted look at the note/credits window.
+        if (process.argv.includes('--whats-new')) {
+          if (ctx.openWhatsNew && ctx.openWhatsNew()) {
+            await new Promise((r) => setTimeout(r, 900));
+            const whatsNewShot = argValue('--whats-new-shot');
+            const win = ctx.whatsNewWin;
+            if (whatsNewShot && win && !win.isDestroyed()) {
+              const img = await win.webContents.capturePage();
+              fs.writeFileSync(whatsNewShot, img.toPNG());
+              console.log('whats-new shot:', JSON.stringify({ bounds: win.getBounds(), file: whatsNewShot }));
             }
           }
         }

@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an improvement or a new capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks. Iroiroppa is a solo project; a request is not a promise, but it is read."
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that Iroiroppa makes hard?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you tried
+      description: Other tools, workarounds, or settings.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Color pickers
+        - Color profiles / proofing
+        - Palette / layout
+        - Shortcuts
+        - Settings / interface
+        - Connection to Clip Studio Paint
+        - Documentation
+        - Other

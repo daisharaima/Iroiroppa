@@ -53,7 +53,6 @@
       this.connected = false;
       this.dragging = false;
       this.liveSync = true;
-      this.crosshair = true;
       this.viewFamily = 'all';
       this.history = []; // recently stored colours, newest first
       // Main enforces the drawing-only gate; the store skips its optimistic add
@@ -122,11 +121,6 @@
       this._emit();
     }
 
-    setCrosshair(on) {
-      this.crosshair = Boolean(on);
-      this._emit();
-    }
-
     setViewFamily(value) {
       const next = window.IroColorModels
         ? window.IroColorModels.normalizeFamily(value)
@@ -171,6 +165,8 @@
 
     modelLimited(model) {
       // True while the RGB-referenced spaces can only name sRGB colours (the notice).
+      // With proofing off the working gamut *is* sRGB, so there is nothing to warn about.
+      if (!this.proofOn()) return false;
       return window.IroColorModels
         ? window.IroColorModels.referenceLimited(model)
         : false;
@@ -182,6 +178,12 @@
 
     maxChroma(L, H) {
       return this.useWorkingGamut() ? this.proof.maxChroma(L, H, 0.6) : Color.maxChroma(L, H);
+    }
+
+    /** The *document's* gamut regardless of the display model: the region a picker
+     *  must paint as pickable (the disc uses this, not the recorded gamut). */
+    inDocumentGamut(L, C, H) {
+      return this.proofOn() && this.proof ? this.proof.inGamut({ L, C, H }) : Color.inGamut(L, C, H);
     }
 
     /** The *document's* gamut regardless of the proof-mode switch (the wheel's ring

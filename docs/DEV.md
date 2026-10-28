@@ -120,8 +120,9 @@ the document.
 
 ## Release checklist
 
-See `docs/RELEASE.md` — it is the single checklist, and the `release` skill
-carries the non-negotiables.
+The full release checklist is maintainer-private; the non-negotiables are in
+`AGENTS.md` and the `release` skill. Contributors only need `release-notes/vX.Y.Z.md`
+(the release workflow checks its shape).
 
 ## Development flags
 
@@ -194,11 +195,17 @@ human clicking:
 | `--module-duplicate <instanceId>` | a second instance, starting from that one's settings |
 | `--module-hide <instanceId>` / `--module-show <instanceId>` | hide an instance (mounted nowhere, settings kept) / mount it again |
 | `--module-remove <instanceId>` | delete an instance for good, placed or hidden |
-| `--summon-hotkey <accel>` | register a system-wide palette show/hide hotkey (e.g. `Ctrl+Alt+P`) and print whether it took — the summon-hotkey path |
+| `--module-min <instanceId>[:0]` | minimize the module card to its header (`:0` expands it) — the per-module minimize path |
+| `--summon-hotkey <accel>` | register the General show/hide shortcut (e.g. `Ctrl+Alt+P`) and print whether it took — the summon-hotkey path |
 | `--user-module <dir>` | use `<dir>` as the user-modules folder instead of `%APPDATA%\Iroiroppa\user-modules` (it must hold `<id>/module.js`), for a scripted load |
 | `--bind <instanceId>:<command>=<accel>[,<key>=<accel>…]` | register per-module command hotkeys and print which took (a clash is reported, `docs/MODULES.md` "Module commands") |
 | `--command <instanceId>:<name>[,<json args>]` | call a module command through the kernel bus from the palette renderer (retries ~3 s while the target mounts) and print the result — the end-to-end check for `docs/MODULES.md` "Module commands" |
 | `--settings-shot <png>` | with `--open-settings`, capture the Settings window itself (bounds + visibility + PNG) — for "the window is blank" reports |
+| `--settings-tab <name>` | with `--open-settings`, open that tab first (`general`, `appearance`, `modules`, `shortcuts`, `layout`, `about`) |
+| `--whats-new` | open the What's New dialog for the running version even when `lastSeenVersion` says it was seen |
+| `--whats-new-shot <png>` | with `--whats-new`, capture the What's New window |
+| `--fake-update` | with `--open-settings`, pretend v9.9.9 is available (shows the install action) |
+| `--fake-portable` | with `--fake-update`, use the portable “Replace & relaunch” label |
 | `--settings-shot-late <png>` | capture Settings **after** the tab/module/click actions (the normal shot is taken before them) |
 | `--menu-shot-late <png>` | capture the desktop overlay menu (a Model dropdown, the profile picker) after the actions — it is a separate window, so no page shot contains it |
 | `--settings-debug` | print the Settings window's live workspace, hidden instances, dots and module lights |
@@ -220,7 +227,7 @@ human clicking:
 | `--click main\|sub\|transparent` | click a colour-slot strip segment |
 | `--settings-cycle` | open Settings, focus a text field, close it; report visibility |
 | `--open-settings` | open the Settings window |
-| `--settings-tab general\|appearance\|modules\|layout` | with `--open-settings`, select that tab |
+| `--settings-tab general\|appearance\|modules\|shortcuts\|layout` | with `--open-settings`, select that tab |
 | `--accent-popup` | with `--open-settings`, open the accent picker popup |
 | `--ui-scale <n>` | set the UI scale (0.8–1.6) before the shot |
 | `--theme <id>` | set the theme before the shot (`light`/`dark` also work) |

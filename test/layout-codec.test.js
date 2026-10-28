@@ -37,14 +37,14 @@ test('heightFromV1 keeps an inexpressible stored height', () => {
 test('a fill column round-trips through v1', () => {
   const palette = {
     columns: [{ id: 'c1', width: 200, modules: [
-      { instanceId: 'i1', moduleId: 'm-plain', height: { mode: 'fill', weight: 25 } },
-      { instanceId: 'i2', moduleId: 'm-plain', height: { mode: 'fill', weight: 75 } },
+      { instanceId: 'i1', moduleId: 'm-plain', height: { mode: 'fill', weight: 25 }, collapsed: false },
+      { instanceId: 'i2', moduleId: 'm-plain', height: { mode: 'fill', weight: 75 }, collapsed: false },
     ] }],
   };
   const v1 = Codec.columnsToV1(palette);
   assert.deepEqual(v1, [{ id: 'c1', width: 200, modules: [
-    { instanceId: 'i1', moduleId: 'm-plain', weight: 25, ratio: null },
-    { instanceId: 'i2', moduleId: 'm-plain', weight: 75, ratio: null },
+    { instanceId: 'i1', moduleId: 'm-plain', weight: 25, ratio: null, collapsed: false },
+    { instanceId: 'i2', moduleId: 'm-plain', weight: 75, ratio: null, collapsed: false },
   ] }]);
   const back = Codec.columnsFromV1(v1, palette.columns, ctx);
   assert.deepEqual(back, palette.columns, 'a fill height round-trips exactly');
@@ -59,6 +59,19 @@ test('a px/auto height survives a v1 write untouched', () => {
   assert.equal(v1[0].modules[0].weight, null); // v1 cannot express a px height
   const back = Codec.columnsFromV1(v1, stored, ctx);
   assert.deepEqual(back[0].modules.map((m) => m.height), [{ mode: 'px', px: 88 }, { mode: 'auto' }]);
+});
+
+test('a minimized module round-trips through v1', () => {
+  const stored = [{ id: 'c1', width: 200, modules: [
+    { instanceId: 'i1', moduleId: 'm-plain', height: { mode: 'auto' }, collapsed: true },
+  ] }];
+  const v1 = Codec.columnsToV1({ columns: stored });
+  assert.equal(v1[0].modules[0].collapsed, true);
+  const back = Codec.columnsFromV1(v1, stored, ctx);
+  assert.equal(back[0].modules[0].collapsed, true);
+  // An older board that omits the key must not expand the card.
+  const old = Codec.columnsFromV1([{ id: 'c1', width: 200, modules: [{ instanceId: 'i1', moduleId: 'm-plain', weight: null }] }], stored, ctx);
+  assert.equal(old[0].modules[0].collapsed, true);
 });
 
 test('an added module with no instance id gets a fresh one', () => {

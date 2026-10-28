@@ -1,45 +1,33 @@
 # Appearance and language
 
-All of this lives under **Settings ▸ Appearance**. None of it changes how colours are picked — it changes how the tool feels.
+![The Appearance tab](images/settings-appearance.png)
 
-## Theme
+## Color model family
 
-A list of the themes that came with Iroiroppa: a light one, a dark one, and variants. Pick one and the palette repaints immediately.
+| Option | Effect |
+| --- | --- |
+| All | Show every model. |
+| OKLab | Limit model lists to OKLCH and the OKLab-family shapes. |
+| CIELAB | Limit model lists to CIELAB and CIELCH. |
+| HelmGen | Limit model lists to HelmGen and HelmGen LCH. |
 
-Themes only change paint — colours, corner rounding, shadows — never the size or position of anything, so switching never breaks your arrangement.
-
-If you add your own theme files to the `themes` folder in Iroiroppa's data folder, they appear in this list too.
-
-## Accent colour
-
-The small swatch next to **Accent colour**. Click it for a colour chooser with a hue slider and a hex field, and **Save** when you like it. The accent shows up on active controls and highlights.
-
-The reset button beside it puts the theme's own accent back.
-
-Your choice of accent is remembered per theme, so a dark theme and a light theme can each have their own.
+This changes the model menus only; the color stays the same.
 
 ## UI scale
 
-Slides the whole interface between **80%** and **160%**. The arrows step by 1%; the reset button returns to **100%**.
-
-This is the answer for a very large or very small monitor: at 100% on a 4K screen the palette can be tiny, and at 150% on a small laptop it can be comfortable. The window grows with the scale, and it remembers the size relative to the scale, so changing the scale later does not compound.
+Set the interface to 80–160%. Use the arrows for 1% steps or the reset button for 100%. The palette and Settings resize with the scale.
 
 ## Language
 
-**Match the system** follows your Windows language, and Iroiroppa ships in **28 languages** — English, Arabic, Czech, Danish, German, Spanish, Finnish, French, Hebrew, Hungarian, Indonesian, Italian, Japanese, Korean, Norwegian, Dutch, Polish, Brazilian Portuguese, Romanian, Russian, Swedish, Thai, Turkish, Ukrainian, Vietnamese, Simplified Chinese and Traditional Chinese.
+Choose **Match the system** or one of the 27 bundled languages. The palette and Settings both follow the choice.
 
-Change it and the whole interface, including the Settings window, follows.
+## Theme and accent
 
-## The rest of the tab
+Choose the light, dark or Blender-style theme. A theme changes colors, corners and shadows only; it does not move or resize anything. Custom themes go in the `themes` folder in Iroiroppa's data folder.
 
-| Setting | Default | What it does |
-| --- | --- | --- |
-| Show crosshair guides | on | Draws the crosshair and guide lines over the colour maps. Turn off for a cleaner look. |
-| Color model family | All | Narrows every model list — in every picker — to **OKLab**, **CIELAB** or **HelmGen**. Useful if the full list is too long. |
-| Hide module names | off | Keeps each module's title bar for dragging, but hides its name. |
+Click the swatch beside the theme to choose an accent color and **Save**. The reset button restores the theme's accent. Accents are stored per theme.
 
-**Color model family** is worth knowing about: the underlying colour is the same in every family, so this only tidies the menus. If you are learning OKLCH, leave it on **All** until the other names stop being interesting.
+## Other options
 
----
-
-Nothing visibly changed? See [Troubleshooting](Troubleshooting).
+- **Hide module names** keeps each module's title bar but hides its name.
+- The **Color Slices** crosshair and lightness guide are in that module's **⋯** menu, not here.

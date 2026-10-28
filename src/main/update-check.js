@@ -31,12 +31,34 @@ function isNewer(latest, current) {
 }
 
 /**
+ * Pick the installer and portable assets for `version` from a release's asset list.
+ * electron-builder names them `Iroiroppa.Setup.<v>.exe` and
+ * `Iroiroppa-Portable-<v>.exe` (spaces become dots on the GitHub release).
+ * @returns {{setup:string, portable:string}}
+ */
+function pickReleaseAssets(assets, version) {
+  const out = { setup: '', portable: '' };
+  if (!Array.isArray(assets) || !version) return out;
+  const v = String(version).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const setupRe = new RegExp(`\\bsetup\\b.*${v}\\.exe$|Iroiroppa[.\\s_-]+Setup[.\\s_-]+${v}\\.exe$`, 'i');
+  const portableRe = new RegExp(`portable.*${v}\\.exe$|Iroiroppa-Portable-${v}\\.exe$`, 'i');
+  for (const asset of assets) {
+    const name = String((asset && asset.name) || '');
+    const url = String((asset && asset.browser_download_url) || '');
+    if (!name || !url) continue;
+    if (!out.portable && portableRe.test(name)) out.portable = url;
+    else if (!out.setup && setupRe.test(name)) out.setup = url;
+  }
+  return out;
+}
+
+/**
  * @param {object} opts
  * @param {string} opts.currentVersion the running version
  * @param {Function} [opts.fetchImpl] fetch-compatible; defaults to global fetch
  * @param {string} [opts.repo] owner/name
  * @param {number} [opts.timeoutMs]
- * @returns {Promise<{available:boolean, version?:string, url?:string}>} never throws
+ * @returns {Promise<{available:boolean, version?:string, url?:string, downloads?:{setup:string,portable:string}}>} never throws
  */
 async function checkForUpdates({ currentVersion, fetchImpl = globalThis.fetch, repo = DEFAULT_REPO, timeoutMs = 5000 } = {}) {
   if (typeof fetchImpl !== 'function') return { available: false };
@@ -57,6 +79,7 @@ async function checkForUpdates({ currentVersion, fetchImpl = globalThis.fetch, r
       available: true,
       version,
       url: (data && data.html_url) || `https://github.com/${repo}/releases/latest`,
+      downloads: pickReleaseAssets(data && data.assets, version),
     };
   } catch {
     return { available: false };
@@ -65,4 +88,4 @@ async function checkForUpdates({ currentVersion, fetchImpl = globalThis.fetch, r
   }
 }
 
-module.exports = { parseVersion, isNewer, checkForUpdates, DEFAULT_REPO };
+module.exports = { parseVersion, isNewer, checkForUpdates, pickReleaseAssets, DEFAULT_REPO };

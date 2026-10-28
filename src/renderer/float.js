@@ -74,7 +74,6 @@
       window.Iro.i18n.use(language);
     }
     store.liveSync = s.liveSync !== false;
-  store.crosshair = s.crosshair !== false;
   store.setViewFamily(s.viewFamily);
   store.historyGate = s.historyGate === true;
   store.markOutOfDisplay = s.markOutOfDisplay === true;
@@ -103,7 +102,6 @@
   try { await window.Iro.i18n.use(appliedLanguage); } catch { /* English fallback */ }
     applyNameSetting(settings);
     store.liveSync = settings.liveSync !== false;
-  store.crosshair = settings.crosshair !== false;
   store.setViewFamily(settings.viewFamily);
   store.historyGate = settings.historyGate === true;
   store.markOutOfDisplay = settings.markOutOfDisplay === true;

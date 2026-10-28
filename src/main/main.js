@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const fs = require('node:fs');
+const { spawn } = require('node:child_process');
 const {
   app, BrowserWindow, Tray, Menu, screen, nativeImage, powerMonitor, protocol,
 } = require('electron');
@@ -38,6 +39,9 @@ const { wireIpc } = require('./ipc');
 const { runShot } = require('./shot');
 const { createPanes } = require('./panes');
 const { createWindows } = require('./windows');
+const whatsNew = require('./whats-new');
+const { createShortcutActions } = require('./shortcut-actions');
+const ShortcutModel = require('../shared/shortcut-model');
 const Proof = require('../shared/proof');
 const Color = require('../shared/color');
 const ModuleManifest = require('../shared/module-manifest');
@@ -55,7 +59,8 @@ const { decodeQrFrame } = require('./capture');
 const { createSender } = require('./sender');
 const cspShortcuts = require('./csp-shortcuts');
 const { createMainI18n } = require('./i18n');
-const { portableDataDir, usableDataDir } = require('./portable');
+const { portableDataDir, portableRoot, usableDataDir } = require('./portable');
+const { downloadTo, assertWritableDir, portableHelperScript } = require('./update-install');
 
 // The live capability set; built once Electron is ready.
 let capabilities = null;
@@ -427,6 +432,8 @@ const applyLayoutIntent = (intent) => {
     // appeared"). Rare, so the simplest correct thing: it takes the palette over and reloads.
     syncShellPalette();
     broadcastLayout();
+    if (typeof ctx.pruneShortcutTargets === 'function') ctx.pruneShortcutTargets();
+    if (typeof ctx.pruneSuppressed === 'function') ctx.pruneSuppressed();
   }
   return result;
 };
@@ -751,7 +758,87 @@ const dragSession = createDragSession({
     dragJoinLine = join ? join.line : null;
   },
   settleWindows: (payload, dx, dy) => settleWindowMove(payload, dx, dy),
+  // A whole-palette dock is destructive: ask first, then commit or put the windows
+  // back. `restoreWindows` is also used when a palette drag is cancelled.
+  deferPaletteMerge: true,
+  restoreWindows: (members) => {
+    // `restoreMergePositions` is declared below (function hoisting) and persists
+    // the restored positions, not just the window rectangles.
+    restoreMergePositions(members);
+  },
 });
+
+// --- whole-palette merge confirmation ---------------------------------------
+// The drag session hands back the plan instead of committing it. One pending
+// merge at a time; the overlay card resolves it. A cancelled merge restores the
+// exact rectangles the drag started with, so the document's snap graph is untouched.
+let pendingMerge = null;
+
+function restoreMergePositions(members) {
+  for (const m of members || []) {
+    const win = windowForPalette(m.paletteId);
+    if (win && !win.isDestroyed()) {
+      win.setBounds({ x: m.x, y: m.y, width: m.width, height: m.height });
+    }
+    // Persist the restored position now: the window's own debounced report would
+    // otherwise leave the dropped position in layout.json if the app quit first.
+    applyLayoutIntent({ type: 'palette.setBounds', paletteId: m.paletteId, pos: { x: m.x, y: m.y } });
+  }
+}
+
+function cancelPendingMerge() {
+  if (!pendingMerge) return false;
+  const merge = pendingMerge;
+  pendingMerge = null;
+  ctx.closeOverlayConfirm();
+  restoreMergePositions(merge.payload.members);
+  return true;
+}
+
+function beginPaletteMerge(merge) {
+  if (!merge || !merge.target) return false;
+  cancelPendingMerge();
+  const source = (layout.palette(merge.payload.sourcePaletteId) || {}).name
+    || merge.payload.text || 'Palette';
+  const target = (layout.palette(merge.target.paletteId) || {}).name || 'Palette';
+  const count = (merge.payload.members || []).length;
+  pendingMerge = merge;
+  const point = screen.getCursorScreenPoint();
+  ctx.showOverlayConfirm({
+    anchor: { x: point.x, y: point.y },
+    title: ctx.t('dialog.mergePaletteTitle'),
+    message: ctx.t('dialog.mergePaletteMessage', { source, target }),
+    detail: count > 1 ? ctx.t('dialog.mergePaletteGroup') : ctx.t('dialog.mergePaletteDetail'),
+    confirmLabel: ctx.t('dialog.mergePaletteConfirm'),
+    cancelLabel: ctx.t('dialog.cancel'),
+    danger: true,
+  });
+  return true;
+}
+
+function resolvePendingMerge(ok) {
+  if (!pendingMerge) return { ok: false, error: 'no-pending-merge' };
+  const merge = pendingMerge;
+  pendingMerge = null;
+  ctx.closeOverlayConfirm();
+  if (!ok) {
+    restoreMergePositions(merge.payload.members);
+    return { ok: true, canceled: true };
+  }
+  const out = applyLayoutIntent({
+    type: 'layout.place',
+    sourcePaletteId: merge.payload.sourcePaletteId,
+    items: merge.payload.items,
+    grouping: merge.payload.grouping,
+    target: merge.target,
+    grown: merge.payload.itemSize || undefined,
+  });
+  if (!out || out.ok === false) {
+    restoreMergePositions(merge.payload.members);
+    return { ok: false, error: (out && out.error) || 'merge-failed' };
+  }
+  return { ok: true, rev: out.rev };
+}
 /**
  * The primary palette's remembered placement — the document is the source of
  * truth for window geometry now, so `settings.json#windowBounds` is legacy
@@ -797,6 +884,7 @@ let overlayState = { text: '', hint: false };
 // What each board drew (palette id -> { pad, boxes }), for the drop resolver.
 let boardMetrics = new Map();
 let moduleSettingsWin = null;
+let whatsNewWin = null;
 let autoConnectTimer = null;
 let autoConnectResumeAt = 0;
 // Set once `service.start()` has settled: the saved-connection attempt owns the
@@ -816,7 +904,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   markOutOfDisplay: false, // dim the colours the display cannot show (off: nearest colour)
   autoHide: true,
   autoConnect: true,
-  crosshair: true,
+  checkUpdatesAutomatically: true, // check GitHub on startup and once a day
+  lastSeenVersion: '', // the version whose What's New dialog has been shown
   // guide/lock follow the active model's native lightness (see slice-geometry)
   viewFamily: 'all', // all | oklab | cielab | helmgen (future hct)
   hideModuleNames: false,
@@ -834,7 +923,11 @@ const DEFAULT_SETTINGS = Object.freeze({
   theme: 'default-light',
   accents: {}, // per-theme accent overrides: { themeId: '#rrggbb' }
   launchAtLogin: false,
-  summonHotkey: '', // a system-wide show/hide key; empty = none (docs/DEV.md)
+  summonHotkey: '', // deprecated: migrated into shortcuts.app.toggle
+  shortcuts: {
+    app: { mode: 'toggle', toggle: '', hold: '', autoDismiss: false, position: 'keep' },
+    palettes: {},
+  },
   commandBindings: {}, // "<instanceId>:<command>" -> accelerator (docs/DEV.md)
   language: '', // '' = follow the system locale
 });
@@ -989,9 +1082,119 @@ let updateInfo = { available: false };
  * the comment above each call says so.
  */
 async function refreshUpdateCheck() {
-  updateInfo = await checkForUpdates({ currentVersion: app.getVersion() });
+  const info = await checkForUpdates({ currentVersion: app.getVersion() });
+  if (info && info.available) {
+    const portable = Boolean(portableRoot());
+    const downloads = info.downloads || {};
+    updateInfo = {
+      ...info,
+      build: portable ? 'portable' : 'installer',
+      // The manual download for the running build; fall back to the release page.
+      downloadUrl: (portable ? downloads.portable : downloads.setup) || info.url,
+    };
+  } else {
+    updateInfo = info || { available: false };
+  }
   broadcast('update:changed', updateInfo);
   return updateInfo;
+}
+
+// Auto-check: once a few seconds after startup, then daily. Off means "never
+// touch the network for this until the user clicks Check for updates".
+const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
+let updateTimer = null;
+let updateKick = null;
+
+function scheduleAutoUpdateCheck() {
+  if (updateKick) { clearTimeout(updateKick); updateKick = null; }
+  if (updateTimer) { clearInterval(updateTimer); updateTimer = null; }
+  if (!settings || settings.get().checkUpdatesAutomatically === false) return;
+  updateKick = setTimeout(() => {
+    updateKick = null;
+    refreshUpdateCheck().catch(() => {});
+  }, 2500);
+  updateKick.unref?.();
+  updateTimer = setInterval(() => { refreshUpdateCheck().catch(() => {}); }, UPDATE_CHECK_INTERVAL);
+  updateTimer.unref?.();
+}
+
+/**
+ * Download the asset for this build and hand over:
+ * - installer: run the downloaded setup, then quit (the installer closes us too);
+ * - portable: a detached helper waits for this process, replaces the exe and
+ *   starts it, because Windows will not let a running exe overwrite itself.
+ * Nothing here needs a code signature; signing only changes the SmartScreen trust.
+ */
+async function installUpdate() {
+  const info = updateInfo;
+  if (!info || !info.available) return { ok: false, error: 'No update is ready.' };
+  const build = info.build === 'portable' ? 'portable' : 'installer';
+  const downloads = info.downloads || {};
+  const url = build === 'portable' ? downloads.portable : downloads.setup;
+  if (!url) return { ok: false, error: 'This release has no download for this build.' };
+  const target = build === 'portable' ? process.env.PORTABLE_EXECUTABLE_FILE : '';
+  if (build === 'portable' && !target) return { ok: false, error: 'The portable exe could not be located.' };
+  if (build === 'portable') {
+    try { assertWritableDir(path.dirname(target)); } catch {
+      return { ok: false, error: 'The portable folder is read-only. Download the new exe instead.' };
+    }
+  }
+  const safe = String(info.version || 'update').replace(/[^\w.-]/g, '_');
+  const dest = path.join(app.getPath('temp'), `Iroiroppa-${safe}-${build}.exe`);
+  try {
+    const size = await downloadTo(url, dest, {
+      onProgress: (p) => broadcast('update:download-progress', p),
+    });
+    broadcast('update:download-progress', { phase: 'ready', received: size.size, total: size.size, percent: 100 });
+    if (build === 'portable') {
+      const helper = path.join(app.getPath('temp'), `Iroiroppa-replace-${process.pid}.cmd`);
+      fs.writeFileSync(helper, portableHelperScript({ appPid: process.pid, source: dest, target }), 'ascii');
+      let spawnError = null;
+      const child = spawn('cmd.exe', ['/c', helper], { detached: true, stdio: 'ignore', windowsHide: true });
+      child.on('error', (err) => { spawnError = err; });
+      child.unref();
+      await new Promise((r) => setTimeout(r, 300));
+      if (spawnError) return { ok: false, error: spawnError.message };
+      setTimeout(() => app.quit(), 400);
+      return { ok: true, action: 'replace' };
+    }
+    let spawnError = null;
+    const child = spawn(dest, [], { detached: true, stdio: 'ignore', windowsHide: false });
+    child.on('error', (err) => { spawnError = err; });
+    child.unref();
+    await new Promise((r) => setTimeout(r, 500));
+    if (spawnError) return { ok: false, error: spawnError.message };
+    setTimeout(() => app.quit(), 300);
+    return { ok: true, action: 'install' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// --- What's New --------------------------------------------------------------
+
+/** The checked-in release note for the running version, or null. */
+function getWhatsNew() {
+  try { return whatsNew.read(app.getAppPath(), app.getVersion()); } catch { return null; }
+}
+
+/** Record that this version's note has been seen (idempotent). */
+function markWhatsNewSeen() {
+  try { settings.set({ lastSeenVersion: app.getVersion() }); } catch { /* settings may not be ready */ }
+}
+
+/** Show the note on the first launch of a version (a fresh install included). */
+function maybeShowWhatsNew() {
+  try {
+    const version = app.getVersion();
+    if (settings.get().lastSeenVersion === version) return;
+    const info = getWhatsNew();
+    if (!info) {
+      settings.set({ lastSeenVersion: version });
+      return;
+    }
+    if (windows && typeof windows.openWhatsNew === 'function') windows.openWhatsNew();
+  } catch { /* never block startup on the dialog */ }
 }
 
 function broadcast(channel, payload) {
@@ -1071,6 +1274,8 @@ const ctx = {
   set settingsWin(v) { settingsWin = v; },
   get moduleSettingsWin() { return moduleSettingsWin; },
   set moduleSettingsWin(v) { moduleSettingsWin = v; },
+  get whatsNewWin() { return whatsNewWin; },
+  set whatsNewWin(v) { whatsNewWin = v; },
   get overlayWin() { return overlayWin; },
   set overlayWin(v) { overlayWin = v; },
   get overlayState() { return overlayState; },
@@ -1105,6 +1310,7 @@ const ctx = {
   set parkOrigin(v) { parkOrigin = v; },
   get quoted() { return quoted; },
   set quoted(v) { quoted = v; },
+  isPortable: () => Boolean(portableRoot()),
   get updateInfo() { return updateInfo; },
     get edgeHintTimer() { return edgeHintTimer; },
   set edgeHintTimer(v) { edgeHintTimer = v; },
@@ -1112,6 +1318,7 @@ const ctx = {
   set lastFollowAt(v) { lastFollowAt = v; },
 
   floatWins, HISTORY_MAX, isDev, paneList,
+  beginPaletteMerge, cancelPendingMerge, resolvePendingMerge,
   // The instance controls (Settings → Modules): main mints the id for a duplicate before
   // the module is mounted, and copies the settings file itself.
   moduleStore, mintInstanceId: (prefix) => layout.newId(prefix),
@@ -1132,6 +1339,10 @@ const ctx = {
   applyHistoryGate: () => historyGate.onToggle(),
   broadcastPeers, applyStateIntent,
   refreshUpdateCheck, getProof, clearProofCaches, listProofProfiles,
+  scheduleAutoUpdateCheck, installUpdate,
+  setUpdateInfo: (info) => { updateInfo = info; broadcast('update:changed', updateInfo); },
+  getWhatsNew, markWhatsNewSeen,
+  openWhatsNew: () => (windows ? windows.openWhatsNew() : false),
   listThemes, normalizeTheme, themeBackground,
   readModuleSettings,
   // Bundled module ids plus the user modules, so the Settings → Modules tab lists both.
@@ -1191,8 +1402,40 @@ Object.assign(ctx, windows);
 const {
   createPopup, showPopup, showPopupAuto, applyUiScale, buildTray,
   startFollowFocus, stopFollowFocus, scheduleAutoConnect, startPairing,
-  applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys,
+  applyCommandHotkeys, unregisterCommandHotkeys,
 } = windows;
+
+// The show/hide + hold shortcut engine. It needs the window layer, so it is
+// created after `createWindows` and published on ctx for the IPC groups and the
+// settings-service hooks.
+const shortcutActions = createShortcutActions(ctx);
+Object.assign(ctx, {
+  applyShortcuts: (next) => shortcutActions.apply(next),
+  applySummonShortcut: (accel) => {
+    const current = settings.get();
+    const next = ShortcutModel.normalise(current.shortcuts);
+    next.app.toggle = String(accel || '').trim();
+    const out = shortcutActions.apply({ ...current, shortcuts: next });
+    return {
+      ok: out.failures.every((f) => f.key !== 'app:toggle'),
+      registered: shortcutActions.toggles().has('app:toggle'),
+      accelerator: next.app.toggle,
+      failures: out.failures,
+    };
+  },
+  stopShowShortcuts: () => shortcutActions.stop(),
+  endHoldShortcut: () => shortcutActions.endHold(),
+  setShowShortcut: (spec) => shortcutActions.set(spec),
+  setShortcutOption: (spec) => shortcutActions.setOption(spec),
+  setAltClickTarget: (target) => shortcutActions.setAltClick(target),
+  afterColorPickShortcut: () => shortcutActions.afterColorPick(),
+  drawingStartedShortcut: () => shortcutActions.drawingStarted(),
+  interactionStartedShortcut: (info) => shortcutActions.interactionStarted(info),
+  setBareActiveShortcut: (active) => shortcutActions.setBareActive(active),
+  setBareTypingShortcut: (typing) => shortcutActions.setBareTyping(typing),
+  clearAfterPickShortcut: () => shortcutActions.clearAfterPick(),
+  pruneShortcutTargets: () => shortcutActions.prune(),
+});
 
 // --- boot -------------------------------------------------------------------
 
@@ -1286,6 +1529,17 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     const defaults = { ...DEFAULT_SETTINGS };
     if (!defaults.proofProfile) defaults.proofProfile = findAdobeRgbProfile() || findBundledProfile();
     settings = createSettingsService({ file: path.join(dir, 'settings.json'), defaults, hooks: ctx });
+    // One-time shortcut migration: the old summon key becomes General show/hide.
+    {
+      const cur = settings.get();
+      const normalized = ShortcutModel.normalise(cur.shortcuts);
+      let changed = JSON.stringify(normalized) !== JSON.stringify(cur.shortcuts || {});
+      if (cur.summonHotkey && !normalized.app.toggle) {
+        normalized.app.toggle = cur.summonHotkey;
+        changed = true;
+      }
+      if (changed) settings.set({ shortcuts: normalized });
+    }
     // The colour history is high-churn and lives in its own file, so a corrupt write
     // cannot cost the preferences too . Migrate once, losslessly, and
     // keep the old copy in settings.json for a downgrade.
@@ -1408,6 +1662,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     // protocol read and record that colour at once. A left-button down on the CSP
     // canvas is the drawing-only gate's contact; it takes the same fresh read.
     // Skipped under --shot (a screenshot does not need a background hook).
+    let altPickPending = false;
     if (!shotPath) {
       const pointerWatcher = new PointerWatcher();
       const releaseHistory = createPointerHistory({
@@ -1423,8 +1678,22 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
         head: () => historyList()[0] || null,
         drop: () => historyRecorder.cancel(),
       });
-      pointerWatcher.on('up', () => historyGate.onUp(releaseHistory));
-      pointerWatcher.on('down', (info) => contactHistory(info));
+      pointerWatcher.on('up', () => {
+        historyGate.onUp(releaseHistory);
+        if (altPickPending) {
+          altPickPending = false;
+          ctx.afterColorPickShortcut();
+        }
+      });
+      pointerWatcher.on('down', (info) => {
+        contactHistory(info);
+        // Plain Alt+left on the canvas: CSP's eyedropper has run, and the release
+        // is the moment the after-pick reveals happen.
+        altPickPending = Boolean(info.alt && info.canvas && !info.ctrl && !info.shift);
+        // Any left down over CSP is an interaction: Toggle auto-dismiss uses it,
+        // and after-pick closes on a non-Alt stroke.
+        ctx.interactionStartedShortcut(info);
+      });
       pointerWatcher.start();
       app.on('will-quit', () => pointerWatcher.stop());
     }
@@ -1463,7 +1732,9 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     syncShellPalette();
     createPopup();
     applyUiScale();
-    applySummonHotkey(settings.get().summonHotkey);
+    shortcutActions.prune();
+    shortcutActions.apply(settings.get());
+    if (typeof ctx.setBareActiveShortcut === 'function') ctx.setBareActiveShortcut(ctx.isShortcutActive());
     applyCommandHotkeys(settings.get().commandBindings);
     buildTray();
 
@@ -1483,6 +1754,12 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       startFollowFocus();
       if (settings.get().autoHide) showPopupAuto(); // appears without stealing focus; the watcher hides it if CSP is not active
       else showPopup();
+      // One-time-per-version note. The dev flag forces it for a scripted look.
+      if (process.argv.includes('--whats-new')) {
+        if (windows) windows.openWhatsNew();
+      } else {
+        maybeShowWhatsNew();
+      }
     } else {
       showPopup();
     }
@@ -1491,6 +1768,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     // service from here. Arm it and look once straight away.
     autoConnectArmed = true;
     scheduleAutoConnect({ immediate: true });
+    scheduleAutoUpdateCheck();
 
     if (process.argv.includes('--pair')) {
       try {
@@ -1521,7 +1799,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
   });
   app.on('will-quit', () => {
     stopFollowFocus();
-    unregisterSummonHotkey();
+    shortcutActions.stop();
     unregisterCommandHotkeys();
     // Close the long-lived native band helper (topmost.js) before the app exits.
     stopBand();

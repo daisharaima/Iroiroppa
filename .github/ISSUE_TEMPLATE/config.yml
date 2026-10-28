@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: User guide
+    url: https://github.com/daisharaima/Iroiroppa/blob/main/wiki/Home.md
+    about: Install, connect to Clip Studio Paint, pick a color, and troubleshoot.
+  - name: Security report
+    url: https://github.com/daisharaima/Iroiroppa/blob/main/SECURITY.md
+    about: Please report security issues privately, not in a public issue.

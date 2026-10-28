@@ -5,10 +5,54 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.2] — 2026-10-28
 
 ### Added
 
+- **An About tab.** Settings → About shows the app and build versions, GitHub/releases/issues/guide
+  links, the author and credits, and the full license and third-party notices offline. Settings is
+  30% wider to fit it.
+- **What's New.** The first launch of a new version shows that version's checked-in release note
+  once, with a link to the GitHub release page. The About tab can reopen it.
+- **A Session profile dropdown.** The row now shows the document's current color profile in a
+  select-style control; the green/grey light's tooltip says “Connected to Clip Studio Paint”.
+- **Download links for the update.** “Check for updates” still only checks; the notice opens the
+  release page and a Download button points at the installer or portable asset for this build.
+- **Automatic update checks, with an off switch.** **Settings → General → Auto** (next to
+  **Check for updates**) checks GitHub at startup and once a day. Turn it off to check only
+  when you click the button.
+- **Quit & install / Replace & relaunch.** When a newer release exists, its footer button
+  downloads the installer (or portable exe) and hands over: the installer closes/relaunches
+  Iroiroppa, while a small detached helper replaces the portable exe and starts it. Nothing is
+  downloaded until the button is pressed; no code signature is required for this flow.
+- **A real shortcut system, in Settings → Shortcuts.** General and each palette choose
+  one of three modes: **Toggle**, **Hold**, or **After color pick**. Only the selected
+  mode's controls are shown. Toggle can also hide what its key opened after the next
+  click in Clip Studio Paint. Plain-letter keys work too, but are ignored while typing
+  (layer names, text, dialogs, search boxes). The after-pick reveal fires on plain
+  Alt+left-click over the CSP canvas and closes the windows it opened on the next
+  drawing stroke (or after 8 seconds). Shortcuts act only while CSP or an Iroiroppa
+  window is active.
+- **Choose where a revealed window appears.** General and each palette can keep their
+  remembered position or appear centred, above/below and left/right of the pointer
+  with an 8 px gap. Cursor placement is temporary and does not overwrite the saved
+  position.
+- **Minimize any multi-line module.** Every module that is not already a single line
+  gets a header button that collapses it to that header; the minimized chevron points
+  left, the parent palette shrinks and grows with the card, and the state survives a
+  restart and an export.
+- **A warning before a palette merge deletes a palette.** Dropping a whole palette
+  onto another now asks first, in the app's own overlay; Cancel restores the dragged
+  palettes to the exact positions they started from.
+- **Small-screen polish for CSP Shortcuts.** The CSP/Iroiroppa tabs share the width
+  equally, and the All/Command/Tool filters take only their text width on one line.
+
+- **A user guide for people who do not program.** `wiki/` holds a plain-language
+  guide — install, connect, pick a color, arrange the palette, color profiles,
+  settings, troubleshooting, uninstall and a glossary — linked from the README and
+  gated by `npm run wiki:check`. A GitHub wiki is not available on a private
+  repository, so the pages are published through the repository itself;
+  `npm run wiki:publish` is ready for the day a wiki exists.
 - **Smooth sibling-palette dragging.** While one palette is dragged, the others
   receive an exact-OKLab display preview once per frame; the authoritative CSP write
   and history still happen only on the normal commit path.
@@ -19,7 +63,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Shift-lock now use each model's own light axis: OKLab `L` for the OK views, native
   `L` for HelmGen, `L*` for CIELAB/CIELCH, and the model's own axis for future spaces.
   There is no global guide-source setting. The guide is exactly **one** thin contour
-  through the current colour — no grid and no guide-step setting — and Color Slices,
+  through the current color — no grid and no guide-step setting — and Color Slices,
   Wheel and Disc each have a show/hide toggle. Holding Shift holds that lightness
   before or during a drag; a fixed-light plane is projected onto its contour through
   the chroma axis, so the plane does not move. The line turns red while locked, and a
@@ -30,7 +74,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   over the canonical OKLab value. CIELAB uses `L*`, `a*`, `b*`; CIELCH is its standard
   cylindrical form. No CIELAB-HSL/HSV or HelmGen HSL/HSV is invented.
 - **The disc has a real slider.** Its held-light control is now a Slider-style row:
-  full-colour gamut gradient, label, numeric field and steppers, ring thumb. The disc
+  full-color gamut gradient, label, numeric field and steppers, ring thumb. The disc
   itself draws the single selected contour and locks it on Shift.
 - **Live Slices during a drag.** Every visible slice follows the drag while it is held
   (one panel per frame on a native 1× CSS canvas, overlays every frame), then all are
@@ -54,9 +98,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the current lightness/value and follows the selection. The hue pointer sits on the
   outer band and uses the Color Slider ring style.
 - **Two Helmlab GenSpace views.** **HelmGen LCH** (polar) and **HelmGen**
-  (rectangular) join the colour-model list in Color Slices, Color Slider and Color
+  (rectangular) join the color-model list in Color Slices, Color Slider and Color
   Disc, with HelmGen LCH also in Color Wheel. They draw against the same document
-  gamut as every other view; the picked colour, the CSP record and history are
+  gamut as every other view; the picked color, the CSP record and history are
   unchanged.
 - **The portable build is self-contained.** It keeps its settings, saved pairing,
   layout, modules, themes and history in `Iroiroppa Data` beside the exe instead
@@ -67,7 +111,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cusp frame, whose apex follows the hue). Display-only and invertible, like
   rotate/flip; offered only on maps that can carry the shape.
 - **Color Wheel.** A hue ring around the model's hue slice; the ring is the most
-  saturated in-gamut colour at each hue. OKLCH shows its flat L×C slice; OKHSV and
+  saturated in-gamut color at each hue. OKLCH shows its flat L×C slice; OKHSV and
   OKHSL add a square ⇄ triangle switch (fixed corners for OKHSV, the cusp frame for
   OKHSL).
 - **Color Disc.** The hue × chroma plane on a circle, with the third axis on a
@@ -77,12 +121,50 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **The Color Disc no longer floods a wide-gamut document with pale.** It painted
+  everything outside sRGB as the faded stand-in while the pointer was clamped to the
+  document gamut, so an Adobe RGB document made the disc mostly pale and let the pointer
+  sit outside the vivid area. The disc now uses the same map rule as Slices/Wheel:
+  in-document colors are clipped (dimmed only with **Mark colors this display can't show**),
+  out-of-document colors are the stand-in, and a disc drag snaps through `reduceChroma`,
+  so OKHSV/OKHSL are full circles and the pointer stays over a color the document holds.
+- **Settings dropdowns stay above Settings.** A menu opened from the activatable Settings
+  window could be re-ordered underneath it on the click that followed; the overlay is now
+  re-raised after the owner's activation and re-asserted while Settings owns it.
+- **Drag chip, drop line, snap line and merge card are visible again.** The window
+  `show` handler hid the overlay whenever there was no menu or tooltip, so the chip and
+  lines vanished the instant they appeared and the merge card never stayed. It now uses
+  the same owner predicate as the band watch (menu, tooltip, merge card, or in-flight
+  drag), and the overlay is raised again after the owner window.
+- **Dropdowns and tooltips stay above Settings and the module popover.** Native
+  `<select>` lists and native `title=` tooltips are OS windows outside the topmost band;
+  selects now open on the overlay and runtime titles move to the overlay tooltip. Overlay
+  menus/tooltips are re-raised immediately instead of on the next 500 ms band tick, so
+  they no longer flash behind the window.
+- **Window flashing is gone.** The band helper no longer calls `SetWindowPos` when
+  the extended style already matches, the 500 ms watch no longer re-raises the last
+  window when nothing changed, focus-follow no longer re-shows already-visible
+  floats/Settings, and the overlay is raised once per menu/tooltip rather than
+  several times per tick.
+- **Short menus no longer show a scrollbar.** The menu height now includes its border
+  and flex gaps, and the scrollbar is only enabled when the rendered content really
+  overflows.
+- **Color Wheel and Color Disc look the same idle and while dragging.** Their backing
+  resolution no longer switches from supersampled to native when a gesture starts; only
+  the paced rebuild changes.
+- **Minimizing and expanding resizes the palette.** A minimized card counts as
+  content-sized, so the board shrinks on the way down; a fill module's expanded height
+  is restored from a pre-collapse snapshot so it is not clipped on the way up.
+- **The Settings section headings read as headings.** General/Palette/Modules and the
+  module groups now have an accent bar, stronger type and a divider instead of looking
+  like another row.
+
 - **Color-selector settings are populated again.** The module `settingsUI` now
-  receives the shared colour store (or its family filter) instead of reading an
+  receives the shared color store (or its family filter) instead of reading an
   undefined `store` binding, so the model list and all module controls render.
-- **Full-resolution drags.** Slices and the Wheel no longer drop their backing
-  canvases to 1× while a pointer is down; sibling panels keep their full-resolution
-  caches and only the rebuild cadence is throttled.
+- **Full-resolution Slices drags.** Color Slices no longer drops its backing canvas to
+  1× while a pointer is down; sibling panels keep their full-resolution caches and only
+  the rebuild cadence is throttled.
 - **Sibling palettes update during a drag.** Palette and float windows disable
   Chromium background throttling, so the OKLab preview reaches the other window's
   frame loop instead of waiting for the 60 ms CSP write.
@@ -99,6 +181,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Settings is 30% wider** (468 px, 390 px minimum) for the new About tab.
+- **The Session row shows the current color profile as a dropdown.** The Clip Studio Paint
+  text moved to the connection light's tooltip; the row is now dot + profile + lock + gear.
+- **The shipped palette template starts with Session**, then CSP Color, Color Wheel
+  (OKHSV), Color Slices (OKLCH), Color Slider (OKLCH), Color History and Color Stat.
+- **User-facing text uses American spelling** (“color”, “license”), matching the module
+  names and Clip Studio Paint's own menus.
 - **Color Slices names and order follow the model's axis roles.** `L × C` is first for
   every hue model (OKHSV's `V × S` was previously third), and the settings rows say
   the same as the panels. The slices themselves stay flat.
@@ -106,13 +195,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   equilateral triangle inscribed in the ring (all three corners on it); Okhsl's cusp
   frame keeps the **square mode's black-white side** and moves the cusp on x = 0.9,
   so the black-white side is where the square put it. Both map the whole square (no
-  colour lost).
+  color lost).
 - **The OKLCH wheel slice uses the working gamut's chroma axis**, so high-chroma
   green is not cropped when proofing a wide document.
-- **Wide slices no longer show a lightness step.** Colours past sRGB are drawn as
-  the sRGB-edge colour at the same lightness (`Color.fitToSrgb`), so a
+- **Wide slices no longer show a lightness step.** colors past sRGB are drawn as
+  the sRGB-edge color at the same lightness (`Color.fitToSrgb`), so a
   constant-lightness row stays even instead of stepping where the sRGB boundary
-  crosses the slice. The picked and recorded colour is still the true wide-gamut
+  crosses the slice. The picked and recorded color is still the true wide-gamut
   one; only the pixels are a stand-in.
 - **`Slider` is now `Color Slider`** — the name matches the other pickers in a
   float's title bar. The id and saved settings are unchanged.
@@ -122,7 +211,9 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Removed
 
-- **The "sRGB gamut warning" toggle.** Wide colours are now drawn with the
+- **The global “Show crosshair guides” setting.** Color Slices keeps its own per-instance
+  toggle; the other modules never used it.
+- **The "sRGB gamut warning" toggle.** Wide colors are now drawn with the
   lightness-preserving stand-in, so a hatch over them would only break the
   uniformity it was there to explain.
 - **The HSV, HSL and CIELAB views** are gone: OkLab/Okhsl cover them with better
@@ -141,7 +232,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   for any other drop, so a click can no longer make a palette disappear behind another
   always-on-top window. Text fields drop the bit while editing so they still take
   keyboard focus.
-- **A sibling palette's live preview is a gesture, not a colour storm.** While one
+- **A sibling palette's live preview is a gesture, not a color storm.** While one
   palette is dragged, the other window used to take its idle render path for every
   preview frame (all three slice maps, every slider gradient). It now renders like a
   local drag — overlays every frame, one raster per frame — and does one full-quality
@@ -168,16 +259,16 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   or the Modules tab's column.
 - **No more soft-lock to the lightness guide.** Without Shift the pointer is the cursor
   again in every picker; only a Shift (locked) drag projects onto the guide.
-- **Every model reaches every document colour.** OKHSV/OKHSL/OKHWB are built on the
+- **Every model reaches every document color.** OKHSV/OKHSL/OKHWB are built on the
   active document's RGB cube when the profile has one (Adobe RGB, P3, ProPhoto), so their
   S/V/W/B axes span the whole document gamut; the "sRGB reference" notice only shows for a
   document without an RGB cube (none, or a LUT/CMYK proof).
-- **Every model reaches every document colour, with Ottosson's behaviour.** OKHSV/OKHSL/
+- **Every model reaches every document color, with Ottosson's behaviour.** OKHSV/OKHSL/
   OKHWB are now Ottosson's own construction computed inside the active document's RGB
   cube (cusp, boundary and control points from the profile), so a wide-gamut document
   gets the perceptual S/V curves instead of plain HSV. CMYK/LUT documents (no RGB cube)
   get a gamut-relative S: 100% is the document gamut's own limit at that hue and
-  lightness, so every pick is a colour the document holds.
+  lightness, so every pick is a color the document holds.
 - **The Model dropdown is a desktop popup again.** It opens the same overlay menu as the
   profile picker (family headings included), so it is never clipped by the popup window or
   buried by a palette; the in-page list remains only as a fallback.
@@ -219,7 +310,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Slider channel toggles use the model's channel names.**
 - **The hue ring is the document's cusp, fitted to the display, not a clipped fixed-L
   edge.** The cusp's lightness is interpolated around the circle (no primary seam) and the
-  colour is `fitToSrgb`, so every hue is distinct and the profile shows through; the ring
+  color is `fitToSrgb`, so every hue is distinct and the profile shows through; the ring
   is one conic-gradient stroke.
 - **Model dropdowns work in every module.** Each widget has its own overlay menu id and
   binds its pick on open (the last-built menu used to steal the pick).
@@ -231,23 +322,23 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The wheel's rings rebuild per frame** (conic gradient); the 200 ms hold is gone.
 - **The Slices guide ignores speckle** (components under 3 points, or a ragged field with
   more than 24 components, draw nothing instead of vertical stubs).
-- **Maps clip instead of fading.** A colour the document holds but the display cannot show
+- **Maps clip instead of fading.** A color the document holds but the display cannot show
   used to be painted as the desaturated stand-in, which turned most of a wide-gamut
-  document's Wheel/Disc/Slices into a pale patch. Maps now paint the **clipped** colour
-  (the drawing-app look) at full opacity; **Settings → Mark colours this display can't
+  document's Wheel/Disc/Slices into a pale patch. Maps now paint the **clipped** color
+  (the drawing-app look) at full opacity; **Settings → Mark colors this display can't
   show** dims that region when you want to see where it is. The picked value is unchanged.
 - **No white holes in a map.** The Disc is always a full disc and a dense model's plane is
   total: an out-of-gamut pixel is drawn as the sRGB stand-in at reduced opacity, not left
-  transparent. A colour the document holds but the display cannot show is drawn as the
-  nearest displayable colour at full opacity (the soft-proof look); **Settings → Mark
-  colours this display can't show** dims that region instead.
+  transparent. A color the document holds but the display cannot show is drawn as the
+  nearest displayable color at full opacity (the soft-proof look); **Settings → Mark
+  colors this display can't show** dims that region instead.
 - **The model dropdown switches the model again.** Its outside-click guard now covers the
   list as well as the row; family headings are smaller, spaced and dimmer than the rows.
 - **The Disc's nudge arrows are left/right**, following its horizontal slider row.
 - **A Color Wheel inner drag never changes the hue** and, when the cursor leaves the
   slice, picks the nearest point of the slice instead of sliding along one edge.
 - **The lightness guide no longer flashes or misses the pointer**: it is traced from the
-  map it is drawn on (that map's own light), not from the live colour across a paced map.
+  map it is drawn on (that map's own light), not from the live color across a paced map.
 - **The module settings popup works again, and so does the Settings window's Modules
   tab.** Both pages render a module's `settingsUI`, and both now load
   `kernel/model-options.js`; a failing settings UI is shown instead of leaving an empty
@@ -269,7 +360,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   creation ended up behind it ("the 3 dots do nothing") and the Settings window vanished
   after a tab switch; tool windows are now raised last and re-asserted after every resize.
   The popout also no longer dies on a transient blur.
-- **The Disc's pointer shows the picked colour again** (the locked point on the line), not
+- **The Disc's pointer shows the picked color again** (the locked point on the line), not
   the raw cursor, and **the disc no longer flashes** while the lightness changes: it keeps
   the last image on screen until the paced replacement lands.
 - **The wheel's two hue bands touch**, with no separator between them; only the inner
@@ -281,15 +372,15 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The disc is content-sized and no longer leaves an empty band** under it: the canvas
   follows the palette width at a 1:1 aspect and the card ends under the footer.
 - **A lightness-locked disc drag keeps following the cursor** after it leaves the disc —
-  the ring clamps to the rim and is drawn from the event, not from the stored colour.
+  the ring clamps to the rim and is drawn from the event, not from the stored color.
 - **The lightness guide is also the pick**: a pointer within ~6 px of the drawn line is
-  projected onto it, so dragging along the guide selects its colours smoothly all the way
+  projected onto it, so dragging along the guide selects its colors smoothly all the way
   to the slice boundary, and the line no longer arrives in pieces (every cell is sampled
   and one-cell holes are bridged).
 - **Every model dropdown is grouped by family**: OKLab, then CIELAB, then HelmGen.
 - **The Color Disc's pointer can no longer snap to the centre.** Its radius is the exact
   inverse of the pick mapping (`src/shared/disc-map.js`), not a chroma re-derived at the
-  max-chroma colour's lightness. The disc box is squared before the backing store is
+  max-chroma color's lightness. The disc box is squared before the backing store is
   sized, so a model switch cannot leave a stretched disc, and the light row under the
   disc now updates the disc live instead of holding it.
 - **The Color Disc lists one model per space.** The disc draws the polar form, so an a/b
@@ -327,7 +418,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   hue/chroma. The overlay is always full resolution.
 - **Wheel rotate/flip is draw==pick.** The canvas transform now applies flip before
   rotate (matching `SV.forward()`), so a rotated+flipped inner slice no longer reads a
-  different colour than the other modules. The inner raster cache also keys the fixed
+  different color than the other modules. The inner raster cache also keys the fixed
   S/L axes, so picking at the same hue updates the slice.
 - **The blue hue seam is gone.** The old outer band traced OKHSV S=1/V=1, whose sRGB
   blue fin jumps from green 61 to 0 in one step. Both bands now use a fixed-lightness
@@ -336,21 +427,21 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reference lightness instead of being recomputed per L; the in-gamut silhouette
   grows/shrinks inside it and the selected hue/chroma pointer stays put.
 - **The Disc's held-light control is no longer a bare range.** It now matches a Color
-  Slider row (full-colour gradient, value, steppers, ring thumb).
+  Slider row (full-color gradient, value, steppers, ring thumb).
 - **Every slice pick lands under the pointer.** The pick now uses the canvas's content
   box (not its border box), and the same axis mapping draws the raster and reads the
   pointer, so the crosshair tracks the mouse at 1× and at a scaled UI.
 - **A slice drag no longer changes the plane.** The fixed axes are pinned for the whole
-  gesture; dragging HelmGen LCH's `L × C` past the gamut snaps the colour but keeps
+  gesture; dragging HelmGen LCH's `L × C` past the gamut snaps the color but keeps
   the hue.
 - **Non-OKLCH slices show only what can be picked.** `dense` no longer skips the
-  working-gamut test, so a shown pixel is reachable; a colour outside an sRGB-limited
+  working-gamut test, so a shown pixel is reachable; a color outside an sRGB-limited
   model (a saturated Adobe RGB red, `S ≈ 1.24` in OKHSV) is clamped to the panel edge
   with a dashed ring instead of making the crosshair disappear.
 - **The OKLCH Hue slice draws again.** `buildHuePlot` referenced undefined channels
   and threw on its first pixel.
 - **Slice drags are smooth.** The raster cache is keyed on the plane's fixed axis, not
-  the selected colour, so a drag inside a plane is a cache-hit overlay update; the
+  the selected color, so a drag inside a plane is a cache-hit overlay update; the
   other planes now follow live (round-robin) instead of catching up only on release.
 - **The ring-width slider redraws immediately**, and the OKLCH wheel crosshair no
   longer leaves the box at high chroma.
@@ -358,7 +449,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   block comment).
 - **A pick no longer rotates the hue when you release the slider.** The app
   broadcast every write back to its own window and re-read the 8-bit record as a
-  new colour, moving H by up to a few degrees (worst at low chroma) and adopting
+  new color, moving H by up to a few degrees (worst at low chroma) and adopting
   the clipped record past the gamut. A window now ignores the records it just
   wrote; a real value from Clip Studio Paint still wins.
 - **The palette stays on top again.** On Windows 11 build 26300 a non-activating
@@ -405,7 +496,7 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `health` domain, and a compute-host exit raises a peer `error` event.
 - **Canonical state model, session layer and adapters.** One versioned model owned
   by main, pure per-window adapters, and a typed session/peer vocabulary (a
-  clean-room adaptation of token-beam's architecture — see docs/STATE.md and
+  clean-room adaptation of the token layer's architecture — see docs/STATE.md and
   THIRD_PARTY.md). On by default; `--legacy-state` falls back.
 - **Vendored culori** behind a guarded interop layer for CSS parsing, space breadth,
   interpolation and colour-difference, with a cross-check test against the core
@@ -1211,4 +1302,6 @@ turned on or off from the Settings window's Modules tab.
 - Tracking of gamut and layout state across profile changes, window resizes and
   module drags — see the test suite for the invariants.
 
+[1.2.2]: https://github.com/daisharaima/Iroiroppa/releases/tag/v1.2.2
+[1.2.1]: https://github.com/daisharaima/Iroiroppa/releases/tag/v1.2.1
 [1.2.0]: https://github.com/daisharaima/Iroiroppa/releases/tag/v1.2.0
