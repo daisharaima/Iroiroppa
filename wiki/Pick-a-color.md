@@ -1,7 +1,5 @@
 # Pick a color
 
-![The Iroiroppa palette](images/palette.png)
-
 1. Select a brush, pencil or fill in Clip Studio Paint.
 2. Drag on a map or slider in Iroiroppa. For example, use **Color Slices**, the **Color Wheel** or the **Color Disc**.
 3. Release when the color is correct.

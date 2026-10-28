@@ -12,7 +12,7 @@ Open Settings from the **Session** row's gear, the palette's **☰** menu, the t
 | **Appearance** | Theme, accent color, UI scale, language, model family. See [Appearance and language](Appearance-and-language.md). |
 | **Modules** | Mount, hide, duplicate, size and delete module instances. |
 | **Shortcuts** | Show/hide, hold and after-pick keys, and window placement. |
-| **Layout** | Palettes and workspaces. See [Arrange your palette](Arrange-your-palette.md). |
+| **Layout** | Palettes and workspaces. See [Customize your palette](Customize-your-palette.md). |
 | **About** | Version, links, credits, license and third-party notices. |
 
 ## General
@@ -36,7 +36,7 @@ Set the document profile and choose whether to dim colors the display cannot sho
 
 ### CSP data folder
 
-The folder containing `CLIPStudioPaintVer…`, used by the [CSP Shortcuts panel](CSP-Shortcuts-panel.md). **Auto** restores the usual location.
+The folder containing `CLIPStudioPaintVer…`, used by the [CSP Shortcuts module](Module-List.md). **Auto** restores the usual location.
 
 ### Settings file
 
@@ -63,7 +63,7 @@ See [The tray icon and the hotkey](Tray-and-hotkey.md) for the three reveal mode
 
 ## Layout
 
-Manage palettes and saved workspaces. See [Arrange your palette](Arrange-your-palette.md).
+Manage palettes and saved workspaces. See [Customize your palette](Customize-your-palette.md).
 
 ## About
 

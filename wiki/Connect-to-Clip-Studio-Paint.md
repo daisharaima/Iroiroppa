@@ -2,7 +2,9 @@
 
 Iroiroppa connects through **Companion Mode**, the same feature the official phone app uses.
 
-![The Session dot and color-profile dropdown](images/palette.png)
+![The Session module](images/module-session.png)
+
+Hover the green dot for **Connected to Clip Studio Paint**. Click it to retry the connection.
 
 ## First connection
 
@@ -25,6 +27,10 @@ The pairing is remembered and reconnects on later launches.
 Only one phone-side connection is allowed at a time. Close the official phone app, or another copy of Iroiroppa, before connecting.
 
 ## Connection states
+
+![Settings → General: connection controls](images/settings.png)
+
+The connection controls are at the top of **Settings → General**.
 
 | State | Meaning |
 | --- | --- |

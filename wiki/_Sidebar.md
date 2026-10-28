@@ -6,10 +6,8 @@
 
 ### Every day
 - [The tray icon and the hotkey](Tray-and-hotkey.md)
-- [Arrange your palette](Arrange-your-palette.md)
-- [Color pickers](Color-pickers.md)
-- [The smaller panels](Color-info-panels.md)
-- [CSP Shortcuts panel](CSP-Shortcuts-panel.md)
+- [Customize your palette](Customize-your-palette.md)
+- [Module list](Module-List.md)
 
 ### Color and settings
 - [Color profiles and gamut](Color-profiles-and-gamut.md)
