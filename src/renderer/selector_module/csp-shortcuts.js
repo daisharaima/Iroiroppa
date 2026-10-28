@@ -268,7 +268,6 @@
           if (!data.ok) {
             status.textContent = data.reason || 'CSP settings not found';
             status.classList.remove('hidden');
-            if (data.settings) status.title = data.settings;
           }
           const shown = cspRows().filter((r) => {
             if (kindFilter === 'command' && r.kind !== 'command') return false;
@@ -282,7 +281,6 @@
             const row = document.createElement('button');
             row.type = 'button';
             row.className = `csp-shortcut-row${r.kind === 'tool' ? ' tool' : ''}`;
-            row.title = r.raw && r.raw !== r.label ? r.raw : '';
             const name = document.createElement('span');
             name.className = 'csp-shortcut-name';
             name.textContent = r.label;
@@ -356,14 +354,12 @@
         const ws = data.workspace || {};
         if (!ws.path) {
           source.textContent = 'No current workspace file';
-          source.title = '';
           return;
         }
         const when = ws.savedAt
           ? new Date(ws.savedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
           : 'unknown';
         source.textContent = `${ws.file || 'workspace'} \u00b7 saved ${when}`;
-        source.title = ws.path;
       };
 
       const load = async ({ initial = false } = {}) => {

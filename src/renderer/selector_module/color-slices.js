@@ -148,12 +148,9 @@
         const angle = ((Number(current[rotKey]) || 0) % 360 + 360) % 360;
         const h = current[flipHKey] === true;
         const v = current[flipVKey] === true;
-        rot.title = `${window.Iro.t('module.slices.rotate')} ${label} 90\u00b0 (now ${angle}\u00b0)`;
-        rot.setAttribute('aria-label', rot.title);
-        flipH.title = `${window.Iro.t('module.slices.flipH')} ${label}`;
-        flipH.setAttribute('aria-label', flipH.title);
-        flipV.title = `${window.Iro.t('module.slices.flipV')} ${label}`;
-        flipV.setAttribute('aria-label', flipV.title);
+        rot.setAttribute('aria-label', `${window.Iro.t('module.slices.rotate')} ${label} 90\u00b0 (now ${angle}\u00b0)`);
+        flipH.setAttribute('aria-label', `${window.Iro.t('module.slices.flipH')} ${label}`);
+        flipV.setAttribute('aria-label', `${window.Iro.t('module.slices.flipV')} ${label}`);
         flipH.classList.toggle('active', h);
         flipV.classList.toggle('active', v);
       };
@@ -391,7 +388,6 @@
       const applyLabels = () => {
         const model = modelNow();
         for (let p = 0; p < 3; p += 1) {
-          panelSections[p].title = Models.planeLabel(model, p);
         }
         for (let i = 0; i < 3; i += 1) outLabels[i].textContent = model.axes[i].label;
       };

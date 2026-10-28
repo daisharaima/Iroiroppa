@@ -140,12 +140,9 @@
     flipV.textContent = '\u21c5';
     const refreshView = () => {
       const angle = ((Number(api.get().innerRotate) || 0) % 360 + 360) % 360;
-      rot.title = `${window.Iro.t('module.slices.rotate')} inner ${angle}\u00b0`;
-      rot.setAttribute('aria-label', rot.title);
-      flipH.title = `${window.Iro.t('module.slices.flipH')} inner`;
-      flipH.setAttribute('aria-label', flipH.title);
-      flipV.title = `${window.Iro.t('module.slices.flipV')} inner`;
-      flipV.setAttribute('aria-label', flipV.title);
+      rot.setAttribute('aria-label', `${window.Iro.t('module.slices.rotate')} inner ${angle}\u00b0`);
+      flipH.setAttribute('aria-label', `${window.Iro.t('module.slices.flipH')} inner`);
+      flipV.setAttribute('aria-label', `${window.Iro.t('module.slices.flipV')} inner`);
       rot.setAttribute('aria-pressed', String(angle !== 0));
       flipH.setAttribute('aria-pressed', String(api.get().innerFlipH === true));
       flipV.setAttribute('aria-pressed', String(api.get().innerFlipV === true));

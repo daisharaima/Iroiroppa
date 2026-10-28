@@ -171,13 +171,7 @@
           hex.value = transparent ? 'N/A' : storedHex;
         }
         const twoSpaces = !transparent && shownHex.toLowerCase() !== String(storedHex).toLowerCase();
-        hex.title = transparent
-          ? 'Transparent colour (eraser)'
-          : (twoSpaces
-            ? `The document stores ${storedHex}; on screen (through the profile) it is ${shownHex}`
-            : `The stored colour ${storedHex}`);
         hexWrap.title = window.Iro.t('module.stat.hexHint');
-        swatch.title = transparent ? 'Transparent colour (eraser)' : `on screen ${shownHex}${twoSpaces ? ` · stored ${storedHex}` : ''}`;
 
         // The same display units the OKLCH sliders use (color-slider.js): L × 100, C × 1000,
         // H in degrees — one convention for the numbers, in one place. The first build read

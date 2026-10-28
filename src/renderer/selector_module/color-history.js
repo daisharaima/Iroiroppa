@@ -138,7 +138,7 @@
           chip.type = 'button';
           chip.className = 'history-chip';
           chip.style.background = Color.rgbToHex(shown.r, shown.g, shown.b);
-          chip.title = Color.rgbToHex(rgb.r, rgb.g, rgb.b);
+          chip.setAttribute('aria-label', Color.rgbToHex(rgb.r, rgb.g, rgb.b));
           chip.addEventListener('click', () => {
             store.applyRecordedRgb(rgb);
             store.push(true);

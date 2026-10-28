@@ -84,7 +84,6 @@
     off.type = 'button';
     off.className = 'btn';
     off.textContent = window.Iro.t('module.session.disconnect');
-    off.title = window.Iro.t('module.session.disconnectTitle');
     off.addEventListener('click', () => { window.csp.disconnect(); });
     row.append(off);
     root.append(row);

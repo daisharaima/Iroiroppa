@@ -939,7 +939,6 @@
     _makeEdge(entry) {
       const edge = document.createElement('div');
       edge.className = 'module-edge';
-      edge.title = window.Iro.t('ui.layout.dragResize');
       let drag = null;
       const move = (ev) => { if (drag) this._dragRatio(drag, ev.clientY); };
       const end = () => {
@@ -1291,7 +1290,6 @@
     _makeSplit(aboveEntry, belowEntry) {
       const split = document.createElement('div');
       split.className = 'module-split';
-      split.title = window.Iro.t('ui.layout.dragResize');
       let drag = null;
 
       const move = (ev) => {
@@ -1381,7 +1379,6 @@
     _makeDivider(leftCol) {
       const divider = document.createElement('div');
       divider.className = 'column-divider';
-      divider.title = window.Iro.t('ui.layout.dragResizeColumn');
       let drag = null;
       const move = (ev) => {
         if (!drag) return;

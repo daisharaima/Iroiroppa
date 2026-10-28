@@ -47,7 +47,7 @@
         const node = document.createElement('div');
         node.id = id;
         node.className = 'slot' + (extra ? ' ' + extra : '');
-        node.title = label;
+        node.setAttribute('aria-label', label);
         return node;
       };
       const main = make('slot-main', 'Foreground colour', '');
@@ -71,11 +71,11 @@
         node.classList.toggle('active', isActive);
         node.classList.toggle('empty', !shownHex);
         node.style.background = shownHex || '';
-        node.title = !shownHex
+        node.setAttribute('aria-label', !shownHex
           ? `${label}: unknown`
           : storedHex && storedHex !== shownHex
             ? `${label}: ${storedHex} (shown ${shownHex})`
-            : `${label}: ${shownHex}`;
+            : `${label}: ${shownHex}`);
       };
 
       const render = () => {
