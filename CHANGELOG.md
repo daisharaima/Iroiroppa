@@ -5,11 +5,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.2.3] — 2026-10-28
 
 ### Changed
 
 - Removed low-value palette tooltips: repeated resize-edge hints, window-drag hints, Color History tile hex values, CSP Shortcuts path/raw-command details, CSP Color slot details, and duplicate Color Stat readout hints. Stateful and discoverability hints remain.
+- Reorganized the user guide into a single **Module List** and a **Customize your palette** page, with fewer repeated screenshots.
 
 ## [1.2.2] — 2026-10-28
 
@@ -1308,6 +1309,7 @@ turned on or off from the Settings window's Modules tab.
 - Tracking of gamut and layout state across profile changes, window resizes and
   module drags — see the test suite for the invariants.
 
+[1.2.3]: https://github.com/daisharaima/Iroiroppa/releases/tag/v1.2.3
 [1.2.2]: https://github.com/daisharaima/Iroiroppa/releases/tag/v1.2.2
 [1.2.1]: https://github.com/daisharaima/Iroiroppa/releases/tag/v1.2.1
 [1.2.0]: https://github.com/daisharaima/Iroiroppa/releases/tag/v1.2.0

@@ -1,7 +1,7 @@
 {
   "name": "iroiroppa",
   "productName": "Iroiroppa",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Iroiroppa - a color picker for Clip Studio Paint that connects through Companion Mode (smartphone mode).",
   "main": "src/main/main.js",
   "license": "GPL-3.0-or-later",
