@@ -4,7 +4,7 @@ A Windows popup with a perceptually uniform color picker and a collection of hel
 
 ![Iroiroppa, connected to a Companion Mode host](docs/screenshot.png)
 
-**New here?** The [user guide](wiki/Home.md) walks through installing, connecting
+**New here?** The [user guide](https://github.com/daisharaima/Iroiroppa/wiki) walks through installing, connecting
 to Clip Studio Paint, picking colors and getting out of trouble — plain language,
 no programming required.
 

@@ -1,6 +1,6 @@
 # Iroiroppa
 
-Iroiroppa is a color picker for Clip Studio Paint on Windows. It floats above the canvas and sends the color you choose to Clip Studio Paint.
+Iroiroppa is a perceptually uniform color picker and a collection of helper tools for Clip Studio Paint on Windows. It floats above the canvas and sends the color you choose to Clip Studio Paint.
 
 ![The Iroiroppa palette](images/palette.png)
 
