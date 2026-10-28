@@ -34,7 +34,7 @@
     "dist": "npm run icon && electron-builder --win"
   },
   "dependencies": {
-    "jscolorengine": "^1.6.1",
+    "jscolorengine": "^1.6.2",
     "jsqr": "^1.4.0"
   },
   "devDependencies": {
