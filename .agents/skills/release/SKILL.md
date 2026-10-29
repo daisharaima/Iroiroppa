@@ -1,5 +1,5 @@
 ---
-name: Release
+name: release
 description: Cut an Iroiroppa release — version bump, CHANGELOG, tag, CI, release notes. Use when bumping the version, tagging or publishing a release, or changing the release process.
 ---
 

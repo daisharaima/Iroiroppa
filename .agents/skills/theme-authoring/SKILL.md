@@ -1,5 +1,5 @@
 ---
-name: Theme authoring
+name: theme-authoring
 description: Author or change an Iroiroppa theme — tokens, the optional CSS that restyles beyond colour, fonts, and the check/preview loop. Use when adding a bundled or user theme, or a theming token.
 ---
 
