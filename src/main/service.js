@@ -17,6 +17,7 @@ const { CompanionClient } = require('./companion/client');
 const { decodeConfig, isShareUrl } = require('./companion/qr');
 const { scanOnce } = require('./capture');
 const { TYPE } = require('./companion/packets');
+const QuickAccess = require('./companion/quick-access');
 const Color = require('../shared/color');
 
 const SCAN_TIMEOUT_MS = 90000;
@@ -47,6 +48,9 @@ const SYNC_GATE_TICK_MS = 500;
 // after this many failed reconnects the service gives up and goes idle — which
 // re-arms auto-connect, so it scans for the new QR instead of retrying forever.
 const MAX_RECONNECT_FAILURES = 4;
+// A Quick Access read/write answers from CSP's own UI thread; four seconds is the
+// same budget the colour writes use and is generous for a 40-item read.
+const QUICK_ACCESS_TIMEOUT_MS = 4000;
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -129,6 +133,54 @@ class CompanionService extends EventEmitter {
       // this check the key-send fallback in csp:invoke never ran.
       if (result && result.type === TYPE.ERROR) return { ok: false, error: 'command rejected by CSP' };
       return { ok: true, result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
+
+  /**
+   * Read the on/off state of CSP commands by name (docs/PROTOCOL.md, "Quick
+   * Access"). The host pushes colour, never Quick Access state, so a caller polls
+   * this; it is one small request even for the 40 brush sub-tool toggles.
+   * @param {string[]} names CSP command names (`toolpressuretosize`, …)
+   */
+  async readQuickAccess(names = []) {
+    const wanted = QuickAccess.cleanNames(names);
+    if (!wanted.length) return { ok: false, error: 'no names' };
+    if (!this.client || !this.client.alive) return { ok: false, error: 'not connected' };
+    try {
+      const result = await this.client.request(
+        'SyncQuickAccessUIState',
+        QuickAccess.readDetail(wanted),
+        { timeoutMs: QUICK_ACCESS_TIMEOUT_MS },
+      );
+      // A NAK resolves like an ACK, so it must be checked here or a refusal would
+      // read as "every flag is off".
+      if (result && result.type === TYPE.ERROR) return { ok: false, error: 'command rejected by CSP' };
+      const state = QuickAccess.parseState(result && result.detail);
+      return { ok: true, on: state.on, disabled: state.disabled, names: wanted };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
+
+  /**
+   * Click one CSP command by name (docs/PROTOCOL.md, "Quick Access"). It is a
+   * click, not a set, and the host answers success even for an unknown name — the
+   * caller must confirm by reading the state back.
+   */
+  async clickQuickAccess(name) {
+    const command = typeof name === 'string' ? name.trim() : '';
+    if (!command) return { ok: false, error: 'no command name' };
+    if (!this.client || !this.client.alive) return { ok: false, error: 'not connected' };
+    try {
+      const result = await this.client.request(
+        'DoQuickAccess',
+        QuickAccess.clickDetail(command),
+        { timeoutMs: QUICK_ACCESS_TIMEOUT_MS },
+      );
+      if (result && result.type === TYPE.ERROR) return { ok: false, error: 'command rejected by CSP' };
+      return { ok: true, command };
     } catch (err) {
       return { ok: false, error: err.message };
     }

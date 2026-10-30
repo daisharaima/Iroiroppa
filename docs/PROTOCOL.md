@@ -133,6 +133,51 @@ be complete. Sending a deliberately *stale* request detail coaxes a fuller reply
 To select the transparent (eraser) colour, send the RGB variant with
 `IsColorTransparent: true`.
 
+## Quick Access (brush sub-tool flags)
+
+CSP exposes its own commands through the **Quick Access** namespace, addressed by
+name. It is the only wire mechanism that reads or writes a brush sub-tool toggle
+(pen-pressure links, colour mixing, the 35 stroke-composition modes): there is no
+"set this flag" command. The user's Quick Access *palette* is irrelevant — both
+calls work for a name that is not on it, so nothing has to be arranged in CSP.
+
+**Read** — `SyncQuickAccessUIState`. The reply names the items that are **on**;
+an item that is off is simply absent, and `DisabledItemIDs` names the ones the
+host will not toggle right now.
+
+```json
+{ "UpdateTargetSetIndex": 0,
+  "UpdateTargetItemIDs": [
+    { "ItemIDType": "Command", "ItemIDCommandType": "advancedcommand",
+      "ItemIDCommandName": "toolpressuretosize", "ItemIDToolUuid": "" } ] }
+```
+
+**Write** — `DoQuickAccess`, a *click* (not a set):
+
+```json
+{ "ItemType": "Command", "ItemCommandType": "advancedcommand",
+  "ItemCommandName": "toolcompositemultiply" }
+```
+
+Command names are the `advancedcommand` identifiers from CSP's own command
+databases. They are not guessable: `toolbrushusewateredge` is real,
+`toolbrushusewatercoloredge` is not.
+
+Gotchas, all load-bearing:
+
+- The host answers **success for an unknown name** and changes nothing, so a
+  write must be **confirmed by reading the state back**. A name that never takes
+  effect is "unavailable" for that brush, not a success.
+- Toggle state is **not pushed** — the host pushes colour only — so it is polled.
+  One read is small (a 40-item read is the whole brush sub-tool universe), unlike
+  `GetQuickAccessData`, which dumps every toolbar set and is diagnostic only.
+- A click is a toggle for the five checkboxes and a selection for the
+  `toolcomposite*` group, so never click a flag that already matches.
+- The app exposes both calls to selector modules through the existing privileged
+  channel: `cspInvoke({ quickAccess: { op: 'read', names } })` and
+  `cspInvoke({ quickAccess: { op: 'click', name } })`. `service.js` validates and
+  caps the name list; the renderer never reaches the socket directly.
+
 ## Practical consequences
 
 - Only **one controller** may be connected at a time; a second TCP connection is
@@ -169,7 +214,9 @@ Full notes in `docs/PROTOCOL.md`. The essentials:
   persists for two consecutive polls. An inactive-slot-only partial update is UI state, not a colour
   pick.
 - Colour changes made *inside* CSP are only picked up by **polling**
-  (`SyncColorCircleUIState`), not by pushes.
+  (`SyncColorCircleUIState`), not by pushes. The same is true of Quick Access
+  toggle state (`SyncQuickAccessUIState`), and a `DoQuickAccess` click is
+  confirmed by reading that state back.
 
 
 

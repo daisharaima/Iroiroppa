@@ -151,6 +151,28 @@ module** (docs/USER-MODULES.md) is the same contract loaded from
 `%APPDATA%\Iroiroppa\user-modules\<id>\` over `module://` instead of
 `selector_module/`, with its metadata read from an optional `module.json`.
 
+### Talking to CSP
+
+A module never touches the socket: main owns the Companion connection and the
+renderer reaches it through `ctx.csp` only. For colour that is `writeColor` /
+`previewColor` / `onColor`; for CSP's own commands it is the Quick Access
+namespace, which is the only wire mechanism that reads or clicks a brush
+sub-tool toggle:
+
+```js
+// Which of these commands are on (plus the ones the host will not toggle).
+const state = await ctx.csp.cspInvoke({ quickAccess: { op: 'read', names: ['toolcompositescreen'] } });
+// → { ok, on: ['toolcompositescreen'], disabled: [] }
+
+// Click one. It is a click, not a set, and an unknown name answers success —
+// confirm with another read.
+await ctx.csp.cspInvoke({ quickAccess: { op: 'click', name: 'toolcompositemultiply' } });
+```
+
+The channel is privileged and whitelisted to those two ops, so it is a bridge,
+not a protocol escape hatch. Toggle state is not pushed by the host: poll it.
+Shapes and gotchas are in `docs/PROTOCOL.md`, "Quick Access".
+
 ### Capabilities
 
 A module may depend on the channels the app reaches CSP over — the Companion

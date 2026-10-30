@@ -5,6 +5,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Selector modules can read and click CSP's own commands.** The Companion bridge gains the
+  name-addressed Quick Access pair — `SyncQuickAccessUIState` to read which commands are on, and
+  `DoQuickAccess` to click one — exposed to modules as `cspInvoke({ quickAccess })` and whitelisted
+  to those two operations. Until now a module could write the colour but could not see or change a
+  CSP command at all. See `docs/PROTOCOL.md` → "Quick Access" and `docs/MODULES.md` → "Talking to
+  CSP".
+
 ## [1.2.3] — 2026-10-28
 
 ### Changed

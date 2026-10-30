@@ -89,8 +89,20 @@ function register(ctx, trusted = () => false) {
     // A key send reaches a PowerShell helper, so the channel is privileged: act only
     // for a live window this app owns (docs/STATE.md).
     if (!trusted(event)) return { ok: false, error: 'untrusted sender' };
-    // The protocol first (if it can invoke), then a key send as the fallback
-    //.
+    // Name-addressed Quick Access (docs/PROTOCOL.md, "Quick Access"): a selector
+    // module reads which CSP commands are on and clicks them. Only these two ops —
+    // this is not a general protocol channel, and it cannot send keys.
+    const qa = spec && spec.quickAccess;
+    if (qa && typeof qa === 'object') {
+      if (qa.op === 'read' && ctx.service && typeof ctx.service.readQuickAccess === 'function') {
+        return ctx.service.readQuickAccess(qa.names);
+      }
+      if (qa.op === 'click' && ctx.service && typeof ctx.service.clickQuickAccess === 'function') {
+        return ctx.service.clickQuickAccess(qa.name);
+      }
+      return { ok: false, error: 'bad quickAccess spec' };
+    }
+    // The protocol first (if it can invoke), then a key send as the fallback.
     if (spec.quickIndex != null && ctx.service && typeof ctx.service.quickAccess === 'function') {
       const viaProtocol = await ctx.service.quickAccess(spec.quickIndex);
       if (viaProtocol && viaProtocol.ok) return viaProtocol;
