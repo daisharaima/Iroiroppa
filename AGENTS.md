@@ -518,13 +518,14 @@ output and reply. Cached repeats (this file, the docs, the conversation) are
 
 ## Branches
 
-`main` is the released line; `dev` is day-to-day work; short-lived branches off
-`dev` are squash-merged to keep history linear. The full strategy lives in the
-maintainer's private release notes (not in this repository).
+`main` is the only long-lived branch and the released line; `dev` is retired.
+Day-to-day work happens on a short-lived `feat/<slug>` branch cut from `main`
+and merged back when the feature is done — `/feature-branch <slug>` creates or
+switches to one. Prefer a linear history; never rewrite a published `main`.
 
 **Do not confuse the branch with the document.** `layout.json` carries a
 `version` of its own: 1 the original board, 2 palettes with snapping (what
-`dev` runs), 3 the modules-only flat list (not currently on a branch). Write
+`main` runs), 3 the modules-only flat list (not currently on a branch). Write
 "schema 1/2/3" when you mean the file, or the next reader will think you renamed
 a branch.
 
@@ -560,11 +561,28 @@ out-of-date doc is read as fact by the next agent or contributor:
 | change the release process, tagging or versioning | the maintainer's private release notes |
 | add or change the state model, a domain, the session layer or a fallback flag | `docs/STATE.md` (the spec) and `docs/INVARIANTS.md` |
 | add or change an agent workflow | its `SKILL.md` under `.agents/skills/` |
+| add, rename or retire a domain term | `GLOSSARY.md` (one line plus the owning doc's link; user-facing wording stays in `wiki/Glossary.md`) |
+| make a decision that chooses one option over another at a cost | a new `docs/adr/NNNN-*.md` (short; link the owning doc), never a rewrite of an accepted ADR |
+| start or finish a feature's spec and tickets | `.scratch/<feature>/` — transient and git-ignored; parked ideas stay in the private roadmap |
 | move an item off the backlog, or decide not to do it | the maintainer's private roadmap notes (outside this repository) |
 | ship anything user-visible | `[Unreleased]` in `CHANGELOG.md` as you work (renamed to a dated section at release) **and** the README |
 | change anything a user sees in the app | the page under `wiki/` that covers it — `npm run wiki:check` fails on a broken link, an unlisted page or a module the guide never names |
 | touch the UI | `npm run screenshot`, then commit `docs/screenshot.png` |
 
+`wiki/` is written for people who do not program and is **not implementation
+context**. Do not read it while exploring, planning or coding; read it only when
+a user-visible change means updating a page.
+
 **Before every non-beta release**, re-read the README top to bottom against the
 app — feature list, install steps and asset names, credits, AI disclosure — as
 the private release checklist spells out. It is the one document users actually read.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: root `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.

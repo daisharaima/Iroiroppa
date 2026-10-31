@@ -91,3 +91,42 @@ test('the renderer loads the manifest before it uses it', () => {
   assert.ok(manifestAt >= 0, 'index.html must load ../shared/module-manifest.js');
   assert.ok(manifestAt < html.indexOf('src="app.js"'), 'the manifest must load before app.js');
 });
+
+// --- Agent scaffold: the map and the public/private boundary -----------------
+// The workflow map is only useful if it names the project skills that exist,
+// and a public decision doc that cites `_private/` or `.scratch/` would dangle
+// in a clone. See docs/agents/workflow.md §6.
+
+const PROJECT_SKILLS_DIR = path.join(ROOT, '.agents', 'skills');
+const LOCAL_ONLY_RE = /(?:^|[^A-Za-z0-9])_(?:private)\/|(?:^|[^A-Za-z0-9])\.scratch\//;
+
+test('the workflow map names every project skill', () => {
+  // Project skills are git-ignored, so a fresh clone has none; only check when
+  // they exist locally.
+  if (!fs.existsSync(PROJECT_SKILLS_DIR)) return;
+  const map = fs.readFileSync(path.join(ROOT, 'docs', 'agents', 'workflow.md'), 'utf8');
+  const skills = fs.readdirSync(PROJECT_SKILLS_DIR)
+    .filter((dir) => fs.existsSync(path.join(PROJECT_SKILLS_DIR, dir, 'SKILL.md')));
+  assert.ok(skills.length > 0, 'no project skills found');
+  for (const skill of skills) {
+    assert.ok(
+      map.includes(skill),
+      `docs/agents/workflow.md does not name the project skill "${skill}" — add it to §1 or §2`,
+    );
+  }
+});
+
+test('public decision docs never cite local-only paths', () => {
+  const adr = fs.readdirSync(path.join(ROOT, 'docs', 'adr'))
+    .filter((file) => file.endsWith('.md'))
+    .map((file) => `docs/adr/${file}`);
+  const files = ['GLOSSARY.md', 'README.md', 'CHANGELOG.md', 'CONTRIBUTING.md', ...adr];
+  for (const rel of files) {
+    const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+    assert.doesNotMatch(
+      text,
+      LOCAL_ONLY_RE,
+      `${rel} cites a local-only path; it would dangle in a clone`,
+    );
+  }
+});

@@ -33,7 +33,7 @@ clicking.
 | `docs/STATE.md` | the canonical state model, adapters and session layer |
 | `docs/THEMES.md` | themes and the token manifest |
 | `docs/USER-MODULES.md` | writing a user module |
-| `wiki/` | the plain-language user guide — the only docs written for people who do not program (`npm run wiki:check`) |
+| `wiki/` | the plain-language user guide — for users only, not implementation context (`npm run wiki:check`) |
 | `AGENTS.md` | the short working guide for AI agents |
 
 ## Invariants in one minute

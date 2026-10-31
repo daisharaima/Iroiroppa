@@ -10,6 +10,7 @@ session.json
 !.vscode/extensions.json
 .DS_Store
 _private/
-/blueprint/
 .cortexkit/
 .dsh-vision-toolkit/
+.scratch/
+.agents/
