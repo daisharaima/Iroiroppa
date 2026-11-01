@@ -200,3 +200,48 @@ test('the echo ring matches on value, not on origin (documented limitation)', ()
   store.applyIncoming({ active: 'main', main: { rgb: { r: 1, g: 2, b: 3 } }, rgb: { r: 1, g: 2, b: 3 } });
   assert.equal(store._ownWrites.length, 0, 'any real host change ends the burst');
 });
+
+// --- E1: the interaction protocol, flag-only --------------------------------
+
+function interactionStore() {
+  const calls = [];
+  const store = loadStore({
+    localFirst: true,
+    interactionBegin: (s) => calls.push(['begin', s.id]),
+    interactionUpdate: (s) => calls.push(['update', s.id, s.seq]),
+    interactionEnd: (s) => calls.push(['end', s.id, s.seq, s.reason]),
+    writeColor: () => calls.push(['write']),
+  });
+  store.connected = true;
+  return { store, calls };
+}
+
+test('with local-first on, one drag opens one interaction and the commit closes it', () => {
+  const { store, calls } = interactionStore();
+  store.setLCH({ L: 0.5, C: 0.1, H: 30 }, { notify: 'live' });
+  store.setLCH({ L: 0.6, C: 0.1, H: 30 }, { notify: 'live' });
+  store.setLCH({ L: 0.6, C: 0.1, H: 30 }, { notify: 'commit' });
+  const kinds = calls.map((c) => c[0]);
+  assert.deepEqual(kinds, ['begin', 'update', 'update', 'end']);
+  const ids = new Set(calls.map((c) => c[1]));
+  assert.equal(ids.size, 1, 'the same interaction all the way through');
+  assert.equal(calls[3][3], 'commit');
+  assert.equal(store._interaction, null, 'closed');
+});
+
+test('a committed pick with no live write still writes the plain path', () => {
+  const { store, calls } = interactionStore();
+  store.setLCH({ L: 0.7, C: 0.02, H: 100 }, { notify: 'commit' });
+  assert.deepEqual(calls.map((c) => c[0]), ['write'], 'a discrete pick is not an interaction');
+});
+
+test('a reject ends the interaction and the next drag opens a fresh one', () => {
+  const { store, calls } = interactionStore();
+  store.setLCH({ L: 0.5, C: 0.1, H: 30 }, { notify: 'live' });
+  const first = calls[0][1];
+  store.onInteractionReject();
+  assert.equal(store._interaction, null);
+  store.setLCH({ L: 0.4, C: 0.1, H: 30 }, { notify: 'live' });
+  const second = calls.filter((c) => c[0] === 'begin').pop()[1];
+  assert.notEqual(second, first, 'a new interaction id after a reject');
+});

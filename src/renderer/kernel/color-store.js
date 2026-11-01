@@ -40,6 +40,11 @@
       // (and CSP's read-back of it) must not move the pick — the record is 8-bit
       // and, past the gamut, already clipped (docs/COLOR.md).
       this._ownWrites = [];
+      // E1 (flag-only): the live interaction this window owns, if any. When
+      // `csp.localFirst` is on, a drag opens one on the first live write and
+      // closes it on the commit, instead of a bare write per move.
+      this._interaction = null;
+      this._interactionSeq = 0;
       this.pendingSend = false;
       this._previewLab = null;
       this._previewFrame = 0;
@@ -417,7 +422,40 @@
         return;
       }
       if (!immediate && !this.liveSync) return;
+      // E1: with the local-first protocol on, the write is an interaction update
+      // (and the commit closes it) so main can order, attribute and reject it.
+      if (this.csp && this.csp.localFirst && typeof this.csp.interactionUpdate === 'function') {
+        this._writeInteraction(immediate);
+        return;
+      }
       this.csp.writeColor(this.lastStored, immediate);
+    }
+
+    /** Open/advance/close the colour interaction for a live or committed write. */
+    _writeInteraction(immediate) {
+      const value = this.lastStored;
+      if (!immediate) {
+        if (!this._interaction) {
+          this._interaction = `i${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+          this._interactionSeq = 0;
+          try { this.csp.interactionBegin({ id: this._interaction, domain: 'color' }); } catch { this._interaction = null; }
+        }
+        if (!this._interaction) return;
+        this._interactionSeq += 1;
+        try { this.csp.interactionUpdate({ id: this._interaction, seq: this._interactionSeq, value }); } catch { /* dropped */ }
+        return;
+      }
+      if (!this._interaction) { this.csp.writeColor(value, true); return; }
+      this._interactionSeq += 1;
+      const id = this._interaction;
+      this._interaction = null;
+      try { this.csp.interactionEnd({ id, seq: this._interactionSeq, value, reason: 'commit' }); } catch { this.csp.writeColor(value, true); }
+    }
+
+    /** Main rejected the interaction (an external change, or another window won). */
+    onInteractionReject() {
+      this._interaction = null;
+      this._interactionSeq = 0;
     }
 
     _cancelPreview() {

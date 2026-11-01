@@ -222,6 +222,8 @@
     } else {
       csp.onColor((color) => store.applyIncoming(color));
       csp.onStatus(onStatus);
+      // E1: main rejected our interaction (an external change took the colour).
+      if (csp.onInteractionReject) csp.onInteractionReject(() => store.onInteractionReject());
       // Main keeps the shared history, so a module floated out keeps it.
       if (csp.onHistoryChanged) csp.onHistoryChanged((list) => store.setHistory(list));
     }

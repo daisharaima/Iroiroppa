@@ -326,6 +326,8 @@
     } else {
       csp.onStatus(updateStatus);
       csp.onColor((color) => store.applyIncoming(color));
+      // E1: main rejected our interaction (an external change took the colour).
+      if (csp.onInteractionReject) csp.onInteractionReject(() => store.onInteractionReject());
       // The history is shared with any float window (main owns the list).
       if (csp.onHistoryChanged) csp.onHistoryChanged((list) => store.setHistory(list));
     }
