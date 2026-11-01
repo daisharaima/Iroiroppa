@@ -167,3 +167,36 @@ test('setLab can name the hue of a grey, so the Wheel ring can turn it', () => {
   store.setLab({ L: 0.5, a: 0, b: 0 });
   assert.equal(store.H, 200, 'without a name the anchor is preserved');
 });
+
+// --- the echo ring: what protects a live drag from its own read-back ----------
+//
+// These two cases pin the mechanism E1 will touch. The first is the behaviour to
+// keep; the second is the limitation R9 replaces (origin tag *in addition to* the
+// value match, never instead of it): a read-back is an 8-bit record that need not
+// equal the derived float, so "is this mine?" cannot be answered by origin alone.
+
+test('the 8-bit echo of our own write keeps the derived colour', () => {
+  const store = loadStore();
+  store.setLCH({ L: 0.62, C: 0.08, H: 250 }, { notify: 'live' });
+  const before = store.lch();
+  const stored = { ...store.lastStored };
+  assert.ok(store._ownWrites.length >= 1, 'the write is remembered');
+  store.applyIncoming({ active: 'main', main: { rgb: stored }, rgb: stored });
+  const after = store.lch();
+  assert.ok(Math.abs(after.L - before.L) < 1e-12, 'the lightness is not re-derived');
+  assert.ok(Math.abs(after.H - before.H) < 1e-9, 'the echo must not rotate the hue');
+});
+
+test('the echo ring matches on value, not on origin (documented limitation)', () => {
+  const store = loadStore({ writeColor() {} });
+  store.setLCH({ L: 0.5, C: 0.05, H: 20 }, { notify: 'live' });
+  const stored = { ...store.lastStored };
+  assert.equal(store._ownWrites.length, 1);
+  // An external change that happens to equal one of our writes is swallowed as
+  // an echo: the value is already on screen, so nothing moves — but the ring is
+  // not cleared either, which is what an origin tag would fix.
+  store.applyIncoming({ active: 'main', main: { rgb: stored }, rgb: stored });
+  assert.equal(store._ownWrites.length, 1, 'the ring stays armed');
+  store.applyIncoming({ active: 'main', main: { rgb: { r: 1, g: 2, b: 3 } }, rgb: { r: 1, g: 2, b: 3 } });
+  assert.equal(store._ownWrites.length, 0, 'any real host change ends the burst');
+});
