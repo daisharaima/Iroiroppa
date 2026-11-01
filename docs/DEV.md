@@ -148,6 +148,8 @@ human clicking:
 | `--no-peer-bus` | disable the per-window `MessagePort` peer transport |
 | `--no-compute-host` | decode QR in main instead of the `utilityProcess` host |
 | `--no-secret-store` | store the pairing secret in plaintext instead of `safeStorage` |
+| `--local-first` | send a live colour drag through the interaction protocol (`begin`/`update`/`end`) instead of one `color:write` per move; off by default |
+| `--trace-interaction` | log one line per interaction event (`begin`, `update`, `end`, `reject`) |
 | `--capture-fake <name>` | list a synthetic capture source (renders the capture module without a desktop) |
 | `--profile-row <n>` | click the n-th profile row (with `--profiles`) |
 | `--pick <#RRGGBB>` | type a hex and commit it (simulates a user pick) |
