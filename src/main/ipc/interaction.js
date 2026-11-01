@@ -22,7 +22,12 @@ function register(ctx, trusted) {
     if (win && !win.isDestroyed()) {
       sendTo(win, 'interaction:reject', { interactionId: interaction.interactionId, reason: interaction.reason });
     }
+    if (ctx.traceInteraction) console.log(`[interaction] reject ${interaction.interactionId} -> win ${interaction.windowId} (${interaction.reason})`);
   }
+
+  // `--trace-interaction` prints one line per protocol event, so a live run can be
+  // checked from the log (one begin, N updates, one end, zero rejects).
+  const trace = (line) => { if (ctx.traceInteraction) console.log(`[interaction] ${line}`); };
 
   ipcMain.handle('interaction:begin', (event, spec = {}) => {
     if (!trusted(event)) return { ok: false, reason: 'untrusted' };
@@ -40,6 +45,7 @@ function register(ctx, trusted) {
       currentRev: cur ? cur.rev : 0,
     });
     rejectOwner(r.rejected);
+    trace(`begin ${id} win=${win.id} ok=${r.ok}${r.reason ? ' reason=' + r.reason : ''}`);
     return { ok: r.ok, reason: r.reason || null };
   });
 

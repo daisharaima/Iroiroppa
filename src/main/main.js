@@ -72,6 +72,8 @@ let peerHub = null;
 // the renderer side on; with the flag off nothing here is reachable.
 const interactions = createInteractionHub();
 const localFirst = process.argv.includes('--local-first');
+// One log line per protocol event, so a live run can be checked from stdout.
+const traceInteraction = process.argv.includes('--trace-interaction');
 // The utility-process compute host (docs/STATE.md, §6); opt-in.
 let computeHost = null;
 // The window-capture channel's source enumerator.
@@ -1262,6 +1264,7 @@ const ctx = {
   get stateHub() { return stateHub; },
   get interactions() { return interactions; },
   get localFirst() { return localFirst; },
+  get traceInteraction() { return traceInteraction; },
   get peerHub() { return peerHub; },
   get capture() { return captureService; },
   get sender() { return sender; },
