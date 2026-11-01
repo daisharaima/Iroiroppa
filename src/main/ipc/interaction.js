@@ -56,6 +56,7 @@ function register(ctx, trusted) {
     if (!win || !cur || cur.windowId !== win.id) return;
     const r = ctx.interactions.update({ id: spec.id, domain: 'color', seq: spec.seq, value: spec.value });
     if (!r.ok) return;
+    trace(`update ${spec.id} seq=${r.seq}`);
     if (spec.value && ctx.service) ctx.service.writeColor(spec.value, { immediate: false });
   });
 
@@ -71,6 +72,7 @@ function register(ctx, trusted) {
       reason: spec.reason === 'cancel' ? 'cancel' : 'commit',
     });
     if (r.ok && r.commit && r.value && ctx.service) ctx.service.writeColor(r.value, { immediate: true });
+    trace(`end ${spec.id} ok=${r.ok} commit=${Boolean(r.commit)}`);
     return { ok: r.ok, reason: r.reason || null };
   });
 }
