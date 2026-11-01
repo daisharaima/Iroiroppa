@@ -19,6 +19,9 @@
 //
 // The epoch is internal: renderers never see it, they only see a reject.
 
+/** How many recently sent values an interaction remembers. */
+const RECENT_VALUES = 8;
+
 /**
  * @param {{ now?: () => number }} [opts]
  */
@@ -55,6 +58,11 @@ function createInteractionHub({ now = Date.now } = {}) {
       seq: 0,
       epoch: epochOf(domain),
       lastValue: null,
+      // The last few values this interaction sent. A host echo can lag by more
+      // than one update, so "is this ours?" must never be a comparison with the
+      // newest value alone — that is how a lagging read-back would reject a live
+      // drag. Same reasoning as the renderer's `_ownWrites` ring.
+      recent: [],
       startedAt: now(),
     });
     return { ok: true, rejected: displaced };
@@ -66,8 +74,25 @@ function createInteractionHub({ now = Date.now } = {}) {
     if (!cur || cur.id !== id) return { ok: false, drop: true, reason: 'not-active' };
     if (Number.isFinite(seq) && seq <= cur.seq) return { ok: false, drop: true, reason: 'stale-seq' };
     cur.seq = Number.isFinite(seq) ? seq : cur.seq + 1;
-    cur.lastValue = value === undefined ? cur.lastValue : value;
+    if (value !== undefined) noteValue(cur, value);
     return { ok: true, seq: cur.seq };
+  }
+
+  /** Remember a value this interaction sent (bounded, oldest out). */
+  function noteValue(cur, value) {
+    cur.lastValue = value;
+    cur.recent.push(value);
+    if (cur.recent.length > RECENT_VALUES) cur.recent.shift();
+  }
+
+  /**
+   * True when `value` is one this interaction recently sent — an echo, however
+   * late. `equals(a, b)` compares two domain values.
+   */
+  function isRecent(domain, value, equals) {
+    const cur = active.get(domain);
+    if (!cur || value === undefined) return false;
+    return cur.recent.some((v) => equals(v, value));
   }
 
   /** Close an interaction; returns `{ ok, commit, value, rejected? }`. */
@@ -80,6 +105,7 @@ function createInteractionHub({ now = Date.now } = {}) {
       return { ok: true, commit: false, value: cur.lastValue, baseRev: cur.baseRev };
     }
     if (Number.isFinite(seq) && seq < cur.seq) return { ok: false, reason: 'stale-seq' };
+    if (value !== undefined) noteValue(cur, value);
     active.delete(domain);
     return { ok: true, commit: true, value: value === undefined ? cur.lastValue : value, seq: cur.seq };
   }
@@ -116,7 +142,7 @@ function createInteractionHub({ now = Date.now } = {}) {
     return [...active.keys()];
   }
 
-  return { begin, update, end, invalidate, get, owns, causation, epochOf, domains };
+  return { begin, update, end, invalidate, get, owns, causation, isRecent, epochOf, domains };
 }
 
 module.exports = { createInteractionHub };

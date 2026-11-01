@@ -162,3 +162,45 @@ test('a begin without an id or a domain is refused', () => {
   assert.equal(hub.begin({ id: 'i1', windowId: 1 }).ok, false);
   assert.equal(hub.begin({ id: 'i1', domain: D }).ok, false);
 });
+
+// --- the recent-value ring: a lagging echo is ours, a real change is not ------
+
+const rgb = (r, g, b) => ({ r, g, b });
+const sameRgb = (a, b) => Boolean(a && b && a.r === b.r && a.g === b.g && a.b === b.b);
+
+test('an echo of any recently sent value counts as ours, not as an external change', () => {
+  const hub = createInteractionHub();
+  hub.begin({ id: 'i1', domain: D, windowId: 7, baseRev: 0, currentRev: 0 });
+  hub.update({ id: 'i1', domain: D, seq: 1, value: rgb(1, 2, 3) });
+  hub.update({ id: 'i1', domain: D, seq: 2, value: rgb(4, 5, 6) });
+  hub.update({ id: 'i1', domain: D, seq: 3, value: rgb(7, 8, 9) });
+  // The host lags: it reports the value from seq 1 while seq 3 is the newest.
+  assert.equal(hub.isRecent(D, rgb(1, 2, 3), sameRgb), true);
+  assert.equal(hub.isRecent(D, rgb(7, 8, 9), sameRgb), true);
+  // A colour this interaction never sent is an external change.
+  assert.equal(hub.isRecent(D, rgb(200, 0, 0), sameRgb), false);
+});
+
+test('the ring holds the last 8 values and forgets older ones', () => {
+  const hub = createInteractionHub();
+  hub.begin({ id: 'i1', domain: D, windowId: 7, baseRev: 0, currentRev: 0 });
+  for (let i = 1; i <= 9; i++) hub.update({ id: 'i1', domain: D, seq: i, value: rgb(i, 0, 0) });
+  assert.equal(hub.isRecent(D, rgb(1, 0, 0), sameRgb), false, 'the 9th-oldest has been evicted');
+  assert.equal(hub.isRecent(D, rgb(2, 0, 0), sameRgb), true);
+});
+
+test('the committed value joins the ring, so its echo after the end is ours', () => {
+  const hub = createInteractionHub();
+  hub.begin({ id: 'i1', domain: D, windowId: 7, baseRev: 0, currentRev: 0 });
+  hub.update({ id: 'i1', domain: D, seq: 1, value: rgb(1, 1, 1) });
+  hub.end({ id: 'i1', domain: D, seq: 2, value: rgb(9, 9, 9) });
+  // The interaction is closed, so the ring is gone with it: the echo of the final
+  // write is handled by the renderer's own ring, not by a closed hub entry.
+  assert.equal(hub.get(D), null);
+  assert.equal(hub.isRecent(D, rgb(9, 9, 9), sameRgb), false);
+});
+
+test('isRecent is false when nothing is active', () => {
+  const hub = createInteractionHub();
+  assert.equal(hub.isRecent(D, rgb(1, 1, 1), sameRgb), false);
+});

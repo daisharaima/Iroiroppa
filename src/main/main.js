@@ -1671,8 +1671,10 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       // normal run keeps the existing echo-suppression path untouched.
       if (localFirst) {
         const cur = interactions.get('color');
-        if (cur && c && c.rgb && cur.lastValue) {
-          const same = c.rgb.r === cur.lastValue.r && c.rgb.g === cur.lastValue.g && c.rgb.b === cur.lastValue.b;
+        if (cur && c && c.rgb) {
+          // Compare against the last few values, not just the newest: a host echo can
+          // lag by more than one update, and a lagging read must never reject a drag.
+          const same = interactions.isRecent('color', c.rgb, (a, b) => Boolean(a && b && a.r === b.r && a.g === b.g && a.b === b.b));
           if (!same) {
             const gone = interactions.invalidate('color', 'invalidated');
             if (gone) {
