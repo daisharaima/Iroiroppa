@@ -120,3 +120,45 @@ test('two domains are independent', () => {
   assert.equal(hub.invalidate('color').interactionId, 'a');
   assert.equal(hub.get('layout').id, 'b');
 });
+
+// --- the failure cases the live matrix keeps producing ---------------------
+
+test('an update that arrives after the end is dropped, never reopened', () => {
+  const hub = createInteractionHub();
+  hub.begin({ id: 'i1', domain: D, windowId: 7, baseRev: 0, currentRev: 0 });
+  hub.end({ id: 'i1', domain: D, seq: 0, reason: 'commit' });
+  const late = hub.update({ id: 'i1', domain: D, seq: 1, value: { r: 1, g: 1, b: 1 } });
+  assert.equal(late.ok, false);
+  assert.equal(late.reason, 'not-active');
+  assert.equal(hub.get(D), null, 'a late echo cannot resurrect the interaction');
+});
+
+test('a second end is a drop, not a second commit', () => {
+  const hub = createInteractionHub();
+  hub.begin({ id: 'i1', domain: D, windowId: 7, baseRev: 0, currentRev: 0 });
+  assert.equal(hub.end({ id: 'i1', domain: D, seq: 1 }).ok, true);
+  const again = hub.end({ id: 'i1', domain: D, seq: 1 });
+  assert.equal(again.ok, false);
+  assert.equal(again.reason, 'not-active');
+});
+
+test('an end with no begin is refused rather than accepted silently', () => {
+  const hub = createInteractionHub();
+  const r = hub.end({ id: 'ghost', domain: D, seq: 1 });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'not-active');
+});
+
+test('an update before any begin is refused', () => {
+  const hub = createInteractionHub();
+  const r = hub.update({ id: 'i1', domain: D, seq: 1, value: {} });
+  assert.equal(r.ok, false);
+  assert.equal(r.reason, 'not-active');
+});
+
+test('a begin without an id or a domain is refused', () => {
+  const hub = createInteractionHub();
+  assert.equal(hub.begin({ domain: D, windowId: 1 }).ok, false);
+  assert.equal(hub.begin({ id: 'i1', windowId: 1 }).ok, false);
+  assert.equal(hub.begin({ id: 'i1', domain: D }).ok, false);
+});
