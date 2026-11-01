@@ -213,6 +213,14 @@ contextBridge.exposeInMainWorld('csp', {
   onStatus: (cb) => ipcRenderer.on('companion:status', (_e, s) => cb(s)),
   onColor: (cb) => ipcRenderer.on('companion:color', (_e, c) => cb(c)),
   onColorPreview: (cb) => ipcRenderer.on('companion:color-preview', (_e, c) => cb(c)),
+  // E1: the local-first interaction protocol (docs/STATE.md). `localFirst` is a
+  // window argument, so the renderer knows before its first write which path to
+  // use; the channels exist either way but main ignores them when the flag is off.
+  localFirst: (process.argv || []).includes('--local-first=1'),
+  interactionBegin: (spec) => ipcRenderer.invoke('interaction:begin', spec),
+  interactionUpdate: (spec) => ipcRenderer.send('interaction:update', spec),
+  interactionEnd: (spec) => ipcRenderer.invoke('interaction:end', spec),
+  onInteractionReject: (cb) => ipcRenderer.on('interaction:reject', (_e, d) => cb(d)),
   onSettings: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),
   onUpdate: (cb) => ipcRenderer.on('update:changed', (_e, info) => cb(info)),
   onUpdateProgress: (cb) => ipcRenderer.on('update:download-progress', (_e, p) => cb(p)),

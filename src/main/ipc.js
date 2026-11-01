@@ -23,6 +23,8 @@ function wireIpc(ctx) {
   require('./ipc/window').register(ctx, h);
   require('./ipc/commands').register(ctx, h);
   require('./ipc/settings').register(ctx, h);
+  // E1: registered only under `--local-first` (the group itself checks the flag).
+  require('./ipc/interaction').register(ctx, trusted);
 }
 
 module.exports = { wireIpc };

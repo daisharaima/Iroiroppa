@@ -49,6 +49,7 @@ const LayoutModel = require('../shared/layout-model');
 const LayoutGeometry = require('../shared/layout-geometry');
 const { createMainCapabilities } = require('./capabilities');
 const { createStateHub } = require('./state-hub');
+const { createInteractionHub } = require('./interaction');
 const { createPeerHub } = require('./peer-hub');
 const { createSecretStore } = require('./secret-store');
 const { createComputeHost } = require('./compute-host');
@@ -67,6 +68,10 @@ let capabilities = null;
 // The canonical state model and the session/peer layer (docs/STATE.md).
 let stateHub = null;
 let peerHub = null;
+// E1: the local-first interaction bookkeeping (colour only). `--local-first` turns
+// the renderer side on; with the flag off nothing here is reachable.
+const interactions = createInteractionHub();
+const localFirst = process.argv.includes('--local-first');
 // The utility-process compute host (docs/STATE.md, §6); opt-in.
 let computeHost = null;
 // The window-capture channel's source enumerator.
@@ -1255,6 +1260,8 @@ function applyStateIntent(name) {
 const ctx = {
   get capabilities() { return capabilities; },
   get stateHub() { return stateHub; },
+  get interactions() { return interactions; },
+  get localFirst() { return localFirst; },
   get peerHub() { return peerHub; },
   get capture() { return captureService; },
   get sender() { return sender; },
@@ -1520,6 +1527,10 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     const stateMode = legacyState ? 'legacy' : 'model';
     ctx.windowArgs = ctx.userModulesArg ? [ctx.userModulesArg] : [];
     ctx.windowArgs.push(`--state-mode=${stateMode}`);
+    // E1: the local-first interaction protocol (docs/STATE.md). Off by default; when
+    // on, the renderer drives a drag through interaction:begin/update/end instead of
+    // a bare color:write per pointermove.
+    if (ctx.localFirst) ctx.windowArgs.push('--local-first=1');
 
     const dir = app.getPath('userData');
     // New installs default to the machine's Adobe RGB (1998) profile when it has
@@ -1650,7 +1661,29 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
         : null,
     });
     service.on('status', (s) => { broadcast('companion:status', s); if (stateHub) stateHub.set('connection', s); setHealth({ csp: s.state }); });
-    service.on('color', (c) => { broadcast('companion:color', c); if (stateHub) stateHub.set('color', c); });
+    service.on('color', (c) => {
+      // E1: while an interaction owns the colour, an incoming colour that is not
+      // the value it last sent is an external change (an eyedropper, an undo, a
+      // hotkey) — the interaction loses and its owner is told. Flag-only, so a
+      // normal run keeps the existing echo-suppression path untouched.
+      if (localFirst) {
+        const cur = interactions.get('color');
+        if (cur && c && c.rgb && cur.lastValue) {
+          const same = c.rgb.r === cur.lastValue.r && c.rgb.g === cur.lastValue.g && c.rgb.b === cur.lastValue.b;
+          if (!same) {
+            const gone = interactions.invalidate('color', 'invalidated');
+            if (gone) {
+              const win = require('electron').BrowserWindow.fromId(gone.windowId);
+              if (win && !win.isDestroyed()) {
+                sendTo(win, 'interaction:reject', { interactionId: gone.interactionId, reason: gone.reason });
+              }
+            }
+          }
+        }
+      }
+      broadcast('companion:color', c);
+      if (stateHub) stateHub.set('color', c);
+    });
     service.on('preview', (p) => {
       for (const win of paletteWindows()) {
         if (win.webContents.id === p.sourceId) continue;
