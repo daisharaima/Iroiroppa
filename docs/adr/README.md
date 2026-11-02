@@ -53,3 +53,5 @@ Links to the owning docs and the tests that pin it.
 | [0001](0001-oklab-canonical.md) | Store colour as OKLab, not a hue-carrying model |
 | [0002](0002-colour-echo-by-identity.md) | Suppress colour echoes by identity, not by time |
 | [0003](0003-single-layout-writer.md) | Main is the only writer of `layout.json` |
+| [0004](0004-native-helper-host.md) | One native helper process, not a PowerShell per job |
+| [0005](0005-colour-interaction-stays-behind-a-flag.md) | The colour interaction protocol stays behind a flag |

@@ -95,8 +95,26 @@ The popup is `focusable: false`, so on Windows it is a non-activating window
 (`WS_EX_NOACTIVATE`): clicks and drags arrive, but the window never takes focus
 from Clip Studio Paint. Text fields temporarily enable focus and release it on
 blur. Visibility is driven by `foreground.js`, which streams the foreground
-process name from one long-lived PowerShell process; the palette shows while CSP
-(not "every other app") is in front.
+process name; the palette shows while CSP (not "every other app") is in front.
+
+### The native helper
+
+`src/main/native/irohost.cs` is one compiled process (built by
+`scripts/build-host.js` with the C# compiler in-box on Windows) that owns the
+things a browser cannot do natively: it puts a window into the topmost band
+(`SetWindowLong` + `SetWindowPos`), watches the foreground
+(`EVENT_SYSTEM_FOREGROUND`) and observes the mouse (`WH_MOUSE_LL`), including
+the canvas hit-test that tells a drawing press from a panel press. It speaks
+newline-delimited JSON on stdin/stdout.
+
+`src/main/native-host.js` supervises it: spawn, per-command replies, restart with
+backoff, and a stop that cannot leak (the helper exits on stdin EOF, so a crashed
+app cannot leave a hook behind). `topmost.js`, `pointer-watch.js` and
+`foreground.js` keep their old APIs and route through the host when it is
+available; `--no-native-host` puts every one of them back on PowerShell.
+
+Bare-key shortcuts still use `bare-keys.ps1`: their IME/caret/dialog checks are
+the riskiest surface to port and are tracked separately.
 
 ## Screen capture
 

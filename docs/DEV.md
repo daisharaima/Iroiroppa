@@ -150,6 +150,9 @@ human clicking:
 | `--no-secret-store` | store the pairing secret in plaintext instead of `safeStorage` |
 | `--local-first` | send a live colour drag through the interaction protocol (`begin`/`update`/`end`) instead of one `color:write` per move; off by default |
 | `--trace-interaction` | log one line per interaction event (`begin`, `update`, `end`, `reject`) |
+| `--native-host` | force the native helper on (it is on by default when the binary is present) |
+| `--no-native-host` | keep every helper on PowerShell — the diagnostic path when a band or hook misbehaves |
+| `--trace-native` | log each native-helper command and reply to stdout |
 | `--hold-interaction` | open a live colour interaction and leave it open (tests the invalidation branch without touching the mouse; use with `--local-first`) |
 | `--capture-fake <name>` | list a synthetic capture source (renders the capture module without a desktop) |
 | `--profile-row <n>` | click the n-th profile row (with `--profiles`) |

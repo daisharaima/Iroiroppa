@@ -180,9 +180,10 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   sits at the bottom for good. Electron on Windows 11 build 26300 (Oct 2026 updates)
   drops it — `setAlwaysOnTop(true)` leaves `isAlwaysOnTop()` false — so
   `src/main/topmost.js` applies both bits with `SetWindowPos`/`SetWindowLong`
-  (`topmost.ps1`, asar-unpacked) after every show and after every press — one
-  long-lived `topmost.ps1 -Watch` process fed on stdin, because a PowerShell spawn per
-  press was slow and its hidden console could flash the foreground. Chromium rewrites
+  through the native helper (`src/main/native/irohost.cs`, asar-unpacked) after every
+  show and after every press — one long-lived process for the whole session, because a
+  PowerShell spawn per press was slow and its hidden console could flash the
+  foreground. `--no-native-host` restores the PowerShell helpers. Chromium rewrites
   the extended style when it tries to activate the window, which drops the topmost bit
   mid-session (the "palette disappears on click" report), so a 100 ms watchdog repairs
   it while visible and the press path repairs it at once. `moveTop()` is never used to
@@ -423,6 +424,13 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   fires `theme-structural` and the window re-clamps once (`app.js`/`float.js` →
   `board.remeasure()`). A theme's CSS may only paint — `theme-check` fails a
   bundled theme that sets a layout or per-frame property. `docs/THEMES.md`.
+
+- **In the native helper, commands run on the message-loop thread.** A `WH_MOUSE_LL`
+  or `EVENT_SYSTEM_FOREGROUND` hook installed from the stdin reader thread never
+  fires — user32 delivers to the thread that installed it, and that thread must pump
+  messages. `irohost.cs` enqueues each command and posts `WM_APP+1` to the main
+  thread, which owns the loop; the reader only reads. A hook that silently never
+  fires looks exactly like "no input", which is why the probe command exists.
 
 Detailed regression notes for the rules *not* in this core list: `docs/INVARIANTS.md`.
 

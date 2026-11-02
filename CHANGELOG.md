@@ -7,6 +7,21 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **One native helper replaces three PowerShell processes.** The always-on-top repair,
+  the foreground watcher and the mouse hook now run in one small compiled process
+  (`src/main/native/irohost.cs`), built with the C# compiler in-box on Windows and
+  shipped in the app. Startup to first reply is about a millisecond, the band repair is
+  a no-op when the window is already correct, and the palette no longer spawns a
+  PowerShell process to answer "which app is in front?". `--no-native-host` keeps the
+  old PowerShell path as a diagnostic.
+
+- **The always-on-top band is repaired every 100 ms instead of every 500 ms.** A
+  dropped band bit used to leave the palette behind another window for up to half a
+  second; it is now fixed within about a tenth of one, because the repair cost is the
+  timer interval and the check itself is free when nothing is wrong.
+
 ### Added
 
 - **Selector modules can read and click CSP's own commands.** The Companion bridge gains the
