@@ -1543,6 +1543,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     // --perf-gaps reaches the page as a window argument, so the recorder knows before
     // the first frame whether to sample.
     if (perfGaps) ctx.windowArgs.push('--perf-gaps=1');
+    if (process.argv.includes('--force-interactive')) ctx.windowArgs.push('--force-interactive=1');
     ctx.windowArgs.push(`--state-mode=${stateMode}`);
     // E1: the local-first interaction protocol (docs/STATE.md). Off by default; when
     // on, the renderer drives a drag through interaction:begin/update/end instead of

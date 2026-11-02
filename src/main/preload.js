@@ -226,6 +226,9 @@ contextBridge.exposeInMainWorld('csp', {
   onInteractionReject: (cb) => ipcRenderer.on('interaction:reject', (_e, d) => cb(d)),
   // --perf-gaps: the renderer measures frame gaps during a gesture and reports them.
   perfGaps: (process.argv || []).includes('--perf-gaps=1'),
+  // Diagnostics: treat the store as mid-gesture so the interactive render cadence can
+  // be exercised without a human drag (docs/DEV.md).
+  forceInteractive: (process.argv || []).includes('--force-interactive=1'),
   perfGapsReport: (summary) => ipcRenderer.send('perf:gaps', summary),
   onSettings: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),
   onUpdate: (cb) => ipcRenderer.on('update:changed', (_e, info) => cb(info)),

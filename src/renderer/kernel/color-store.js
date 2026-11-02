@@ -81,6 +81,7 @@
      * write/echo meaning (a preview must never suppress incoming colours).
      */
     get interactive() {
+      if (window.csp && window.csp.forceInteractive) return true;
       return this.dragging || (this._inPreviewUntil > 0 && Date.now() < this._inPreviewUntil);
     }
 

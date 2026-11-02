@@ -90,6 +90,7 @@
       blockingMs: Math.round(longTasks.reduce((sum, task) => sum + Math.max(0, task.ms - 50), 0)),
       worst: longTasks.slice().sort((a, b) => b.ms - a.ms).slice(0, 3),
       planeDbg: window.__planeDbg || null,
+      plotDbg: window.__plotDbg || null,
       planeWorker: window.IroPlaneWorker && window.IroPlaneWorker.stats
         ? (() => { const now = window.IroPlaneWorker.stats(); const start = workerAtStart || { started: 0, completed: 0, totalMs: 0 }; return { jobs: now.started - start.started, done: now.completed - start.completed, ms: now.totalMs - start.totalMs, failed: now.failed, error: now.error || '' }; })()
         : null,

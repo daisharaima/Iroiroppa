@@ -435,6 +435,16 @@
       // requested again: the interactive tick fires every frame, and queueing the same
       // plane twelve times only delays the one that lands.
       const chunkedInFlight = new Set();
+      const chunkStats = (window.__plotDbg = window.__plotDbg || { chunked: 0, sync: 0, panels: 0, t: {} });
+      /** Accumulate per-section time so a long task can be attributed to a call. */
+      const timed = (name, fn) => {
+        const start = performance.now();
+        const result = fn();
+        const spent = performance.now() - start;
+        chunkStats.t[name] = Math.round(((chunkStats.t[name] || 0) + spent) * 10) / 10;
+        if (spent > (chunkStats.t[name + 'Max'] || 0)) chunkStats.t[name + 'Max'] = Math.round(spent * 10) / 10;
+        return result;
+      };
 
       /**
        * Paint one panel: keep the last image, schedule a chunked build when the key
@@ -446,6 +456,7 @@
           if (store.interactive && !plotCache.has(key)) {
             if (!chunkedInFlight.has(key)) {
               chunkedInFlight.add(key);
+              chunkStats.chunked += 1;
               build((built) => {
                 chunkedInFlight.delete(key);
                 built.__key = key;
@@ -455,14 +466,16 @@
               });
             }
           } else {
-            off = build();
+            chunkStats.sync += 1;
+            off = timed('build', () => build());
             off.__key = key;
             lastOff[plane] = off;
           }
         }
         if (!off) return;
-        const c2d = paint(canvas, off, W, H, viewFor(plane));
-        drawOverlay(c2d, plane, W, H, modelNow(), axesNow());
+        chunkStats.panels += 1;
+        const c2d = timed('paint', () => paint(canvas, off, W, H, viewFor(plane)));
+        timed('overlay', () => drawOverlay(c2d, plane, W, H, modelNow(), axesNow()));
       };
 
       // Rows built per animation frame in the chunked path. Sized so one slice stays
@@ -573,9 +586,12 @@
       };
 
       /** Hue slice: a per-pixel in-gamut mask at a fixed chroma. */
-      const buildHuePlot = (key, w, h, C) => {
+      const buildHuePlot = (key, w, h, C, onDone) => {
         const cached = plotCache.get(key);
-        if (cached && cached.width === w && cached.height === h) return cached;
+        if (cached && cached.width === w && cached.height === h) {
+          if (onDone) onDone(cached);
+          return cached;
+        }
 
         const off = document.createElement('canvas');
         off.width = w; off.height = h;
@@ -601,9 +617,43 @@
             }
           }
         }
-        c2d.putImageData(img, 0, 0);
-        plotCache.set(key, off);
-        off.__luma = luma;
+        if (!onDone) {
+          c2d.putImageData(img, 0, 0);
+          plotCache.set(key, off);
+          off.__luma = luma;
+          return off;
+        }
+
+        let row = 0;
+        const step = () => {
+          const end = Math.min(h, row + PLOT_ROWS_PER_FRAME);
+          for (; row < end; row += 1) {
+            const L = 1 - row / (h - 1);
+            for (let x = 0; x < w; x += 1) {
+              const i = (row * w + x) * 4;
+              const H = (x / (w - 1)) * 360;
+              if (store.inGamut(L, C, H)) {
+                const f = Color.fitToSrgb(L, C, H);
+                data[i] = clamp255(f.r * 255);
+                data[i + 1] = clamp255(f.g * 255);
+                data[i + 2] = clamp255(f.b * 255);
+                data[i + 3] = 255;
+                luma[row * w + x] = L;
+              } else {
+                data[i + 3] = 0;
+              }
+            }
+          }
+          c2d.putImageData(img, 0, 0);
+          if (row < h) {
+            requestAnimationFrame(step);
+            return;
+          }
+          plotCache.set(key, off);
+          off.__luma = luma;
+          onDone(off);
+        };
+        requestAnimationFrame(step);
         return off;
       };
 
@@ -776,13 +826,12 @@
             const rw = W, rh = H;
             const fixed = fixedFor(plane);
             const key = `hue:${store.plotKeyTag()}:${fixed[1].toFixed(3)}:${rw}x${rh}`;
-            let off = lastOff[plane];
-            if (want(plane, off)) {
-              off = buildHuePlot(key, rw, rh, fixed[1]);
-              lastOff[plane] = off;
+            if (want(plane, lastOff[plane])) {
+              panelPlot(plane, key, (done) => buildHuePlot(key, rw, rh, fixed[1], done), canvas, W, H);
+            } else if (lastOff[plane]) {
+              const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
+              drawOverlay(c2d, plane, W, H, modelNow(), axes);
             }
-            const c2d = paint(canvas, off, W, H, viewFor(plane));
-            drawOverlay(c2d, plane, W, H, modelNow(), axes);
           }
         }
       };
