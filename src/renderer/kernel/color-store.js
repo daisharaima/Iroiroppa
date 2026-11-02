@@ -108,13 +108,40 @@
     // --- observation ------------------------------------------------------
 
     subscribe(fn) {
-      this._subs.add(fn);
-      return () => this._subs.delete(fn);
+      // --perf-gaps: time each subscriber so a long task can be attributed to the
+      // module that owns it (the index is subscription order: wheel, slices, slider…).
+      if (!(window.csp && window.csp.perfGaps)) {
+        this._subs.add(fn);
+        return () => this._subs.delete(fn);
+      }
+
+      const index = (this._subSeq = (this._subSeq || 0) + 1);
+      const wrapped = (value) => {
+        const start = performance.now();
+        const result = fn(value);
+        const spent = performance.now() - start;
+        const dbg = (window.__plotDbg = window.__plotDbg || { t: {}, subs: {} });
+        dbg.subs = dbg.subs || {};
+        const entry = dbg.subs[index] || (dbg.subs[index] = { n: 0, total: 0, max: 0 });
+        entry.n += 1;
+        entry.total = Math.round((entry.total + spent) * 10) / 10;
+        entry.max = Math.max(entry.max, Math.round(spent * 10) / 10);
+        return result;
+      };
+      this._subs.add(wrapped);
+      return () => this._subs.delete(wrapped);
     }
 
     _emit() {
+      const start = window.csp && window.csp.perfGaps ? performance.now() : 0;
       for (const fn of this._subs) {
         try { fn(this); } catch (err) { console.error('[store] subscriber failed', err); }
+      }
+      if (start) {
+        const spent = performance.now() - start;
+        const dbg = (window.__plotDbg = window.__plotDbg || { t: {} });
+        dbg.t.emit = Math.round(((dbg.t.emit || 0) + spent) * 10) / 10;
+        dbg.t.emitMax = Math.max(dbg.t.emitMax || 0, Math.round(spent * 10) / 10);
       }
     }
 

@@ -553,6 +553,8 @@
         // replacement exists).
         let row = 0;
         const step = () => {
+          const stepStart = performance.now();
+          const startRow = row;
           const end = Math.min(h, row + PLOT_ROWS_PER_FRAME);
           for (; row < end; row += 1) {
             const C = (1 - row / (h - 1)) * cmax;
@@ -572,7 +574,12 @@
               }
             }
           }
-          c2d.putImageData(img, 0, 0);
+          // Only the rows just built: a full-canvas copy per chunk invalidated the
+          // whole layer sixty times per plane.
+          c2d.putImageData(img, 0, 0, 0, startRow, w, end - startRow);
+          const stepSpent = performance.now() - stepStart;
+          chunkStats.t.step = Math.round(((chunkStats.t.step || 0) + stepSpent) * 10) / 10;
+          chunkStats.t.stepMax = Math.max(chunkStats.t.stepMax || 0, Math.round(stepSpent * 10) / 10);
           if (row < h) {
             requestAnimationFrame(step);
             return;
@@ -626,6 +633,7 @@
 
         let row = 0;
         const step = () => {
+          const startRow = row;
           const end = Math.min(h, row + PLOT_ROWS_PER_FRAME);
           for (; row < end; row += 1) {
             const L = 1 - row / (h - 1);
@@ -644,7 +652,7 @@
               }
             }
           }
-          c2d.putImageData(img, 0, 0);
+          c2d.putImageData(img, 0, 0, 0, startRow, w, end - startRow);
           if (row < h) {
             requestAnimationFrame(step);
             return;
