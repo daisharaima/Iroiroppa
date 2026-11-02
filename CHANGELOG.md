@@ -9,6 +9,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Dragging a colour map no longer stutters.** The palette used to compute each map once on
+  the way in and then compute it again to paint it in slices, so a drag could not keep up with the
+  pointer; the duplicate is gone and a drag now holds a steady frame rate (measured on this build:
+  p50 50-67 ms before, 16.7 ms after, with no long tasks).
+
 - **One native helper replaces three PowerShell processes.** The always-on-top repair,
   the foreground watcher and the mouse hook now run in one small compiled process
   (`src/main/native/irohost.cs`), built with the C# compiler in-box on Windows and
