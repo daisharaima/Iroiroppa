@@ -55,3 +55,4 @@ Links to the owning docs and the tests that pin it.
 | [0003](0003-single-layout-writer.md) | Main is the only writer of `layout.json` |
 | [0004](0004-native-helper-host.md) | One native helper process, not a PowerShell per job |
 | [0005](0005-colour-interaction-stays-behind-a-flag.md) | The colour interaction protocol stays behind a flag |
+| [0006](0006-plane-builds-chunked.md) | Plane builds are chunked; a worker was measured and rejected for the default planes |

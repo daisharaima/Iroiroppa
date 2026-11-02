@@ -311,6 +311,8 @@ function createShortcutActions(ctx, deps = {}) {
   }
 
   function toggleTarget(target) {
+    // Timestamp the request so the visibility trace can report the warm-summon latency.
+    if (ctx && ctx.popup) ctx.summonAt = Date.now();
     if (!ctx.isShortcutActive()) return false;
     const parsed = ShortcutModel.parseTarget(target);
     if (!parsed) return false;

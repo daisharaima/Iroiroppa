@@ -221,7 +221,12 @@ function createWindows(ctx) {
         visible: Boolean(ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.isVisible()),
         foreground: ctx.fgName || '',
         autoHide: ctx.settings.get().autoHide !== false,
+        t: Date.now(),
+        // Warm summon: from the hotkey press to the window being visible. A shown
+        // palette clears the mark so a later auto-show is not measured against it.
+        sinceSummon: action === 'show' && ctx.summonAt ? Date.now() - ctx.summonAt : undefined,
       });
+      if (action === 'show') ctx.summonAt = 0;
     } catch { /* tracing only */ }
   }
 // --- window -----------------------------------------------------------------
