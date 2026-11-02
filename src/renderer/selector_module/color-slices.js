@@ -545,7 +545,11 @@
         const cols = new Array(w);
         for (let x = 0; x < w; x++) cols[x] = intervalsAt(x / (w - 1));
 
-        for (let y = 0; y < h; y++) {
+        // The synchronous pass is the CACHE-ONLY path. A caller that wants the plane
+        // built across frames must not pay for it first: doing exactly that was the
+        // uninstrumented block that made every "chunked" build cost more than the code
+        // it replaced (it ran the whole plane, then built it again chunked).
+        if (!onDone) for (let y = 0; y < h; y++) {
           const C = (1 - y / (h - 1)) * cmax;
           for (let x = 0; x < w; x++) {
             const i = (y * w + x) * 4;
@@ -564,22 +568,27 @@
           }
         }
 
-        // A sub-pixel-wide interval (a primary fin) still gets one scanline.
-        for (let x = 0; x < w; x++) {
-          const ivs = cols[x];
-          for (let k = 0; k < ivs.length; k++) {
-            const iv = ivs[k];
-            if (iv[1] - iv[0] >= minC) continue;
-            const y = clamp(Math.round((1 - iv[1] / cmax) * (h - 1)), 0, h - 1);
-            const i = (y * w + x) * 4;
-            const C = (1 - y / (h - 1)) * cmax;
-            const { r, g, b } = colorAt(x / (w - 1), C);
-            put(i, r, g, b);
-            luma[y * w + x] = lumaAt(x / (w - 1));
+        // A sub-pixel-wide interval (a primary fin) still gets one scanline. It runs at
+        // completion, in both paths, so a chunked build does not lose fins that fall
+        // outside the last chunk's uploaded rectangle.
+        const drawFins = () => {
+          for (let x = 0; x < w; x++) {
+            const ivs = cols[x];
+            for (let k = 0; k < ivs.length; k++) {
+              const iv = ivs[k];
+              if (iv[1] - iv[0] >= minC) continue;
+              const y = clamp(Math.round((1 - iv[1] / cmax) * (h - 1)), 0, h - 1);
+              const i = (y * w + x) * 4;
+              const C = (1 - y / (h - 1)) * cmax;
+              const { r, g, b } = colorAt(x / (w - 1), C);
+              put(i, r, g, b);
+              luma[y * w + x] = lumaAt(x / (w - 1));
+            }
           }
-        }
+        };
 
         if (!onDone) {
+          drawFins();
           c2d.putImageData(img, 0, 0);
           plotCache.set(key, off);
           off.__luma = luma;
@@ -629,6 +638,10 @@
             requestAnimationFrame(step);
             return;
           }
+          drawFins();
+          // The fins may sit in rows no chunk uploaded; one full copy at the end is
+          // cheaper than tracking them.
+          c2d.putImageData(img, 0, 0);
           plotCache.set(key, off);
           off.__luma = luma;
           onDone(off);
@@ -652,7 +665,7 @@
         const data = img.data;
         const luma = new Float32Array(w * h).fill(NaN);
 
-        for (let y = 0; y < h; y++) {
+        if (!onDone) for (let y = 0; y < h; y++) {
           const L = 1 - y / (h - 1);
           for (let x = 0; x < w; x++) {
             const i = (y * w + x) * 4;
@@ -706,6 +719,10 @@
             requestAnimationFrame(step);
             return;
           }
+          drawFins();
+          // The fins may sit in rows no chunk uploaded; one full copy at the end is
+          // cheaper than tracking them.
+          c2d.putImageData(img, 0, 0);
           plotCache.set(key, off);
           off.__luma = luma;
           onDone(off);
