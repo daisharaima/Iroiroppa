@@ -435,6 +435,20 @@
       // requested again: the interactive tick fires every frame, and queueing the same
       // plane twelve times only delays the one that lands.
       const chunkedInFlight = new Set();
+      // rAF pauses while the page is hidden. A build in flight then never completes and
+      // its key would stay "in flight" for the rest of the session, so that panel would
+      // never rebuild again. Abandon everything and let the next visible pass restart it.
+      if (typeof document !== 'undefined' && !document.__plotVisibilityHooked) {
+        document.__plotVisibilityHooked = true;
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) return;
+          chunkedInFlight.clear();
+          for (let i = 0; i < 3; i += 1) plotGeneration[i] += 1;
+        });
+      }
+      // One generation per panel: a newer request bumps it, and an in-flight build whose
+      // generation is behind aborts instead of painting stale rows.
+      const plotGeneration = [0, 0, 0];
       const chunkStats = (window.__plotDbg = window.__plotDbg || { chunked: 0, sync: 0, panels: 0, t: {} });
       /** Accumulate per-section time so a long task can be attributed to a call. */
       const timed = (name, fn) => {
@@ -457,13 +471,18 @@
             if (!chunkedInFlight.has(key)) {
               chunkedInFlight.add(key);
               chunkStats.chunked += 1;
+              const generation = ++plotGeneration[plane];
+              const isStale = () => generation !== plotGeneration[plane]
+                || canvas.width !== W || canvas.height !== H;
               build((built) => {
                 chunkedInFlight.delete(key);
+                if (!built) return;                       // superseded or resized
+                if (generation !== plotGeneration[plane]) return;
                 built.__key = key;
                 lastOff[plane] = built;
                 const next2d = paint(canvas, built, W, H, viewFor(plane));
                 drawOverlay(next2d, plane, W, H, modelNow(), axesNow());
-              });
+              }, isStale);
             }
           } else {
             chunkStats.sync += 1;
@@ -483,7 +502,7 @@
       // a whole plane, and a drag could not afford one of those per panel rebuild.
       const PLOT_ROWS_PER_FRAME = 24;
 
-      const buildPlot = (key, w, h, intervalsAt, colorAt, lumaAt, onDone) => {
+      const buildPlot = (key, w, h, intervalsAt, colorAt, lumaAt, onDone, isStale) => {
         const cached = plotCache.get(key);
         if (cached && cached.width === w && cached.height === h) {
           if (onDone) onDone(cached);
@@ -553,6 +572,10 @@
         // replacement exists).
         let row = 0;
         const step = () => {
+          // Abandon a build whose canvas was resized, whose panel scheduled a newer
+          // build, or whose key was superseded: stale rows must never reach a canvas
+          // they were not built for.
+          if (isStale && isStale()) { onDone(null); return; }
           const stepStart = performance.now();
           const startRow = row;
           const end = Math.min(h, row + PLOT_ROWS_PER_FRAME);
@@ -593,7 +616,7 @@
       };
 
       /** Hue slice: a per-pixel in-gamut mask at a fixed chroma. */
-      const buildHuePlot = (key, w, h, C, onDone) => {
+      const buildHuePlot = (key, w, h, C, onDone, isStale) => {
         const cached = plotCache.get(key);
         if (cached && cached.width === w && cached.height === h) {
           if (onDone) onDone(cached);
@@ -633,6 +656,7 @@
 
         let row = 0;
         const step = () => {
+          if (isStale && isStale()) { onDone(null); return; }
           const startRow = row;
           const end = Math.min(h, row + PLOT_ROWS_PER_FRAME);
           for (; row < end; row += 1) {
@@ -785,13 +809,13 @@
             const fixed = fixedFor(plane);
             const key = `lc:${store.plotKeyTag()}:${fixed[2].toFixed(3)}:${rw}x${rh}`;
             if (want(plane, lastOff[plane])) {
-              panelPlot(plane, key, (done) => buildPlot(key, rw, rh,
+              panelPlot(plane, key, (done, isStale) => buildPlot(key, rw, rh,
                 (xNorm) => store.chromaIntervals(clamp(xNorm, 0, 1), fixed[2]),
                 (xNorm, c) => {
                   const f = Color.fitToSrgb(clamp(xNorm, 0, 1), c, fixed[2]);
                   return { r: clamp255(f.r * 255), g: clamp255(f.g * 255), b: clamp255(f.b * 255) };
                 },
-                (xNorm) => clamp(xNorm, 0, 1), done), canvas, W, H);
+                (xNorm) => clamp(xNorm, 0, 1), done, isStale), canvas, W, H);
             } else if (lastOff[plane]) {
               const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
               drawOverlay(c2d, plane, W, H, modelNow(), axes);
@@ -810,13 +834,13 @@
             const fixed = fixedFor(plane);
             const key = `hc:${store.plotKeyTag()}:${fixed[0].toFixed(3)}:${rw}x${rh}`;
             if (want(plane, lastOff[plane])) {
-              panelPlot(plane, key, (done) => buildPlot(key, rw, rh,
+              panelPlot(plane, key, (done, isStale) => buildPlot(key, rw, rh,
                 (xNorm) => store.chromaIntervals(fixed[0], xNorm * 360),
                 (xNorm, c) => {
                   const f = Color.fitToSrgb(fixed[0], c, xNorm * 360);
                   return { r: clamp255(f.r * 255), g: clamp255(f.g * 255), b: clamp255(f.b * 255) };
                 },
-                () => fixed[0], done), canvas, W, H);
+                () => fixed[0], done, isStale), canvas, W, H);
             } else if (lastOff[plane]) {
               const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
               drawOverlay(c2d, plane, W, H, modelNow(), axes);
@@ -835,7 +859,7 @@
             const fixed = fixedFor(plane);
             const key = `hue:${store.plotKeyTag()}:${fixed[1].toFixed(3)}:${rw}x${rh}`;
             if (want(plane, lastOff[plane])) {
-              panelPlot(plane, key, (done) => buildHuePlot(key, rw, rh, fixed[1], done), canvas, W, H);
+              panelPlot(plane, key, (done, isStale) => buildHuePlot(key, rw, rh, fixed[1], done, isStale), canvas, W, H);
             } else if (lastOff[plane]) {
               const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
               drawOverlay(c2d, plane, W, H, modelNow(), axes);

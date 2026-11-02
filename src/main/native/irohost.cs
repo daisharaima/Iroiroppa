@@ -376,6 +376,37 @@ internal static class Program
         }
     }
 
+    /// Hook callbacks must never block: a full pipe or a stalled parent would hold the
+    /// hook past its budget and Windows silently removes it. They enqueue; one writer
+    /// thread owns every byte on stdout.
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<string> _outQueue =
+        new System.Collections.Concurrent.ConcurrentQueue<string>();
+    private static readonly System.Threading.AutoResetEvent _outReady =
+        new System.Threading.AutoResetEvent(false);
+    private static Thread _writerThread;
+
+    private static void Enqueue(string line)
+    {
+        _outQueue.Enqueue(line);
+        try { _outReady.Set(); } catch { /* shutting down */ }
+    }
+
+    private static void StartWriter()
+    {
+        if (_writerThread != null) return;
+        _writerThread = new Thread(() =>
+        {
+            while (!_stop || !_outQueue.IsEmpty)
+            {
+                _outReady.WaitOne(200);
+                string line;
+                while (_outQueue.TryDequeue(out line)) Out(line);
+            }
+        });
+        _writerThread.IsBackground = true;
+        _writerThread.Start();
+    }
+
     private static void Out(string line)
     {
         lock (OutLock)
@@ -531,7 +562,7 @@ internal static class Program
                     {
                         if (msg == WM_LBUTTONDOWN)
                         {
-                            Out("{\"mouse\":\"down\",\"canvas\":" + (IsCanvasAt(data.x, data.y) ? "true" : "false")
+                            Enqueue("{\"mouse\":\"down\",\"canvas\":" + (IsCanvasAt(data.x, data.y) ? "true" : "false")
                                 + ",\"alt\":" + (KeyDown(VK_MENU) ? "true" : "false")
                                 + ",\"ctrl\":" + (KeyDown(VK_CONTROL) ? "true" : "false")
                                 + ",\"shift\":" + (KeyDown(VK_SHIFT) ? "true" : "false")
@@ -540,7 +571,7 @@ internal static class Program
                         }
                         else
                         {
-                            Out("{\"mouse\":\"up\",\"x\":" + data.x + ",\"y\":" + data.y
+                            Enqueue("{\"mouse\":\"up\",\"x\":" + data.x + ",\"y\":" + data.y
                                 + ",\"process\":\"" + Escape(name) + "\",\"t\":" + NowMs() + "}");
                         }
                     }
@@ -623,14 +654,14 @@ internal static class Program
                         if (binding.Active && !binding.Typing && !ModifierDown() && !NativeTyping())
                         {
                             binding.Claimed = true;
-                            Out("{\"key\":\"down\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
+                            Enqueue("{\"key\":\"down\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
                             return (IntPtr)1;                        // swallow it
                         }
                     }
                     else if (up && binding.Claimed)
                     {
                         binding.Claimed = false;
-                        Out("{\"key\":\"up\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
+                        Enqueue("{\"key\":\"up\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
                         return (IntPtr)1;
                     }
                 }
@@ -710,7 +741,7 @@ internal static class Program
         if (string.Equals(name, _lastFg, StringComparison.OrdinalIgnoreCase)) return;
         _lastFg = name;
 
-        Out("{\"fg\":\"" + Escape(name) + "\",\"hwnd\":" + hWnd.ToInt64() + ",\"t\":" + NowMs() + "}");
+        Enqueue("{\"fg\":\"" + Escape(name) + "\",\"hwnd\":" + hWnd.ToInt64() + ",\"t\":" + NowMs() + "}");
     }
 
     private static void FgCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
@@ -946,6 +977,8 @@ internal static class Program
             return;
         }
 
+        StartWriter();
+
         Out("{\"ready\":" + NowMs() + ",\"pid\":" + Process.GetCurrentProcess().Id
             + ",\"version\":\"" + Version + "\"}");
 
@@ -989,6 +1022,7 @@ internal static class Program
 
         _stop = true;
         _watching = false;
+        try { _outReady.Set(); } catch { /* already gone */ }
         RemoveMouseHook();
         RemoveFgHook();
         Out("{\"bye\":" + NowMs() + "}");
