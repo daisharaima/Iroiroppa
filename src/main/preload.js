@@ -29,6 +29,8 @@ const STATE_MODE = (() => {
 
 // The window's own palette id (plan: palette equality). Every palette window and float
 // is told which palette it renders, so it never has to assume it is "the primary".
+const HOLD_INTERACTION = (process.argv || []).includes('--hold-interaction=1');
+
 const PALETTE_ID = (() => {
   const prefix = '--palette-id=';
   const arg = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith(prefix));
@@ -217,6 +219,7 @@ contextBridge.exposeInMainWorld('csp', {
   // window argument, so the renderer knows before its first write which path to
   // use; the channels exist either way but main ignores them when the flag is off.
   localFirst: (process.argv || []).includes('--local-first=1'),
+  holdInteraction: HOLD_INTERACTION,
   interactionBegin: (spec) => ipcRenderer.invoke('interaction:begin', spec),
   interactionUpdate: (spec) => ipcRenderer.send('interaction:update', spec),
   interactionEnd: (spec) => ipcRenderer.invoke('interaction:end', spec),

@@ -1534,6 +1534,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     // on, the renderer drives a drag through interaction:begin/update/end instead of
     // a bare color:write per pointermove.
     if (ctx.localFirst) ctx.windowArgs.push('--local-first=1');
+    if (process.argv.includes('--hold-interaction')) ctx.windowArgs.push('--hold-interaction=1');
 
     const dir = app.getPath('userData');
     // New installs default to the machine's Adobe RGB (1998) profile when it has

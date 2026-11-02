@@ -369,6 +369,15 @@
     if (snap.color) store.applyIncoming(snap.color);
     try { store.setHistory(await csp.getHistory()); } catch { /* start empty */ }
     store.notify();
+    // `--hold-interaction` (test only): open a live colour interaction and leave it
+    // open, so the invalidation branch can be exercised *without* synthetic mouse
+    // input — the user keeps the cursor. A host colour change then rejects it.
+    if (csp.holdInteraction && csp.localFirst) {
+      setTimeout(() => {
+        const l = store.lch();
+        store.setLCH({ L: l.L, C: Math.min(l.C + 0.004, 0.4), H: l.H }, { notify: 'live' });
+      }, 2500);
+    }
   }
 
   init();
