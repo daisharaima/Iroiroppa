@@ -224,6 +224,9 @@ contextBridge.exposeInMainWorld('csp', {
   interactionUpdate: (spec) => ipcRenderer.send('interaction:update', spec),
   interactionEnd: (spec) => ipcRenderer.invoke('interaction:end', spec),
   onInteractionReject: (cb) => ipcRenderer.on('interaction:reject', (_e, d) => cb(d)),
+  // --perf-gaps: the renderer measures frame gaps during a gesture and reports them.
+  perfGaps: (process.argv || []).includes('--perf-gaps=1'),
+  perfGapsReport: (summary) => ipcRenderer.send('perf:gaps', summary),
   onSettings: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),
   onUpdate: (cb) => ipcRenderer.on('update:changed', (_e, info) => cb(info)),
   onUpdateProgress: (cb) => ipcRenderer.on('update:download-progress', (_e, p) => cb(p)),

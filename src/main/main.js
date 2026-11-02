@@ -4,7 +4,7 @@ const path = require('node:path');
 const fs = require('node:fs');
 const { spawn } = require('node:child_process');
 const {
-  app, BrowserWindow, Tray, Menu, screen, nativeImage, powerMonitor, protocol,
+  app, BrowserWindow, Tray, Menu, screen, nativeImage, powerMonitor, protocol, ipcMain,
 } = require('electron');
 
 // `theme://` serves a theme's own assets (fonts, images) out of
@@ -28,6 +28,7 @@ const { checkForUpdates } = require('./update-check');
 const { createLayoutStore } = require('./layout-store');
 const { createLayoutService } = require('./layout-service');
 const { createInputTrace, traceEnabled } = require('./input-trace');
+const { createPerfTrace, perfEnabled } = require('./perf-trace');
 const { stopBand, setBandHost } = require('./topmost');
 const { NativeHost } = require('./native-host');
 const { createDragSession } = require('./drag-session');
@@ -78,6 +79,9 @@ const traceInteraction = process.argv.includes('--trace-interaction');
 
 /** One line per native-helper exchange, for verifying the host against the app. */
 const traceNative = process.argv.includes('--trace-native');
+
+/** --perf-gaps: record frame gaps during a gesture (docs/PERF.md). */
+const perfGaps = perfEnabled();
 // The utility-process compute host (docs/STATE.md, §6); opt-in.
 let computeHost = null;
 
@@ -1536,6 +1540,9 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     const legacyState = process.argv.includes('--legacy-state') || argValue('--state') === 'legacy';
     const stateMode = legacyState ? 'legacy' : 'model';
     ctx.windowArgs = ctx.userModulesArg ? [ctx.userModulesArg] : [];
+    // --perf-gaps reaches the page as a window argument, so the recorder knows before
+    // the first frame whether to sample.
+    if (perfGaps) ctx.windowArgs.push('--perf-gaps=1');
     ctx.windowArgs.push(`--state-mode=${stateMode}`);
     // E1: the local-first interaction protocol (docs/STATE.md). Off by default; when
     // on, the renderer drives a drag through interaction:begin/update/end instead of
@@ -1651,6 +1658,11 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
         },
       });
       app.on('will-quit', () => { if (computeHost) computeHost.dispose(); });
+
+    if (perfGaps) {
+      const tracePerf = createPerfTrace();
+      ipcMain.on('perf:gaps', (_event, summary) => tracePerf(summary));
+    }
 
     // One native helper for the session. It replaces the per-press PowerShell spawn and
     // the long-lived topmost.ps1 watch; when the binary is missing or the process dies,
