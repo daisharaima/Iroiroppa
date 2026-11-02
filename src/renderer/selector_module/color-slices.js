@@ -519,6 +519,8 @@
       // letting the compositor paint between them. More chunks spread the same work over
       // more frames, so the map lands later for no gain in smoothness.
       const PLOT_CHUNKS = 3;
+      // Chunk arithmetic lives in one tested place (src/shared/plot-chunks.js).
+      const Chunks = (typeof IroPlotChunks !== 'undefined') ? IroPlotChunks : { size: (h, c) => Math.max(1, Math.ceil(h / c)) };
 
       const buildPlot = (key, w, h, intervalsAt, colorAt, lumaAt, onDone, isStale) => {
         const cached = plotCache.get(key);
@@ -588,7 +590,7 @@
         // whole plane, then hand the finished canvas back. The caller keeps the
         // previous image on screen until then (a map is never cleared before its
         // replacement exists).
-        const rowsPerChunk = Math.max(1, Math.ceil(h / PLOT_CHUNKS));
+        const rowsPerChunk = Chunks.size(h, PLOT_CHUNKS);
         let row = 0;
         const step = () => {
           // Abandon a build whose canvas was resized, whose panel scheduled a newer
@@ -674,7 +676,7 @@
           return off;
         }
 
-        const rowsPerChunk = Math.max(1, Math.ceil(h / PLOT_CHUNKS));
+        const rowsPerChunk = Chunks.size(h, PLOT_CHUNKS);
         let row = 0;
         const step = () => {
           if (isStale && isStale()) { onDone(null); return; }
