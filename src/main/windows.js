@@ -68,7 +68,7 @@ function createWindows(ctx) {
    * Show-order repair: the window that opened a menu/tooltip may raise itself a
    * moment later, so re-assert the overlay once on the next tick and once after
    * the owner's show settles. Without this the overlay was covered for up to the
-   * 500 ms band-watch interval (the dropdown/tooltip "flash").
+   * band-watch interval (the dropdown/tooltip "flash").
    */
   function raiseOverlayNow() {
     const now = Date.now();
@@ -136,13 +136,24 @@ function createWindows(ctx) {
 
   // --- the band watchdog + visibility trace ----------------------------------
 
+  /**
+   * How often a visible band window's topmost bit is checked and repaired.
+   *
+   * It was 500 ms, which is why a lost band could sit for half a second. The probe
+   * measured the restore latency as *interval + ~5 ms* (512 ms at a 500 ms tick,
+   * 105 ms at 100 ms), so the tick is the whole cost of a repair. The per-tick work
+   * is a no-op when the bits already match: the native helper compares them and
+   * skips `SetWindowPos`, so ten checks a second cost microseconds each.
+   */
+  const BAND_WATCH_MS = 100;
+
   let bandTimer = null;
 
   /**
    * Chromium rewrites a window's extended style when it tries to activate it on a
    * click, which drops WS_EX_TOPMOST; the press path repairs that at once, and this
-   * half-second check catches any other drop (a show, a DPI change, a runtime
-   * hiccup). Without it a palette that left the topmost band stayed behind another
+   * 100 ms check catches any other drop (a show, a DPI change, a runtime hiccup) —
+   * 500 ms was measurably too slow to look instant. Without it a palette that left the topmost band stayed behind another
    * always-on-top tool until the next show — the "randomly disappears" report.
    */
   function startBandWatch() {
@@ -161,13 +172,13 @@ function createWindows(ctx) {
       // Order follows the user: every band window's *bit* is repaired without touching
       // the z-order (`zorder:false`), and only the window the user touched last is
       // raised. A fixed "tools last" order made Settings permanently outrank a palette
-      // (and vice versa); a plain `SetWindowPos(HWND_TOPMOST)` per window every 500 ms
+      // (and vice versa); a plain `SetWindowPos(HWND_TOPMOST)` per window on every tick
       // made the palette flash over Settings (the "palette flashes on top then goes
-      // behind" report).
+      // behind" report). The per-window call is a no-op when the bits already match.
       for (const win of wins) raiseBand(win, { zorder: false });
       // Self-heal: the overlay is only for a menu, a tooltip, the merge card, or an
       // in-flight drag. The drag chip/line and the merge card have no menu/tooltip
-      // flag of their own; hiding them here made all four vanish every 500 ms.
+      // flag of their own; hiding them here made all four vanish on every tick.
       const owned = overlayOwned();
       if (ctx.overlayWin && !ctx.overlayWin.isDestroyed() && ctx.overlayWin.isVisible()
         && !owned) ctx.overlayWin.hide();
@@ -189,7 +200,7 @@ function createWindows(ctx) {
       }
       overlayWasOwned = owned;
       if (!wins.length) stopBandWatch();
-    }, 500);
+    }, BAND_WATCH_MS);
     if (bandTimer.unref) bandTimer.unref();
   }
 

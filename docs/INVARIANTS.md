@@ -528,7 +528,7 @@ plausible refactor silently breaks it (that is the test for the core list).
   every tick: Windows can put the owner back above its menu when the click activates
   it. A new menu resets the raise throttle, and a throttled raise still schedules its
   trailing re-raise (the tooltip → menu burst used to swallow it). Otherwise the
-  500 ms band tick makes them blink behind Settings. Whenever it is owned the watch
+  band tick makes them blink behind Settings. Whenever it is owned the watch
   raises it above the palette, and `showOverlay` re-asserts the full work-area surface
   before drawing (a just-closed card used to leave it card-sized).
 - **A native `<select>`/`title=` may not own the visible list.** The OS popup and
@@ -542,7 +542,7 @@ plausible refactor silently breaks it (that is the test for the core list).
   `.overlay-menu-item` must keep `flex: 0 0 auto` and a line-height that does not
   clip; the old flex-shrink squashed every row into half a line, and an unconditional
   `overflow-y:auto` showed a scrollbar on menus that already fit.
-- **The band is repaired, not re-raised, on a timer.** The 500 ms watch calls
+- **The band is repaired, not re-raised, on a timer.** The 100 ms watch calls
   `ensureBand(..., zorder:false)`; `topmost.ps1` returns without `SetWindowPos` when
   the extended style already matches and uses `SWP_NOREDRAW` otherwise. Raises are
   event-driven (`markInteracted` + dirty flag, `reassertBand`, a show) — a `zorder:true`

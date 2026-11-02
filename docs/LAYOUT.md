@@ -234,11 +234,11 @@ one question per tick and render the snapshot they are given.
 click-through, always-on-top window covering the union of the displays, carrying
 the drag chip *and* the destination indicator. This is what keeps the indicator
 above every palette, and it removes the column-overflow clipping of the old
-in-board indicator. The 500 ms band watch may hide it only when no menu,
+in-board indicator. The 100 ms band watch may hide it only when no menu,
 tooltip, merge card, or drag owns it (`shared/overlay-ownership.js`); the window
 `show` handler uses the same predicate, because the old menu/tooltip-only check hid
 the drag chip/lines and merge card the instant they appeared. Menus/tooltips are
-re-raised after the owner window (immediately and on the next tick), so the 500 ms
+re-raised after the owner window (immediately and on the next tick), so the
 watch is not what makes them visible. On every draw it re-asserts the full work-area
 bounds, because a menu or confirm card may have shrunk it.
 

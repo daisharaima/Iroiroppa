@@ -184,7 +184,7 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   long-lived `topmost.ps1 -Watch` process fed on stdin, because a PowerShell spawn per
   press was slow and its hidden console could flash the foreground. Chromium rewrites
   the extended style when it tries to activate the window, which drops the topmost bit
-  mid-session (the "palette disappears on click" report), so a 500 ms watchdog repairs
+  mid-session (the "palette disappears on click" report), so a 100 ms watchdog repairs
   it while visible and the press path repairs it at once. `moveTop()` is never used to
   "put it back": `SetWindowPos(HWND_TOP)` itself removes the topmost band. No-op wherever
   the runtime did its job.
@@ -214,8 +214,8 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   drag (a full-desktop transparent window left visible was the "model dropdown disappears"
   smell). **The window `show` handler must use the same ownership predicate**: it only knew
   menu/tooltip, so it hid the drag chip/line and the merge card the instant they appeared.
-  Menus/tooltips are raised again after the owner window's own raise, or the first 500 ms
-  band tick makes them blink behind Settings. `raiseInteracted` guards `isVisible` because
+  Menus/tooltips are raised again after the owner window's own raise, or the first band tick
+  makes them blink behind Settings. `raiseInteracted` guards `isVisible` because
   an IPC sender is a webContents, not a window.
 - **A model dropdown's pick id is per widget and bound on open.** `overlay.onPick('model')`
   registered by every menu at build time let the last-built menu take every pick, which is
@@ -223,7 +223,7 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   uses `model:<n>` and registers on click.
 - **Window order follows the last interaction, not a fixed raise order.** `ctx.lastInteracted`
   is set on `browser-window-focus`, on a window `show`, and on a palette press
-  (`reassertBand`); a dirty flag makes the 500 ms band watch raise only after a real
+  (`reassertBand`); a dirty flag makes the 100 ms band watch raise only after a real
   interaction, never every tick. It repairs every band window's *bit* with
   `zorder:false` (no reorder). The native helper also skips `SetWindowPos` when the
   bits already match, and uses `SWP_NOREDRAW`; re-adding the style on every tick was
@@ -295,7 +295,7 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   (`onPick`). The old in-page list is kept only as the fallback when the overlay is
   unavailable (a bare page, the tests). Both settings hosts load `kernel/overlay-menu.js`.
 - **A tool window joins the same band and the same order.** On this build
-  `isAlwaysOnTop()` reports false, so every band window's bit is repaired every 500 ms
+  `isAlwaysOnTop()` reports false, so every band window's bit is repaired every 100 ms
   (see "Window order follows the last interaction"); the module-settings popout, the
   Settings window and the overlay menu are in that list, every content resize
   (`moduleSettings:resize`, `settings:resize`, `applyUiScale`) repairs the bit with
