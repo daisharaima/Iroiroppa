@@ -38,6 +38,14 @@ class PointerWatcher extends EventEmitter {
   attach(host) {
     if (!host) return;
     this.host = host;
+    host.on('hook', (message) => {
+      // A hook that failed to install looks exactly like "the user is not clicking",
+      // so a refusal has to be surfaced: the caller then falls back to PowerShell.
+      if (!message || message.hook !== 0) return;
+      this.host = null;
+      this.emit('host-lost');
+      this._spawnPowerShell();
+    });
     host.on('mouse', (message) => {
       if (!message) return;
       if (message.mouse === 'up') { this.emit('up'); return; }

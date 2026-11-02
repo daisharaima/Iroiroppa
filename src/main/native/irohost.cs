@@ -313,6 +313,9 @@ internal static class Program
 
     [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();
+    [DllImport("kernel32.dll")]
+    private static extern uint WaitForSingleObject(IntPtr handle, uint milliseconds);
+    private const uint SYNCHRONIZE = 0x00100000;
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr OpenProcess(uint access, bool inheritHandle, uint processId);
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -966,6 +969,28 @@ internal static class Program
         return fallback;
     }
 
+    /// Watch the parent process directly. Waiting on stdin EOF alone misses the cases
+    /// where a child elsewhere inherited the pipe, or the reader thread ends while the
+    /// message loop (which owns the hooks) keeps running.
+    private static void WatchParent(int parentPid)
+    {
+        if (parentPid <= 0) return;
+        IntPtr handle = OpenProcess(SYNCHRONIZE, false, (uint)parentPid);
+        if (handle == IntPtr.Zero)
+        {
+            // Already gone, or not ours to watch: the stdin path still covers us.
+            return;
+        }
+        var thread = new Thread(() =>
+        {
+            WaitForSingleObject(handle, 0xFFFFFFFF);
+            _stop = true;
+            PostThreadMessage(_mainThread, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+        });
+        thread.IsBackground = true;
+        thread.Start();
+    }
+
     [STAThread]
     private static void Main(string[] args)
     {
@@ -978,6 +1003,14 @@ internal static class Program
         }
 
         StartWriter();
+
+        // --parent <pid>: exit when the app does, whatever happens to the pipe.
+        int parentIndex = Array.IndexOf(args, "--parent");
+        if (parentIndex >= 0 && parentIndex + 1 < args.Length)
+        {
+            int parentPid;
+            if (int.TryParse(args[parentIndex + 1], out parentPid)) WatchParent(parentPid);
+        }
 
         Out("{\"ready\":" + NowMs() + ",\"pid\":" + Process.GetCurrentProcess().Id
             + ",\"version\":\"" + Version + "\"}");

@@ -59,6 +59,14 @@ class BareKeyWatcher extends EventEmitter {
       else if (message.key === 'up') this.emit('up');
     });
     host.on('exit', () => { if (this.host === host) this.emit('gone'); });
+    host.on('keyhook', (message) => {
+      if (!message || message.keyhook !== 0) return;
+      // The host could not install a keyboard hook: stop claiming the binding and let
+      // the caller fall back, or the shortcut silently stops working.
+      this.host = null;
+      this.emit('failed', 'hook-unavailable');
+      this._spawnPowerShell();
+    });
     return true;
   }
 
