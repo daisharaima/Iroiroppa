@@ -266,10 +266,11 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   the same picture; a saved LCH id resolves to the twin.
 - **A shortcut target has one reveal mode: Toggle, Hold, or After colour pick.** The saved
   keys for the other modes are kept but not registered; `ShortcutModel.bindings` emits only
-  the active one. **A bare key is a keyboard-hook binding, never a globalShortcut**: a
-  PowerShell `WH_KEYBOARD_LL` helper checks foreground/caret/dialog/IME/I-beam and an
-  Iroiroppa text-focus IPC before it blocks the key. When in doubt it passes the key
-  through, so typing is never swallowed.
+  the active one. **A bare key is a keyboard-hook binding, never a globalShortcut**: the native helper
+  owns one `WH_KEYBOARD_LL` hook for every binding, checks foreground/caret/dialog/IME/
+  I-beam and the Iroiroppa text-focus state before it blocks the key, and passes it
+  through when in doubt, so typing is never swallowed. `bare-keys.ps1` remains the
+  fallback when the host is unavailable.
 - **Native `<select>` and native `title=` are not allowed to own the visible list.** Their
   OS windows are outside the topmost band. `kernel/select-overlay.js` opens the options on
   the overlay, and `kernel/tooltip.js` converts a runtime `title` to `data-tip` on hover.

@@ -17,6 +17,11 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   PowerShell process to answer "which app is in front?". `--no-native-host` keeps the
   old PowerShell path as a diagnostic.
 
+- **Bare-key shortcuts share the native helper too.** One keyboard hook serves every
+  bare-key binding instead of a PowerShell process per binding, with the same guards
+  (dialog, caret, open IME, I-beam cursor, held modifier). A saved shortcut now also
+  registers at startup — it used to wait for the next settings change.
+
 - **The always-on-top band is repaired every 100 ms instead of every 500 ms.** A
   dropped band bit used to leave the palette behind another window for up to half a
   second; it is now fixed within about a tenth of one, because the repair cost is the

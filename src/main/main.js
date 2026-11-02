@@ -1426,9 +1426,15 @@ const {
   applyCommandHotkeys, unregisterCommandHotkeys,
 } = windows;
 
-// The show/hide + hold shortcut engine. It needs the window layer, so it is
-// created after `createWindows` and published on ctx for the IPC groups and the
-// settings-service hooks.
+// The native helper is created before the shortcut engine so a binding registered at
+// startup can route through it; the process itself starts once the app is ready.
+const wantNativeHost = process.argv.includes('--native-host')
+  || (!process.argv.includes('--no-native-host'));
+if (wantNativeHost) {
+  nativeHost = new NativeHost({ log: traceNative ? (line) => console.log('[native]', line) : null });
+  ctx.nativeHost = nativeHost;
+}
+
 const shortcutActions = createShortcutActions(ctx);
 Object.assign(ctx, {
   applyShortcuts: (next) => shortcutActions.apply(next),
@@ -1668,15 +1674,15 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     // One native helper for the session. It replaces the per-press PowerShell spawn and
     // the long-lived topmost.ps1 watch; when the binary is missing or the process dies,
     // topmost.js falls straight back to PowerShell, so this is never a hard dependency.
-    const wantNative = process.argv.includes('--native-host')
-      || (!process.argv.includes('--no-native-host'));
-    if (wantNative) {
-      nativeHost = new NativeHost({ log: traceNative ? (line) => console.log('[native]', line) : null });
+    if (nativeHost) {
       nativeHost.start();
       setBandHost(nativeHost);
-      ctx.nativeHost = nativeHost;
       app.on('will-quit', () => nativeHost.stop());
     }
+
+    // The shortcut engine only re-registers on a settings *change*; a profile that
+    // already had a bare key never registered one until the user touched Settings.
+    try { ctx.applyShortcuts(settings.get()); } catch (error) { console.error('[shortcut] startup apply failed', error); }
     }
     service = new CompanionService({
       settings,

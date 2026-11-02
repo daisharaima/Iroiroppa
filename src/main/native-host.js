@@ -28,6 +28,10 @@ const REPLY_KEYS = {
   mouse: 'mouseon',
   fg: 'fgon',
   foreground: 'fgname',
+  key: 'keyadd',
+  keyoff: 'keydel',
+  keyactive: 'keyactive',
+  keytyping: 'keytyping',
   version: 'version',
 };
 
@@ -192,6 +196,15 @@ class NativeHost extends EventEmitter {
   setMouse(enabled) { return this.request(`mouse ${enabled ? 1 : 0}`); }
   setForeground(enabled) { return this.request(`fg ${enabled ? 1 : 0}`); }
 
+  /** Register a bare-key binding: the host hooks it and reports down/up. */
+  addKey(vk, active = true, typing = false) {
+    return this.request(`key ${vk} ${active ? 1 : 0} ${typing ? 1 : 0}`);
+  }
+
+  keyOff(vk) { return this.request(`keyoff ${vk}`); }
+  keyActive(vk, value) { return this.request(`keyactive ${vk} ${value ? 1 : 0}`); }
+  keyTyping(vk, value) { return this.request(`keytyping ${vk} ${value ? 1 : 0}`); }
+
   /** The current foreground process name, asked once (no spawn). */
   foreground() { return this.request('foreground'); }
 
@@ -233,7 +246,7 @@ class NativeHost extends EventEmitter {
     }
 
     // Events the app consumes directly.
-    for (const event of ['mouse', 'fg', 'repair', 'hook']) {
+    for (const event of ['key', 'mouse', 'fg', 'repair', 'hook', 'keyhook']) {
       if (Object.prototype.hasOwnProperty.call(message, event)) {
         this.emit(event, message);
         break;

@@ -374,6 +374,10 @@ function createShortcutActions(ctx, deps = {}) {
       if (accel.hook) {
         const key = entry.key;
         const watcher = new BareWatcher({ accel: entry.accel });
+        // One keyboard hook for every binding when the native host is running; the
+        // watcher then only filters by vk. PowerShell remains the fallback.
+        if (process.argv.includes('--trace-native')) console.log('[shortcut]', entry.key, entry.accel, 'vk=' + accel.vk, 'host=' + Boolean(ctx.nativeHost));
+        if (ctx.nativeHost && accel.vk) watcher.attach(ctx.nativeHost, accel.vk);
         watcher.on('down', () => {
           if (entry.action === 'toggle') toggleTarget(entry.target);
           else beginHold(entry.target, key);

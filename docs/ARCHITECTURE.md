@@ -113,8 +113,10 @@ app cannot leave a hook behind). `topmost.js`, `pointer-watch.js` and
 `foreground.js` keep their old APIs and route through the host when it is
 available; `--no-native-host` puts every one of them back on PowerShell.
 
-Bare-key shortcuts still use `bare-keys.ps1`: their IME/caret/dialog checks are
-the riskiest surface to port and are tracked separately.
+The keyboard hook moved in with the same guards it had in `bare-keys.ps1` (dialog,
+caret, open IME, I-beam cursor, held modifier), so one hook serves every bare-key
+binding instead of one PowerShell process per binding. `bare-keys.ps1` stays as the
+fallback for a session where the host cannot start.
 
 ## Screen capture
 

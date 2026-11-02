@@ -132,6 +132,31 @@ internal static class Program
     // --- process access ----------------------------------------------------
     private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 
+    // --- bare-key hook (ported from bare-keys.ps1) --------------------------
+    private const int WH_KEYBOARD_LL = 13;
+    private const int WM_KEYDOWN = 0x0100;
+    private const int WM_KEYUP = 0x0101;
+    private const int WM_SYSKEYDOWN = 0x0104;
+    private const int WM_SYSKEYUP = 0x0105;
+    private const int VK_LWIN = 0x5B;
+    private const int VK_RWIN = 0x5C;
+    private const int IDC_IBEAM = 32513;
+    private const uint GA_ROOT_KEYBOARD = 2;
+
+    private static IntPtr _keyHook = IntPtr.Zero;
+    private static HookProc _keyProc;
+
+    /// One entry per binding: the key it watches and the state main pushed down.
+    private sealed class KeyBinding
+    {
+        public int Vk;
+        public bool Active = true;
+        public bool Typing;
+        public bool Claimed;
+    }
+
+    private static readonly Dictionary<int, KeyBinding> _bindings = new Dictionary<int, KeyBinding>();
+
     // --- the CSP canvas test (ported from pointer.ps1) ----------------------
     private const uint GA_ROOT = 2;
     private const int VK_MENU = 0x12;
@@ -153,6 +178,16 @@ internal static class Program
         int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct KBDLLHOOKSTRUCT
+    {
+        public uint vkCode;
+        public uint scanCode;
+        public uint flags;
+        public uint time;
+        public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct MSLLHOOKSTRUCT
     {
         public int x;
@@ -170,6 +205,29 @@ internal static class Program
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct GUITHREADINFO
+    {
+        public uint cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CURSORINFO
+    {
+        public uint cbSize;
+        public uint flags;
+        public IntPtr hCursor;
+        public POINT ptScreenPos;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -240,6 +298,18 @@ internal static class Program
     private static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
     [DllImport("user32.dll")]
     private static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll")]
+    private static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO info);
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorInfo(ref CURSORINFO info);
+    [DllImport("user32.dll")]
+    private static extern IntPtr LoadCursor(IntPtr instance, IntPtr name);
+    [DllImport("imm32.dll")]
+    private static extern IntPtr ImmGetContext(IntPtr hWnd);
+    [DllImport("imm32.dll")]
+    private static extern bool ImmGetOpenStatus(IntPtr himc);
+    [DllImport("imm32.dll")]
+    private static extern bool ImmReleaseContext(IntPtr hWnd, IntPtr himc);
 
     [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();
@@ -484,6 +554,112 @@ internal static class Program
         return CallNextHookEx(_mouseHook, nCode, wParam, lParam);
     }
 
+    /// True when the user is typing somewhere the app must not interrupt: a dialog, a
+    /// caret, an open IME, or an I-beam cursor. Ported from bare-keys.ps1 — a wrong
+    /// answer here swallows the user's keystrokes.
+    private static bool NativeTyping()
+    {
+        IntPtr fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero) return false;
+
+        var cls = new StringBuilder(256);
+        GetClassName(fg, cls, 256);
+        if (cls.ToString() == "#32770") return true;   // a dialog box
+
+        uint pid;
+        uint thread = GetWindowThreadProcessId(fg, out pid);
+        var gui = new GUITHREADINFO();
+        gui.cbSize = (uint)Marshal.SizeOf(typeof(GUITHREADINFO));
+        if (thread != 0 && GetGUIThreadInfo(thread, ref gui))
+        {
+            if (gui.hwndCaret != IntPtr.Zero) return true;
+            if ((gui.flags & 1) != 0) return true;     // GUI_CARETBLINKING
+        }
+
+        IntPtr ime = ImmGetContext(fg);
+        if (ime != IntPtr.Zero)
+        {
+            bool open = ImmGetOpenStatus(ime);
+            ImmReleaseContext(fg, ime);
+            if (open) return true;
+        }
+
+        var cursor = new CURSORINFO();
+        cursor.cbSize = (uint)Marshal.SizeOf(typeof(CURSORINFO));
+        if (GetCursorInfo(ref cursor) && cursor.hCursor != IntPtr.Zero)
+        {
+            IntPtr ibeam = LoadCursor(IntPtr.Zero, (IntPtr)IDC_IBEAM);
+            if (ibeam != IntPtr.Zero && cursor.hCursor == ibeam) return true;
+        }
+        return false;
+    }
+
+    /// A modifier held means the user is doing something else (Ctrl+S, not a bare key).
+    private static bool ModifierDown()
+    {
+        return KeyDown(VK_CONTROL) || KeyDown(VK_SHIFT) || KeyDown(VK_MENU)
+            || KeyDown(VK_LWIN) || KeyDown(VK_RWIN);
+    }
+
+    /// The callback only reads the struct and writes one line when a registered bare key
+    /// changes state; everything it decides from is pushed down by the app.
+    private static IntPtr KeyCallback(int nCode, IntPtr wParam, IntPtr lParam)
+    {
+        if (nCode >= 0)
+        {
+            try
+            {
+                var info = (KBDLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(KBDLLHOOKSTRUCT));
+                KeyBinding binding;
+                if (_bindings.TryGetValue((int)info.vkCode, out binding))
+                {
+                    int message = wParam.ToInt32();
+                    bool down = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
+                    bool up = message == WM_KEYUP || message == WM_SYSKEYUP;
+
+                    if (down)
+                    {
+                        if (binding.Claimed) return (IntPtr)1;      // auto-repeat while held
+                        if (binding.Active && !binding.Typing && !ModifierDown() && !NativeTyping())
+                        {
+                            binding.Claimed = true;
+                            Out("{\"key\":\"down\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
+                            return (IntPtr)1;                        // swallow it
+                        }
+                    }
+                    else if (up && binding.Claimed)
+                    {
+                        binding.Claimed = false;
+                        Out("{\"key\":\"up\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
+                        return (IntPtr)1;
+                    }
+                }
+            }
+            catch
+            {
+                // A malformed callback must never break the hook chain.
+            }
+        }
+        return CallNextHookEx(_keyHook, nCode, wParam, lParam);
+    }
+
+    private static bool EnsureKeyboardHook()
+    {
+        if (_keyHook != IntPtr.Zero) return true;
+        _keyProc = KeyCallback;
+        _keyHook = SetWindowsHookEx(WH_KEYBOARD_LL, _keyProc, IntPtr.Zero, 0);
+        Out("{\"keyhook\":" + (_keyHook != IntPtr.Zero ? 1 : 0) + ",\"t\":" + NowMs() + "}");
+        return _keyHook != IntPtr.Zero;
+    }
+
+    private static void RemoveKeyboardHookIfUnused()
+    {
+        if (_keyHook == IntPtr.Zero || _bindings.Count > 0) return;
+        UnhookWindowsHookEx(_keyHook);
+        _keyHook = IntPtr.Zero;
+        Out("{\"keyhook\":0,\"t\":" + NowMs() + "}");
+    }
+
     private static void InstallMouseHook()
     {
         if (_mouseHook != IntPtr.Zero) return;
@@ -586,7 +762,7 @@ internal static class Program
 
     private static void HandleLine(string raw)
     {
-        string line = (raw ?? string.Empty).Trim();
+        string line = (raw ?? string.Empty).Trim().TrimStart('\uFEFF');
         if (line.Length == 0) return;
 
         int sp = line.IndexOf(' ');
@@ -656,6 +832,58 @@ internal static class Program
                 }
                 break;
 
+            case "key":
+                {
+                    // key <vk> [active] [typing]   -> register a bare-key binding
+                    string[] parts = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 0) { Fail("key needs a vk"); break; }
+
+                    int vk = ParseInt(parts[0], 0);
+                    if (vk <= 0) { Fail("key needs a valid vk"); break; }
+
+                    KeyBinding binding;
+                    if (!_bindings.TryGetValue(vk, out binding))
+                    {
+                        binding = new KeyBinding { Vk = vk };
+                        _bindings[vk] = binding;
+                    }
+                    if (parts.Length > 1) binding.Active = parts[1] != "0";
+                    if (parts.Length > 2) binding.Typing = parts[2] != "0";
+
+                    if (!EnsureKeyboardHook())
+                    {
+                        Out("{\"keyadd\":0,\"vk\":" + vk + ",\"error\":\"hook-failed\"}");
+                        break;
+                    }
+                    Out("{\"keyadd\":1,\"vk\":" + vk + ",\"active\":" + (binding.Active ? 1 : 0) + "}");
+                }
+                break;
+
+            case "keyoff":
+                {
+                    string[] parts = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length == 0) { _bindings.Clear(); RemoveKeyboardHookIfUnused(); Out("{\"keydel\":1,\"keys\":0}"); break; }
+                    int vk = ParseInt(parts[0], 0);
+                    _bindings.Remove(vk);
+                    RemoveKeyboardHookIfUnused();
+                    Out("{\"keydel\":1,\"vk\":" + vk + ",\"keys\":" + _bindings.Count + "}");
+                }
+                break;
+
+            case "keyactive":
+            case "keytyping":
+                {
+                    string[] parts = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 2) { Fail(cmd + " needs vk and 0|1"); break; }
+                    int vk = ParseInt(parts[0], 0);
+                    KeyBinding binding;
+                    if (!_bindings.TryGetValue(vk, out binding)) { Fail("unknown vk"); break; }
+                    bool value = parts[1] != "0";
+                    if (cmd == "keyactive") binding.Active = value; else binding.Typing = value;
+                    Out("{\"" + cmd + "\":" + (value ? 1 : 0) + ",\"vk\":" + vk + "}");
+                }
+                break;
+
             case "probe":
                 _probe = arg != "0";
                 Out("{\"probe\":" + (_probe ? 1 : 0) + "}");
@@ -698,7 +926,13 @@ internal static class Program
     private static int ParseInt(string text, int fallback)
     {
         int value;
-        return int.TryParse(text, out value) ? value : fallback;
+        if (int.TryParse(text, out value)) return value;
+        if (!string.IsNullOrEmpty(text) && text.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+        {
+            int hex;
+            if (int.TryParse(text.Substring(2), System.Globalization.NumberStyles.HexNumber, null, out hex)) return hex;
+        }
+        return fallback;
     }
 
     [STAThread]
