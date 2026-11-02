@@ -75,13 +75,18 @@
     sampling = false;
     if (frame) cancelAnimationFrame(frame);
     const sorted = samples.slice().sort((a, b) => a - b);
+    // A percentile over a handful of frames *is* the maximum; printing it as p95
+    // invites a conclusion the sample cannot support.
+    const enough = samples.length >= 30;
     const summary = {
       gesture: window.__perfGesture || 'gesture',
+      n: samples.length,
+      percentiles: enough ? 'ok' : 'withheld (n<30)',
       frames: samples.length,
       spanMs: Math.round(samples.reduce((sum, value) => sum + value, 0)),
-      p50: Math.round(percentile(sorted, 0.5) * 100) / 100,
-      p95: Math.round(percentile(sorted, 0.95) * 100) / 100,
-      p99: Math.round(percentile(sorted, 0.99) * 100) / 100,
+      p50: enough ? Math.round(percentile(sorted, 0.5) * 100) / 100 : null,
+      p95: enough ? Math.round(percentile(sorted, 0.95) * 100) / 100 : null,
+      p99: enough ? Math.round(percentile(sorted, 0.99) * 100) / 100 : null,
       max: Math.round((sorted[sorted.length - 1] || 0) * 100) / 100,
       over25: samples.filter((value) => value > 25).length,
       over50: samples.filter((value) => value > 50).length,

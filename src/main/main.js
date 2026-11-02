@@ -1668,7 +1668,18 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
 
     if (perfGaps) {
       const tracePerf = createPerfTrace();
-      ipcMain.on('perf:gaps', (_event, summary) => tracePerf(summary));
+      // A result is only usable if the state it was taken in is recorded next to it:
+      // visibility, the foreground app, whether the store was mid-gesture, the model.
+      ipcMain.on('perf:gaps', (_event, summary) => tracePerf({
+        ...summary,
+        state: {
+          fg: ctx.fgName || '',
+          paletteVisible: Boolean(ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.isVisible()),
+          autoHide: ctx.settings.get().autoHide !== false,
+          interactive: process.argv.includes('--force-interactive'),
+          nativeHost: Boolean(nativeHost && nativeHost.available),
+        },
+      }));
     }
 
     // One native helper for the session. It replaces the per-press PowerShell spawn and

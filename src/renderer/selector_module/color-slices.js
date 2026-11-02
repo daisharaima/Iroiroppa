@@ -435,6 +435,9 @@
       // requested again: the interactive tick fires every frame, and queueing the same
       // plane twelve times only delays the one that lands.
       const chunkedInFlight = new Set();
+      // Wall time from the first chunk to the finished canvas: chunking trades this
+      // (longer) against the main thread never blocking (shorter).
+      let buildStartedAt = 0;
       // rAF pauses while the page is hidden. A build in flight then never completes and
       // its key would stay "in flight" for the rest of the session, so that panel would
       // never rebuild again. Abandon everything and let the next visible pass restart it.
@@ -472,11 +475,20 @@
               chunkedInFlight.add(key);
               chunkStats.chunked += 1;
               const generation = ++plotGeneration[plane];
+              buildStartedAt = performance.now();
               const isStale = () => generation !== plotGeneration[plane]
                 || canvas.width !== W || canvas.height !== H;
               build((built) => {
                 chunkedInFlight.delete(key);
-                if (!built) return;                       // superseded or resized
+                if (!built) {
+                  // Aborted (superseded or resized): a different metric, not a completion.
+                  chunkStats.t.aborted = (chunkStats.t.aborted || 0) + 1;
+                  return;
+                }
+                const spent = performance.now() - buildStartedAt;
+                chunkStats.t.complete = Math.round(((chunkStats.t.complete || 0) + spent) * 10) / 10;
+                chunkStats.t.completeMax = Math.max(chunkStats.t.completeMax || 0, Math.round(spent * 10) / 10);
+                chunkStats.t.completed = (chunkStats.t.completed || 0) + 1;
                 if (generation !== plotGeneration[plane]) return;
                 built.__key = key;
                 lastOff[plane] = built;
@@ -497,10 +509,16 @@
         timed('overlay', () => drawOverlay(c2d, plane, W, H, modelNow(), axesNow()));
       };
 
-      // Rows built per animation frame in the chunked path. Sized so one slice stays
-      // well under a frame at any realistic width: the measured cost was 50-63 ms for
-      // a whole plane, and a drag could not afford one of those per panel rebuild.
-      const PLOT_ROWS_PER_FRAME = 24;
+      // How long one chunk may run before yielding. A fixed row count was measured to be
+      // wrong in both directions: 24 rows took 25 frames to finish a plane (up to 234 ms
+      // to complete, mostly superseded before it landed), while a whole plane blocks a
+      // frame. A time budget adapts to the machine and to the plane's real cost.
+      const CHUNK_BUDGET_MS = 14;
+      // At most this many chunks per plane. Three keeps a build inside roughly the time
+      // the synchronous build took (one frame's worth of blocking each), while still
+      // letting the compositor paint between them. More chunks spread the same work over
+      // more frames, so the map lands later for no gain in smoothness.
+      const PLOT_CHUNKS = 3;
 
       const buildPlot = (key, w, h, intervalsAt, colorAt, lumaAt, onDone, isStale) => {
         const cached = plotCache.get(key);
@@ -570,6 +588,7 @@
         // whole plane, then hand the finished canvas back. The caller keeps the
         // previous image on screen until then (a map is never cleared before its
         // replacement exists).
+        const rowsPerChunk = Math.max(1, Math.ceil(h / PLOT_CHUNKS));
         let row = 0;
         const step = () => {
           // Abandon a build whose canvas was resized, whose panel scheduled a newer
@@ -578,8 +597,8 @@
           if (isStale && isStale()) { onDone(null); return; }
           const stepStart = performance.now();
           const startRow = row;
-          const end = Math.min(h, row + PLOT_ROWS_PER_FRAME);
-          for (; row < end; row += 1) {
+          const chunkEnd = Math.min(h, startRow + rowsPerChunk);
+          while (row < chunkEnd && performance.now() - stepStart < CHUNK_BUDGET_MS) {
             const C = (1 - row / (h - 1)) * cmax;
             for (let x = 0; x < w; x += 1) {
               const i = (row * w + x) * 4;
@@ -596,10 +615,11 @@
                 data[i + 3] = 0;
               }
             }
+            row += 1;
           }
           // Only the rows just built: a full-canvas copy per chunk invalidated the
           // whole layer sixty times per plane.
-          c2d.putImageData(img, 0, 0, 0, startRow, w, end - startRow);
+          c2d.putImageData(img, 0, 0, 0, startRow, w, row - startRow);
           const stepSpent = performance.now() - stepStart;
           chunkStats.t.step = Math.round(((chunkStats.t.step || 0) + stepSpent) * 10) / 10;
           chunkStats.t.stepMax = Math.max(chunkStats.t.stepMax || 0, Math.round(stepSpent * 10) / 10);
@@ -654,12 +674,14 @@
           return off;
         }
 
+        const rowsPerChunk = Math.max(1, Math.ceil(h / PLOT_CHUNKS));
         let row = 0;
         const step = () => {
           if (isStale && isStale()) { onDone(null); return; }
+          const stepStart = performance.now();
           const startRow = row;
-          const end = Math.min(h, row + PLOT_ROWS_PER_FRAME);
-          for (; row < end; row += 1) {
+          const chunkEnd = Math.min(h, startRow + rowsPerChunk);
+          while (row < chunkEnd && performance.now() - stepStart < CHUNK_BUDGET_MS) {
             const L = 1 - row / (h - 1);
             for (let x = 0; x < w; x += 1) {
               const i = (row * w + x) * 4;
@@ -675,8 +697,9 @@
                 data[i + 3] = 0;
               }
             }
+            row += 1;
           }
-          c2d.putImageData(img, 0, 0, 0, startRow, w, end - startRow);
+          c2d.putImageData(img, 0, 0, 0, startRow, w, row - startRow);
           if (row < h) {
             requestAnimationFrame(step);
             return;
