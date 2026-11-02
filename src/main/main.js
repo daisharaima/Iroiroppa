@@ -28,7 +28,8 @@ const { checkForUpdates } = require('./update-check');
 const { createLayoutStore } = require('./layout-store');
 const { createLayoutService } = require('./layout-service');
 const { createInputTrace, traceEnabled } = require('./input-trace');
-const { stopBand } = require('./topmost');
+const { stopBand, setBandHost } = require('./topmost');
+const { NativeHost } = require('./native-host');
 const { createDragSession } = require('./drag-session');
 const { createModuleStore, TRASH_DAYS } = require('./module-store');
 const { createThemeStore } = require('./theme-store');
@@ -74,8 +75,14 @@ const interactions = createInteractionHub();
 const localFirst = process.argv.includes('--local-first');
 // One log line per protocol event, so a live run can be checked from stdout.
 const traceInteraction = process.argv.includes('--trace-interaction');
+
+/** One line per native-helper exchange, for verifying the host against the app. */
+const traceNative = process.argv.includes('--trace-native');
 // The utility-process compute host (docs/STATE.md, §6); opt-in.
 let computeHost = null;
+
+/** The session's native helper (src/main/native-host.js); null when it is disabled. */
+let nativeHost = null;
 // The window-capture channel's source enumerator.
 let captureService = null;
 // The native key sender.
@@ -1644,6 +1651,18 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
         },
       });
       app.on('will-quit', () => { if (computeHost) computeHost.dispose(); });
+
+    // One native helper for the session. It replaces the per-press PowerShell spawn and
+    // the long-lived topmost.ps1 watch; when the binary is missing or the process dies,
+    // topmost.js falls straight back to PowerShell, so this is never a hard dependency.
+    const wantNative = process.argv.includes('--native-host')
+      || (!process.argv.includes('--no-native-host'));
+    if (wantNative) {
+      nativeHost = new NativeHost({ log: traceNative ? (line) => console.log('[native]', line) : null });
+      nativeHost.start();
+      setBandHost(nativeHost);
+      app.on('will-quit', () => nativeHost.stop());
+    }
     }
     service = new CompanionService({
       settings,
@@ -1841,7 +1860,9 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     stopFollowFocus();
     shortcutActions.stop();
     unregisterCommandHotkeys();
-    // Close the long-lived native band helper (topmost.js) before the app exits.
+    // Close the native host (it owns the band repair and, later, the hooks), then the
+    // PowerShell band helper if this session fell back to it.
+    if (nativeHost) nativeHost.stop();
     stopBand();
     // The document is saved on a short debounce; make sure the last change lands.
     layout.dispose();

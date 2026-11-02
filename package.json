@@ -29,9 +29,10 @@
     "theme:check": "node scripts/theme-check.js",
     "theme:docs": "node scripts/theme-docs.js",
     "theme:preview": "node scripts/theme-preview.js",
-    "pack": "npm run icon && electron-builder --dir",
+    "pack": "npm run icon && npm run build:host && electron-builder --dir",
     "pack:run": "npm run pack && node scripts/launch-packed.js",
-    "dist": "npm run icon && electron-builder --win"
+    "dist": "npm run icon && npm run build:host && electron-builder --win",
+    "build:host": "node scripts/build-host.js"
   },
   "dependencies": {
     "jscolorengine": "^1.6.1",
@@ -62,7 +63,8 @@
     ],
     "asarUnpack": [
       "src/main/workers/**",
-      "src/main/*.ps1"
+      "src/main/*.ps1",
+      "src/main/native/bin/**"
     ],
     "win": {
       "icon": "build/icon.png",

@@ -54,7 +54,7 @@ function hwndOf(win) {
  * falls back to the one-shot spawn, throttled per handle so a fallback cannot
  * spawn on every press.
  */
-function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200 } = {}) {
+function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200, host = null } = {}) {
   let child = null;
   let brokenAt = 0;
   const oneShotAt = new Map();
@@ -117,6 +117,25 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200 
   async function apply(win, { noActivate = true, topmost = true, zorder = true, now = Date.now() } = {}) {
     const hwnd = hwndOf(win);
     if (!hwnd) return false;
+
+    // The native host is one long-lived process for the whole session: a request is
+    // a line on a pipe, so the 100 ms tick costs nothing and the one-shot spawn
+    // (1.2 s) disappears entirely.
+    if (host) {
+      // A configured-but-still-starting host must not lose the race to the
+      // PowerShell fallback: that fallback spawns a -Watch child that lives for the
+      // whole session, which is exactly what this host exists to remove.
+      if (!host.available) await host.whenReady(400);
+      if (host.available) {
+        try {
+          const reply = await host.topmost(hwnd, { noActivate, topmost, zorder });
+          if (reply && reply.applied === 1) return true;
+        } catch {
+          // Host died mid-call: fall through to the PowerShell path for this press.
+        }
+      }
+    }
+
     if (send(hwnd, noActivate, topmost, zorder)) return true;
     return oneShot(hwnd, noActivate, topmost, now, zorder);
   }
@@ -130,7 +149,20 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200 
     try { proc.kill(); } catch { /* already gone */ }
   }
 
-  return { apply, send, stop };
+  /** Point this client at the native host (or null to go back to PowerShell). */
+  function setHost(next) {
+    host = next || null;
+    // Once the host is up the PowerShell watch child is redundant: closing it drops a
+    // 56 MB helper instead of leaving it idle for the session.
+    if (host && child) {
+      const proc = child;
+      child = null;
+      try { if (proc.stdin) proc.stdin.end(); } catch { /* already gone */ }
+      try { proc.kill(); } catch { /* already gone */ }
+    }
+  }
+
+  return { apply, send, stop, setHost };
 }
 
 const defaultBand = createBand();
@@ -159,11 +191,16 @@ function forgetBand(win) {
   return hwndOf(win) || '';
 }
 
+/** Route the default band through the native host (or null for PowerShell). */
+function setBandHost(host) {
+  defaultBand.setHost(host);
+}
+
 /** Kill the helper process (app quit). */
 function stopBand() {
   defaultBand.stop();
 }
 
 module.exports = {
-  ensureBand, ensureTopmost, forgetBand, stopBand, createBand, hwndFromBuffer, scriptPath,
+  ensureBand, ensureTopmost, forgetBand, stopBand, setBandHost, createBand, hwndFromBuffer, scriptPath,
 };
