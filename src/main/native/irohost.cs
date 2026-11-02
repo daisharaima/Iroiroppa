@@ -34,6 +34,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 internal static class Program
@@ -52,18 +53,100 @@ internal static class Program
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_NOOWNERZORDER = 0x0200;
 
+    private static bool IsCsp(string name)
+    {
+        return name != null && name.IndexOf("ClipStudioPaint", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static string ProcessNameOfWindow(IntPtr hWnd)
+    {
+        if (hWnd == IntPtr.Zero) return string.Empty;
+        uint pid;
+        GetWindowThreadProcessId(hWnd, out pid);
+        if (pid == 0) return string.Empty;
+
+        IntPtr process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        if (process == IntPtr.Zero) return string.Empty;
+        try
+        {
+            var buffer = new StringBuilder(1024);
+            uint size = (uint)buffer.Capacity;
+            if (!QueryFullProcessImageName(process, 0, buffer, ref size)) return string.Empty;
+            string path = buffer.ToString();
+            int slash = path.LastIndexOf('\\');
+            return slash >= 0 ? path.Substring(slash + 1) : path;
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
+    /// True when (x,y) is on CSP's canvas and not on a floating or docked UI surface.
+    private static bool IsCanvasAt(int x, int y)
+    {
+        var point = new POINT { x = x, y = y };
+        IntPtr hWnd = WindowFromPoint(point);
+        if (hWnd == IntPtr.Zero) return false;
+        if (!IsCsp(ProcessNameOfWindow(hWnd))) return false;
+
+        var cls = new StringBuilder(256);
+        GetClassName(hWnd, cls, 256);
+        if (!CanvasClass.IsMatch(cls.ToString())) return false;
+
+        IntPtr root = GetAncestor(hWnd, GA_ROOT);
+        if (root == IntPtr.Zero || root == hWnd) return false;
+        var rootCls = new StringBuilder(256);
+        GetClassName(root, rootCls, 256);
+        if (!RootClass.IsMatch(rootCls.ToString())) return false;
+
+        // Canvas children have no title; palette windows do.
+        var title = new StringBuilder(256);
+        if (GetWindowText(hWnd, title, 256) > 0) return false;
+
+        // A docked panel can be a child too; the canvas is the large view.
+        RECT child, rootRect;
+        if (!GetWindowRect(hWnd, out child) || !GetWindowRect(root, out rootRect)) return false;
+        long childArea = (long)(child.Right - child.Left) * (child.Bottom - child.Top);
+        long rootArea = (long)(rootRect.Right - rootRect.Left) * (rootRect.Bottom - rootRect.Top);
+        return childArea > 0 && rootArea > 0 && childArea * 4 >= rootArea;
+    }
+
+    private static bool KeyDown(int vk)
+    {
+        return (GetAsyncKeyState(vk) & 0x8000) != 0;
+    }
+
     // --- hooks -------------------------------------------------------------
     private const int WH_MOUSE_LL = 14;
     private const int WM_MOUSEMOVE = 0x0200;
     private const int WM_LBUTTONDOWN = 0x0201;
     private const int WM_LBUTTONUP = 0x0202;
     private const uint WM_QUIT = 0x0012;
+    private const uint WM_APP_COMMAND = 0x8001;
+    private const uint PM_NOREMOVE = 0x0000;
     private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
     private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
 
     // --- process access ----------------------------------------------------
     private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
+    // --- the CSP canvas test (ported from pointer.ps1) ----------------------
+    private const uint GA_ROOT = 2;
+    private const int VK_MENU = 0x12;
+    private const int VK_CONTROL = 0x11;
+    private const int VK_SHIFT = 0x10;
+
+    /// A CSP canvas child carries two GUIDs in its class name; a floating panel shares
+    /// that shape, which is why the root class and the title are checked too.
+    private static readonly Regex CanvasClass = new Regex(
+        "^[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}-[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex RootClass = new Regex(
+        "^[0-9A-F]{8}(-[0-9A-F]{4}){3}-[0-9A-F]{12}$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private delegate IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam);
     private delegate void WinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd,
@@ -78,6 +161,15 @@ internal static class Program
         public uint flags;
         public uint time;
         public IntPtr dwExtraInfo;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -136,6 +228,18 @@ internal static class Program
     private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT point);
+    [DllImport("user32.dll")]
+    private static extern IntPtr WindowFromPoint(POINT point);
+    [DllImport("user32.dll")]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder name, int max);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hWnd, uint flags);
+    [DllImport("user32.dll")]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int max);
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+    [DllImport("user32.dll")]
+    private static extern short GetAsyncKeyState(int key);
 
     [DllImport("kernel32.dll")]
     private static extern uint GetCurrentThreadId();
@@ -160,6 +264,9 @@ internal static class Program
     private static HookProc _mouseProc;          // keep a reference: the GC must not collect it
     private static volatile bool _mouseOn;
 
+    /// Emit every press, whatever the app under the pointer (diagnostics only).
+    private static volatile bool _probe;
+
     // foreground hook
     private static IntPtr _fgHook = IntPtr.Zero;
     private static WinEventProc _fgProc;
@@ -176,6 +283,27 @@ internal static class Program
     private static long NowMs()
     {
         return (long)Clock.Elapsed.TotalMilliseconds;
+    }
+
+    /// Commands run on the message-loop thread: WH_MOUSE_LL and SetWinEventHook only
+    /// deliver to the thread that installed them, and that thread must pump messages.
+    private static readonly Queue<string> _commands = new Queue<string>();
+
+    [DllImport("user32.dll")]
+    private static extern bool PeekMessage(out MSG msg, IntPtr hWnd, uint min, uint max, uint remove);
+
+    private static void DrainCommands()
+    {
+        while (true)
+        {
+            string line = null;
+            lock (_commands)
+            {
+                if (_commands.Count == 0) break;
+                line = _commands.Dequeue();
+            }
+            if (line != null) HandleLine(line);
+        }
     }
 
     private static void Out(string line)
@@ -325,9 +453,27 @@ internal static class Program
                 try
                 {
                     var data = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
-                    string kind = msg == WM_LBUTTONDOWN ? "down" : "up";
-                    Out("{\"mouse\":\"" + kind + "\",\"x\":" + data.x + ",\"y\":" + data.y
-                        + ",\"t\":" + NowMs() + "}");
+
+                    // Only presses over Clip Studio Paint matter to the pick history; a
+                    // click anywhere else would be noise the app has to filter.
+                    string name = ProcessNameOfWindow(WindowFromPoint(new POINT { x = data.x, y = data.y }));
+                    if (_probe || IsCsp(name))
+                    {
+                        if (msg == WM_LBUTTONDOWN)
+                        {
+                            Out("{\"mouse\":\"down\",\"canvas\":" + (IsCanvasAt(data.x, data.y) ? "true" : "false")
+                                + ",\"alt\":" + (KeyDown(VK_MENU) ? "true" : "false")
+                                + ",\"ctrl\":" + (KeyDown(VK_CONTROL) ? "true" : "false")
+                                + ",\"shift\":" + (KeyDown(VK_SHIFT) ? "true" : "false")
+                                + ",\"x\":" + data.x + ",\"y\":" + data.y
+                                + ",\"process\":\"" + Escape(name) + "\",\"t\":" + NowMs() + "}");
+                        }
+                        else
+                        {
+                            Out("{\"mouse\":\"up\",\"x\":" + data.x + ",\"y\":" + data.y
+                                + ",\"process\":\"" + Escape(name) + "\",\"t\":" + NowMs() + "}");
+                        }
+                    }
                 }
                 catch
                 {
@@ -494,6 +640,27 @@ internal static class Program
                 Out("{\"watching\":0,\"repairs\":" + _repairs + "}");
                 break;
 
+            case "hit":
+                {
+                    // Diagnostic: report what a press at (x,y) would be, without pressing.
+                    string[] parts = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 2) { Fail("hit needs x y"); break; }
+                    int hx = ParseInt(parts[0], 0);
+                    int hy = ParseInt(parts[1], 0);
+                    string hname = ProcessNameOfWindow(WindowFromPoint(new POINT { x = hx, y = hy }));
+                    Out("{\"hit\":1,\"x\":" + hx + ",\"y\":" + hy
+                        + ",\"process\":\"" + Escape(hname) + "\""
+                        + ",\"csp\":" + (IsCsp(hname) ? "true" : "false")
+                        + ",\"canvas\":" + (IsCanvasAt(hx, hy) ? "true" : "false")
+                        + ",\"t\":" + NowMs() + "}");
+                }
+                break;
+
+            case "probe":
+                _probe = arg != "0";
+                Out("{\"probe\":" + (_probe ? 1 : 0) + "}");
+                break;
+
             case "mouse":
                 _mouseOn = arg != "0";
                 if (_mouseOn) InstallMouseHook(); else RemoveMouseHook();
@@ -555,7 +722,11 @@ internal static class Program
             string line;
             try
             {
-                while ((line = Console.In.ReadLine()) != null) HandleLine(line);
+                while ((line = Console.In.ReadLine()) != null)
+                {
+                    lock (_commands) { _commands.Enqueue(line); }
+                    PostThreadMessage(_mainThread, WM_APP_COMMAND, IntPtr.Zero, IntPtr.Zero);
+                }
             }
             catch
             {
@@ -566,10 +737,18 @@ internal static class Program
         reader.IsBackground = true;
         reader.Start();
 
-        // WH_MOUSE_LL and SetWinEventHook both need a message loop on this thread.
+        // Create this thread's message queue *before* the reader can post to it.
         MSG msg;
+        PeekMessage(out msg, IntPtr.Zero, 0, 0, PM_NOREMOVE);
+
+        // WH_MOUSE_LL and SetWinEventHook both need a message loop on this thread.
         while (!_stop && GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
         {
+            if (msg.message == WM_APP_COMMAND)
+            {
+                DrainCommands();
+                continue;
+            }
             TranslateMessage(ref msg);
             DispatchMessage(ref msg);
         }

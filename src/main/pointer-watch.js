@@ -27,11 +27,51 @@ class PointerWatcher extends EventEmitter {
     this.buffer = '';
     this.stopped = true;
     this.retry = null;
+    this.host = null;
+  }
+
+  /**
+   * Take mouse events from the native host. It already filters to CSP and computes
+   * the canvas flag, so the watcher becomes a thin adapter and the 57 MB PowerShell
+   * process disappears.
+   */
+  attach(host) {
+    if (!host) return;
+    this.host = host;
+    host.on('mouse', (message) => {
+      if (!message) return;
+      if (message.mouse === 'up') { this.emit('up'); return; }
+      if (message.mouse !== 'down') return;
+      this.emit('down', {
+        canvas: message.canvas === true,
+        alt: message.alt === true,
+        ctrl: message.ctrl === true,
+        shift: message.shift === true,
+      });
+    });
   }
 
   start() {
     if (this.proc || this.stopped === false) return;
     this.stopped = false;
+
+    // A host that is still starting must win the race: spawning PowerShell here would
+    // leave a 57 MB helper alive for the session even after the host came up.
+    if (this.host) {
+      const host = this.host;
+      host.whenReady(600).then((ok) => {
+        if (this.stopped) return;
+        if (ok && host.available) { host.setMouse(true).catch(() => {}); return; }
+        this._spawnPowerShell();
+      });
+      return;
+    }
+
+    this._spawnPowerShell();
+  }
+
+  _spawnPowerShell() {
+    if (this.stopped || this.proc) return;
     let proc;
     try {
       proc = spawn('powershell.exe', [
@@ -84,6 +124,7 @@ class PointerWatcher extends EventEmitter {
 
   stop() {
     this.stopped = true;
+    if (this.host) this.host.setMouse(false).catch(() => {});
     if (this.retry) { clearTimeout(this.retry); this.retry = null; }
     const proc = this.proc;
     this.proc = null;

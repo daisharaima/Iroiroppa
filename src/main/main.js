@@ -1725,6 +1725,9 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     let altPickPending = false;
     if (!shotPath) {
       const pointerWatcher = new PointerWatcher();
+      // The host owns the low-level mouse hook when it is running; PowerShell stays the
+      // fallback for a missing binary or a dead process.
+      if (nativeHost) pointerWatcher.attach(nativeHost);
       const releaseHistory = createPointerHistory({
         readColor: () => service.readColor(),
         commit: (rgb) => historyRecorder.commit(rgb, { replaceHostHead: true }),
