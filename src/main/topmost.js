@@ -54,7 +54,7 @@ function hwndOf(win) {
  * falls back to the one-shot spawn, throttled per handle so a fallback cannot
  * spawn on every press.
  */
-function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200, host = null } = {}) {
+function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200, host = null, health = null } = {}) {
   let child = null;
   let brokenAt = 0;
   const oneShotAt = new Map();
@@ -129,15 +129,17 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200,
       if (host.available) {
         try {
           const reply = await host.topmost(hwnd, { noActivate, topmost, zorder });
-          if (reply && reply.applied === 1) return true;
+          if (reply && reply.applied === 1) { if (health) health.set('band', 'host'); return true; }
         } catch {
           // Host died mid-call: fall through to the PowerShell path for this press.
         }
       }
     }
 
-    if (send(hwnd, noActivate, topmost, zorder)) return true;
-    return oneShot(hwnd, noActivate, topmost, now, zorder);
+    if (send(hwnd, noActivate, topmost, zorder)) { if (health) health.set('band', 'ps'); return true; }
+    const ok = await oneShot(hwnd, noActivate, topmost, now, zorder);
+    if (health) health.set('band', ok ? 'ps' : 'down');
+    return ok;
   }
 
   /** Close the helper (app quit). */
@@ -150,6 +152,10 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200,
   }
 
   /** Point this client at the native host (or null to go back to PowerShell). */
+  function setHealth(next) {
+    health = next || null;
+  }
+
   function setHost(next) {
     host = next || null;
     // Once the host is up the PowerShell watch child is redundant: closing it drops a
@@ -162,7 +168,7 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200,
     }
   }
 
-  return { apply, send, stop, setHost };
+  return { apply, send, stop, setHost, setHealth };
 }
 
 const defaultBand = createBand();
@@ -196,11 +202,16 @@ function setBandHost(host) {
   defaultBand.setHost(host);
 }
 
+/** Route the default band's health reporting (see helper-health.js). */
+function setBandHealth(health) {
+  defaultBand.setHealth(health);
+}
+
 /** Kill the helper process (app quit). */
 function stopBand() {
   defaultBand.stop();
 }
 
 module.exports = {
-  ensureBand, ensureTopmost, forgetBand, stopBand, setBandHost, createBand, hwndFromBuffer, scriptPath,
+  ensureBand, ensureTopmost, forgetBand, stopBand, setBandHost, setBandHealth, createBand, hwndFromBuffer, scriptPath,
 };

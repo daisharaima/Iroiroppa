@@ -49,12 +49,15 @@ class BareKeyWatcher extends EventEmitter {
    * The host owns one keyboard hook for every binding; this object filters by vk and
    * keeps the same active/typing contract main already pushes.
    */
-  attach(host, vk) {
+  attach(host, vk, health = null) {
     if (!host || !vk) return false;
     this.host = host;
+    this.hostRef = host;
+    this.health = health;
     this.vk = Number(vk);
     host.on('key', (message) => {
       if (!message || Number(message.vk) !== this.vk) return;
+      if (this.health) this.health.set('keys', 'host');
       if (message.key === 'down') this.emit('down');
       else if (message.key === 'up') this.emit('up');
     });
@@ -83,6 +86,7 @@ class BareKeyWatcher extends EventEmitter {
           this.ready = true;
           this.emit('ready');
           host.addKey(this.vk, this.active, this.typing).catch(() => {});
+          if (this.health) this.health.set('keys', 'host');
           return;
         }
         // The host is not serving this session: use the PowerShell helper rather than
@@ -126,6 +130,7 @@ class BareKeyWatcher extends EventEmitter {
   /** The PowerShell helper, used when no native host is available. */
   _spawnPowerShell() {
     if (this.proc) return;
+    if (this.hostRef && this.hostRef.available) this.hostRef.keyOff(this.vk).catch(() => {});
     const args = buildArgs(this.accel, { script: this.script, parentPid: this.parentPid });
     if (!args) { this.stopped = true; this.emit('failed', 'unavailable'); return; }
     this.stopped = false;
@@ -152,6 +157,7 @@ class BareKeyWatcher extends EventEmitter {
     });
     this.setActive(this.active);
     this.setTyping(this.typing);
+    if (this.health) this.health.set('keys', 'ps');
   }
 
   _onData(chunk) {
@@ -194,6 +200,16 @@ class BareKeyWatcher extends EventEmitter {
       return true;
     }
     return this._write(`typing ${this.typing ? 1 : 0}`);
+  }
+
+  /** Try to move back to the host after a fallback. */
+  retryHost() {
+    if (!this.hostRef || !this.hostRef.available) return false;
+    if (this.proc) { try { this.proc.kill(); } catch { /* gone */ } this.proc = null; }
+    this.host = this.hostRef;
+    this.hostRef.addKey(this.vk, this.active, this.typing).catch(() => {});
+    if (this.health) this.health.set('keys', 'host');
+    return true;
   }
 
   stop() {

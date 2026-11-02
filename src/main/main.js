@@ -29,7 +29,8 @@ const { createLayoutStore } = require('./layout-store');
 const { createLayoutService } = require('./layout-service');
 const { createInputTrace, traceEnabled } = require('./input-trace');
 const { createPerfTrace, perfEnabled } = require('./perf-trace');
-const { stopBand, setBandHost } = require('./topmost');
+const { stopBand, setBandHost, setBandHealth } = require('./topmost');
+const { HelperHealth } = require('./helper-health');
 const { NativeHost } = require('./native-host');
 const { createDragSession } = require('./drag-session');
 const { createModuleStore, TRASH_DAYS } = require('./module-store');
@@ -1428,11 +1429,20 @@ const {
 
 // The native helper is created before the shortcut engine so a binding registered at
 // startup can route through it; the process itself starts once the app is ready.
+const helperHealth = new HelperHealth();
+
 const wantNativeHost = process.argv.includes('--native-host')
   || (!process.argv.includes('--no-native-host'));
 if (wantNativeHost) {
   nativeHost = new NativeHost({ log: traceNative ? (line) => console.log('[native]', line) : null });
   ctx.nativeHost = nativeHost;
+  ctx.helperHealth = helperHealth;
+  setBandHealth(helperHealth);
+  // One line per real transition: a capability that silently moved to PowerShell (or
+  // stopped) is the thing that used to be invisible.
+  helperHealth.on('changed', (event) => {
+    console.log(`[helpers] ${event.capability}: ${event.from} -> ${event.to} (${helperHealth.describe()})`);
+  });
 }
 
 const shortcutActions = createShortcutActions(ctx);
@@ -1711,6 +1721,20 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       }
     }
 
+    // Bounded retry: if anything is running on the PowerShell fallback while the host is
+    // healthy, try to move it back every 30 s. Without this a transient failure would
+    // keep the slow path for the rest of the session.
+    setInterval(() => {
+      if (!nativeHost || !nativeHost.available) return;
+      const summary = helperHealth.summary();
+      if (!summary.onFallback.length && !summary.unavailable.length) return;
+      try {
+        if (ctx.fgWatcher && typeof ctx.fgWatcher.retryHost === 'function') ctx.fgWatcher.retryHost();
+        if (typeof ctx.retryPointerHost === 'function') ctx.retryPointerHost();
+        if (typeof shortcutActions.retryHosts === 'function') shortcutActions.retryHosts();
+      } catch (error) { console.error('[helpers] retry failed', error); }
+    }, 30000).unref();
+
     // The shortcut engine only re-registers on a settings *change*; a profile that
     // already had a bare key never registered one until the user touched Settings.
     try { ctx.applyShortcuts(settings.get()); } catch (error) { console.error('[shortcut] startup apply failed', error); }
@@ -1777,7 +1801,9 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       const pointerWatcher = new PointerWatcher();
       // The host owns the low-level mouse hook when it is running; PowerShell stays the
       // fallback for a missing binary or a dead process.
-      if (nativeHost) pointerWatcher.attach(nativeHost);
+      if (nativeHost) pointerWatcher.attach(nativeHost, helperHealth);
+      // Published for the bounded retry above; the watcher owns its own fallback.
+      ctx.retryPointerHost = () => pointerWatcher.retryHost && pointerWatcher.retryHost();
       const releaseHistory = createPointerHistory({
         readColor: () => service.readColor(),
         commit: (rgb) => historyRecorder.commit(rgb, { replaceHostHead: true }),

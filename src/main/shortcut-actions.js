@@ -379,7 +379,7 @@ function createShortcutActions(ctx, deps = {}) {
         // One keyboard hook for every binding when the native host is running; the
         // watcher then only filters by vk. PowerShell remains the fallback.
         if (process.argv.includes('--trace-native')) console.log('[shortcut]', entry.key, entry.accel, 'vk=' + accel.vk, 'host=' + Boolean(ctx.nativeHost));
-        if (ctx.nativeHost && accel.vk) watcher.attach(ctx.nativeHost, accel.vk);
+        if (ctx.nativeHost && accel.vk) watcher.attach(ctx.nativeHost, accel.vk, ctx.helperHealth || null);
         watcher.on('down', () => {
           if (entry.action === 'toggle') toggleTarget(entry.target);
           else beginHold(entry.target, key);
@@ -558,6 +558,14 @@ function createShortcutActions(ctx, deps = {}) {
     setBareActive,
     setBareTyping,
     toggleTarget,
+    /** Move every bare-key binding back to the host after a fallback. */
+    retryHosts: () => {
+      let moved = 0;
+      for (const watcher of bareWatchers.values()) {
+        if (typeof watcher.retryHost === 'function' && watcher.retryHost()) moved += 1;
+      }
+      return moved;
+    },
     active: () => Boolean(activeHold),
     afterPickActive: () => Boolean(afterPick),
     toggles: () => new Map(toggles),

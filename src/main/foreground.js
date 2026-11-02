@@ -38,10 +38,13 @@ class ForegroundWatcher extends EventEmitter {
    * The host is event-driven (SetWinEventHook) and answers `refresh()` with one
    * IPC line, so the 5 s one-shot query and its 1.24 s process never exist.
    */
-  attach(host) {
+  attach(host, health = null) {
     if (!host) return;
     this.host = host;
+    this.hostRef = host;
+    this.health = health;
     host.on('fg', (message) => {
+      if (this.health) this.health.set('foreground', 'host');
       const name = message && message.fg ? String(message.fg) : '';
       if (!name || name === this.current) return;
       this.current = name;
@@ -75,6 +78,8 @@ class ForegroundWatcher extends EventEmitter {
 
   _spawn() {
     if (this.stopped || this.proc) return;
+    // Never run two implementations of one capability.
+    if (this.hostRef && this.hostRef.available) this.hostRef.setForeground(false).catch(() => {});
     const proc = spawn('powershell.exe', this._args(), {
       windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
     });
@@ -83,6 +88,7 @@ class ForegroundWatcher extends EventEmitter {
     proc.stdout.on('data', (chunk) => this._onData(chunk));
     proc.on('error', () => this._onProcGone(proc));
     proc.on('exit', () => this._onProcGone(proc));
+    if (this.health) this.health.set('foreground', 'ps');
   }
 
   /**
@@ -133,6 +139,18 @@ class ForegroundWatcher extends EventEmitter {
       });
     });
     return this._refreshPromise;
+  }
+
+  /** Try to move back to the host after a fallback (bounded retry, see main.js). */
+  retryHost() {
+    if (!this.hostRef || !this.hostRef.available) return false;
+    const proc = this.proc;
+    this.proc = null;
+    if (proc) { try { proc.kill(); } catch { /* gone */ } }
+    this.host = this.hostRef;
+    this.hostRef.setForeground(true).catch(() => {});
+    if (this.health) this.health.set('foreground', 'host');
+    return true;
   }
 
   /** Respawn after a crash so visibility tracking recovers without a restart. */

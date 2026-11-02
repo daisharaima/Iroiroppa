@@ -35,9 +35,11 @@ class PointerWatcher extends EventEmitter {
    * the canvas flag, so the watcher becomes a thin adapter and the 57 MB PowerShell
    * process disappears.
    */
-  attach(host) {
+  attach(host, health = null) {
     if (!host) return;
     this.host = host;
+    this.hostRef = host;
+    this.health = health;
     host.on('hook', (message) => {
       // A hook that failed to install looks exactly like "the user is not clicking",
       // so a refusal has to be surfaced: the caller then falls back to PowerShell.
@@ -48,6 +50,7 @@ class PointerWatcher extends EventEmitter {
     });
     host.on('mouse', (message) => {
       if (!message) return;
+      if (this.health) this.health.set('pointer', 'host');
       if (message.mouse === 'up') { this.emit('up'); return; }
       if (message.mouse !== 'down') return;
       this.emit('down', {
@@ -69,7 +72,11 @@ class PointerWatcher extends EventEmitter {
       const host = this.host;
       host.whenReady(600).then((ok) => {
         if (this.stopped) return;
-        if (ok && host.available) { host.setMouse(true).catch(() => {}); return; }
+        if (ok && host.available) {
+          host.setMouse(true).catch(() => {});
+          if (this.health) this.health.set('pointer', 'host');
+          return;
+        }
         this._spawnPowerShell();
       });
       return;
@@ -80,6 +87,8 @@ class PointerWatcher extends EventEmitter {
 
   _spawnPowerShell() {
     if (this.stopped || this.proc) return;
+    // Two implementations of one capability must never run together.
+    if (this.hostRef && this.hostRef.available) this.hostRef.setMouse(false).catch(() => {});
     let proc;
     try {
       proc = spawn('powershell.exe', [
@@ -102,6 +111,7 @@ class PointerWatcher extends EventEmitter {
     };
     proc.on('error', gone);
     proc.on('exit', gone);
+    if (this.health) this.health.set('pointer', 'ps');
   }
 
   _scheduleRetry() {
@@ -128,6 +138,18 @@ class PointerWatcher extends EventEmitter {
         shift: info.shift === true,
       });
     }
+  }
+
+  /** Try to move back to the host after a fallback (bounded retry, see main.js). */
+  retryHost() {
+    if (!this.hostRef || !this.hostRef.available) return false;
+    this.host = this.hostRef;
+    const proc = this.proc;
+    this.proc = null;
+    if (proc) { try { proc.kill(); } catch { /* gone */ } }
+    this.hostRef.setMouse(true).catch(() => {});
+    if (this.health) this.health.set('pointer', 'host');
+    return true;
   }
 
   stop() {
