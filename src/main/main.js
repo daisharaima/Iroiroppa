@@ -1680,6 +1680,17 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       app.on('will-quit', () => nativeHost.stop());
     }
 
+    // --summon-after=<ms>: fire the same toggle the hotkey fires, so the warm-summon
+    // latency can be measured from the visibility trace without a human press.
+    const summonAfter = (process.argv.find((a) => a.startsWith('--summon-after=')) || '').split('=')[1];
+    if (summonAfter) {
+      // A comma list toggles at each delay: hide first, then show, so the second
+      // toggle is the warm summon the trace can time.
+      for (const at of String(summonAfter).split(',').map(Number).filter((n) => n > 0)) {
+        setTimeout(() => { try { shortcutActions.toggleTarget('app'); } catch { /* window not ready */ } }, at);
+      }
+    }
+
     // The shortcut engine only re-registers on a settings *change*; a profile that
     // already had a bare key never registered one until the user touched Settings.
     try { ctx.applyShortcuts(settings.get()); } catch (error) { console.error('[shortcut] startup apply failed', error); }
