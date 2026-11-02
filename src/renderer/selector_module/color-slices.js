@@ -431,9 +431,51 @@
        * narrower than one row still gets a scanline — otherwise the corner would
        * be drawn as unreachable.
        */
-      const buildPlot = (key, w, h, intervalsAt, colorAt, lumaAt) => {
+      // Chunked builds in flight, by plot key. A key already being built is not
+      // requested again: the interactive tick fires every frame, and queueing the same
+      // plane twelve times only delays the one that lands.
+      const chunkedInFlight = new Set();
+
+      /**
+       * Paint one panel: keep the last image, schedule a chunked build when the key
+       * changed, and repaint when it lands. Never blocks for a whole plane.
+       */
+      const panelPlot = (plane, key, build, canvas, W, H) => {
+        let off = lastOff[plane];
+        if (!off || off.__key !== key) {
+          if (store.interactive && !plotCache.has(key)) {
+            if (!chunkedInFlight.has(key)) {
+              chunkedInFlight.add(key);
+              build((built) => {
+                chunkedInFlight.delete(key);
+                built.__key = key;
+                lastOff[plane] = built;
+                const next2d = paint(canvas, built, W, H, viewFor(plane));
+                drawOverlay(next2d, plane, W, H, modelNow(), axesNow());
+              });
+            }
+          } else {
+            off = build();
+            off.__key = key;
+            lastOff[plane] = off;
+          }
+        }
+        if (!off) return;
+        const c2d = paint(canvas, off, W, H, viewFor(plane));
+        drawOverlay(c2d, plane, W, H, modelNow(), axesNow());
+      };
+
+      // Rows built per animation frame in the chunked path. Sized so one slice stays
+      // well under a frame at any realistic width: the measured cost was 50-63 ms for
+      // a whole plane, and a drag could not afford one of those per panel rebuild.
+      const PLOT_ROWS_PER_FRAME = 24;
+
+      const buildPlot = (key, w, h, intervalsAt, colorAt, lumaAt, onDone) => {
         const cached = plotCache.get(key);
-        if (cached && cached.width === w && cached.height === h) return cached;
+        if (cached && cached.width === w && cached.height === h) {
+          if (onDone) onDone(cached);
+          return cached;
+        }
 
         const off = document.createElement('canvas');
         off.width = w; off.height = h;
@@ -485,9 +527,48 @@
           }
         }
 
-        c2d.putImageData(img, 0, 0);
-        plotCache.set(key, off);
-        off.__luma = luma;
+        if (!onDone) {
+          c2d.putImageData(img, 0, 0);
+          plotCache.set(key, off);
+          off.__luma = luma;
+          return off;
+        }
+
+        // Chunked: paint whole rows per frame so the main thread never blocks for the
+        // whole plane, then hand the finished canvas back. The caller keeps the
+        // previous image on screen until then (a map is never cleared before its
+        // replacement exists).
+        let row = 0;
+        const step = () => {
+          const end = Math.min(h, row + PLOT_ROWS_PER_FRAME);
+          for (; row < end; row += 1) {
+            const C = (1 - row / (h - 1)) * cmax;
+            for (let x = 0; x < w; x += 1) {
+              const i = (row * w + x) * 4;
+              const ivs = cols[x];
+              let inside = false;
+              for (let k = 0; k < ivs.length; k += 1) {
+                if (C >= ivs[k][0] && C <= ivs[k][1]) { inside = true; break; }
+              }
+              if (inside) {
+                const { r, g, b } = colorAt(x / (w - 1), C);
+                put(i, r, g, b);
+                luma[row * w + x] = lumaAt(x / (w - 1));
+              } else {
+                data[i + 3] = 0;
+              }
+            }
+          }
+          c2d.putImageData(img, 0, 0);
+          if (row < h) {
+            requestAnimationFrame(step);
+            return;
+          }
+          plotCache.set(key, off);
+          off.__luma = luma;
+          onDone(off);
+        };
+        requestAnimationFrame(step);
         return off;
       };
 
@@ -645,19 +726,18 @@
             const rw = W, rh = H;
             const fixed = fixedFor(plane);
             const key = `lc:${store.plotKeyTag()}:${fixed[2].toFixed(3)}:${rw}x${rh}`;
-            let off = lastOff[plane];
-            if (want(plane, off)) {
-              off = buildPlot(key, rw, rh,
+            if (want(plane, lastOff[plane])) {
+              panelPlot(plane, key, (done) => buildPlot(key, rw, rh,
                 (xNorm) => store.chromaIntervals(clamp(xNorm, 0, 1), fixed[2]),
                 (xNorm, c) => {
                   const f = Color.fitToSrgb(clamp(xNorm, 0, 1), c, fixed[2]);
                   return { r: clamp255(f.r * 255), g: clamp255(f.g * 255), b: clamp255(f.b * 255) };
                 },
-                (xNorm) => clamp(xNorm, 0, 1));
-              lastOff[plane] = off;
+                (xNorm) => clamp(xNorm, 0, 1), done), canvas, W, H);
+            } else if (lastOff[plane]) {
+              const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
+              drawOverlay(c2d, plane, W, H, modelNow(), axes);
             }
-            const c2d = paint(canvas, off, W, H, viewFor(plane));
-            drawOverlay(c2d, plane, W, H, modelNow(), axes);
           }
         }
 
@@ -671,19 +751,18 @@
             const rw = W, rh = H;
             const fixed = fixedFor(plane);
             const key = `hc:${store.plotKeyTag()}:${fixed[0].toFixed(3)}:${rw}x${rh}`;
-            let off = lastOff[plane];
-            if (want(plane, off)) {
-              off = buildPlot(key, rw, rh,
+            if (want(plane, lastOff[plane])) {
+              panelPlot(plane, key, (done) => buildPlot(key, rw, rh,
                 (xNorm) => store.chromaIntervals(fixed[0], xNorm * 360),
                 (xNorm, c) => {
                   const f = Color.fitToSrgb(fixed[0], c, xNorm * 360);
                   return { r: clamp255(f.r * 255), g: clamp255(f.g * 255), b: clamp255(f.b * 255) };
                 },
-                () => fixed[0]);
-              lastOff[plane] = off;
+                () => fixed[0], done), canvas, W, H);
+            } else if (lastOff[plane]) {
+              const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
+              drawOverlay(c2d, plane, W, H, modelNow(), axes);
             }
-            const c2d = paint(canvas, off, W, H, viewFor(plane));
-            drawOverlay(c2d, plane, W, H, modelNow(), axes);
           }
         }
 
@@ -720,7 +799,23 @@
         }
         : null);
 
-      const buildRasterPlot = (key, w, h, plane, model, fixed) => {
+      const PlaneWorker = window.IroPlaneWorker;
+      const pendingKeys = [null, null, null];
+
+      /** Turn a worker reply into the same offscreen canvas the synchronous path makes. */
+      const imageFromResult = (result, w, h, fixed) => {
+        const off = document.createElement('canvas');
+        off.width = w; off.height = h;
+        const c2d = off.getContext('2d');
+        const img = c2d.createImageData(w, h);
+        img.data.set(result.data);
+        c2d.putImageData(img, 0, 0);
+        off.__luma = result.luma;
+        off.__fixed = fixed.slice();
+        return off;
+      };
+
+      const buildRasterPlot = (key, w, h, plane, model, fixed, gamutTest) => {
         const cached = plotCache.get(key);
         if (cached && cached.width === w && cached.height === h) return cached;
         const off = document.createElement('canvas');
@@ -733,7 +828,7 @@
         if (Raster && typeof Raster.renderPlane === 'function') {
           Raster.renderPlane({
             model, plane, fixed, ranges, width: w, height: h, out: img.data, luma,
-            workingGamut: workingGamutTest(),
+            workingGamut: gamutTest || workingGamutTest(),
             // A dense model's map is a *shape*: a square with no bites. Its out-of-document
             // pixels are painted with the sRGB stand-in at full opacity — opaque, not a
             // pale dim band (the user's report), so the square is whole.
@@ -781,10 +876,47 @@
           const fi = planes[p][2];
           const key = `g${p}:${store.plotKeyTag()}:${model.id}:${rw}x${rh}:${fixed[fi].toFixed(5)}`;
           let off = lastOff[p];
+          const gamutTest = workingGamutTest();
+          // Diagnostic counters (read by --perf-gaps): which path built this plane.
+          const dbg = (window.__planeDbg = window.__planeDbg || { sync: 0, worker: 0, cache: 0, gamut: 0 });
+          if (gamutTest) dbg.gamut += 1;
           if (want(p, off)) {
-            off = buildRasterPlot(key, rw, rh, p, model, fixed);
-            lastOff[p] = off;
+            const mayUseWorker = PlaneWorker && PlaneWorker.available() && !gamutTest;
+            if (mayUseWorker) {
+              // Build off the main thread and keep the previous image on screen until
+              // the replacement lands: a map must never be cleared before it exists.
+              if (pendingKeys[p] !== key) {
+                pendingKeys[p] = key;
+                PlaneWorker.render({
+                  modelId: model.id,
+                  plane: p,
+                  fixed: fixed.slice(),
+                  ranges: [0, 1, 2].map((i) => G.range(model, i, store)),
+                  width: rw,
+                  height: rh,
+                  fill: model.dense === true,
+                  fillAlpha: 255,
+                  outAlpha: store.markOutOfDisplay ? 140 : 255,
+                }, key).then((result) => {
+                  if (!result || pendingKeys[p] !== key) return;
+                  pendingKeys[p] = null;
+                  const built = imageFromResult(result, rw, rh, fixed);
+                  plotCache.set(key, built);
+                  lastOff[p] = built;
+                  const next2d = paint(canvas, built, W, H, viewFor(p));
+                  drawOverlay(next2d, p, W, H, modelNow(), axesNow());
+                });
+              }
+              // Nothing to show for this panel yet: leave the canvas as it was.
+              dbg.worker += 1;
+              if (!off) continue;
+            } else {
+              dbg.sync += 1;
+              off = buildRasterPlot(key, rw, rh, p, model, fixed, gamutTest);
+              lastOff[p] = off;
+            }
           }
+          dbg.cache += 1;
           const c2d = paint(canvas, off, W, H, viewFor(p));
           drawOverlay(c2d, p, W, H, model, axes);
         }

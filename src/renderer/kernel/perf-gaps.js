@@ -20,6 +20,26 @@
   let samples = [];
   let last = 0;
   let frame = 0;
+  // Long tasks (a single callback over 50 ms) tell a different story from a burst of
+  // short frames: one long task is a blocking function, many short ones are death by
+  // a thousand layout/GC cuts. Recorded so the fix targets the right thing.
+  let longTasks = [];
+
+  if (typeof PerformanceObserver === 'function') {
+    try {
+      new PerformanceObserver((list) => {
+        if (!sampling) return;
+        for (const entry of list.getEntries()) {
+          longTasks.push({
+            at: Math.round(entry.startTime - gestureStart),
+            ms: Math.round(entry.duration * 10) / 10,
+          });
+        }
+      }).observe({ entryTypes: ['longtask'] });
+    } catch { /* the entry type is optional */ }
+  }
+  let gestureStart = 0;
+  let workerAtStart = null;
 
   function tick(now) {
     if (!sampling) return;
@@ -42,6 +62,9 @@
     if (sampling) return;
     sampling = true;
     samples = [];
+    longTasks = [];
+    gestureStart = performance.now();
+    workerAtStart = window.IroPlaneWorker && window.IroPlaneWorker.stats ? window.IroPlaneWorker.stats() : null;
     last = 0;
     requestAnimationFrame(tick);
     window.__perfGesture = label || 'gesture';
@@ -62,9 +85,18 @@
       max: Math.round((sorted[sorted.length - 1] || 0) * 100) / 100,
       over25: samples.filter((value) => value > 25).length,
       over50: samples.filter((value) => value > 50).length,
+      longTasks: longTasks.length,
+      longestTask: longTasks.reduce((max, task) => Math.max(max, task.ms), 0),
+      blockingMs: Math.round(longTasks.reduce((sum, task) => sum + Math.max(0, task.ms - 50), 0)),
+      worst: longTasks.slice().sort((a, b) => b.ms - a.ms).slice(0, 3),
+      planeDbg: window.__planeDbg || null,
+      planeWorker: window.IroPlaneWorker && window.IroPlaneWorker.stats
+        ? (() => { const now = window.IroPlaneWorker.stats(); const start = workerAtStart || { started: 0, completed: 0, totalMs: 0 }; return { jobs: now.started - start.started, done: now.completed - start.completed, ms: now.totalMs - start.totalMs, failed: now.failed, error: now.error || '' }; })()
+        : null,
       ...extra,
     };
     samples = [];
+    longTasks = [];
     last = 0;
     bridge.perfGapsReport(summary);
     return summary;
