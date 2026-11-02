@@ -1687,7 +1687,16 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       // A comma list toggles at each delay: hide first, then show, so the second
       // toggle is the warm summon the trace can time.
       for (const at of String(summonAfter).split(',').map(Number).filter((n) => n > 0)) {
-        setTimeout(() => { try { shortcutActions.toggleTarget('app'); } catch { /* window not ready */ } }, at);
+        setTimeout(() => {
+          try {
+            // Hide first, then time the show. This is the *show path* the hotkey ends in;
+            // the isShortcutActive gate above it is O(1) and excluded on purpose (it
+            // refuses while another app is in front, which a script cannot change).
+            if (ctx.popup && ctx.popup.isVisible()) { windows.hidePopup(); return; }
+            ctx.summonAt = Date.now();
+            windows.showPopup();
+          } catch { /* window not ready */ }
+        }, at);
       }
     }
 

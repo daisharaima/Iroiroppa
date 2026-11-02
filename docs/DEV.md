@@ -154,7 +154,7 @@ human clicking:
 | `--no-native-host` | keep every helper on PowerShell — the diagnostic path when a band or hook misbehaves |
 | `--trace-native` | log each native-helper command and reply to stdout |
 | `--force-interactive` | treat the store as mid-gesture, so the interactive render cadence (chunked plane builds, paced rebuilds) can be measured without a human drag |
-| `--summon-after=<ms>` | fire the palette toggle after a delay and record how long it took to become visible (`sinceSummon` in the input trace) |
+| `--summon-after=<ms[,ms]>` | hide then show the palette at each delay and record how long the show took (`sinceSummon` in the input trace); the shortcut gate is bypassed, so this times the show path the hotkey ends in |
 | `--hold-interaction` | open a live colour interaction and leave it open (tests the invalidation branch without touching the mouse; use with `--local-first`) |
 | `--capture-fake <name>` | list a synthetic capture source (renders the capture module without a desktop) |
 | `--profile-row <n>` | click the n-th profile row (with `--profiles`) |
