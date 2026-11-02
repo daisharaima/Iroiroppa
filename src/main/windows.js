@@ -1681,6 +1681,9 @@ function focusState(name) {
 function startFollowFocus() {
   if (ctx.fgWatcher) return;
   ctx.fgWatcher = new ForegroundWatcher();
+  // When the native host owns the hooks, the watcher follows its events and its
+  // on-demand query instead of spawning foreground.ps1 (and its 5 s one-shot).
+  if (ctx.nativeHost) ctx.fgWatcher.attach(ctx.nativeHost);
   ctx.fgWatcher.on('change', (name) => {
     if (!name) return;
     ctx.fgHealthy = true;

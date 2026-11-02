@@ -73,13 +73,13 @@ test('a request resolves on its own reply even when events interleave', async (t
 
   // An unrelated event, then the two replies, out of order.
   child.stdout.emit('data', '{"mouse":"up","x":0,"y":0,"t":5}\n');
-  child.stdout.emit('data', '{"fg":1,"hook":1,"t":6}\n');
+  child.stdout.emit('data', '{"fgon":1,"hook":1,"t":6}\n');
   child.stdout.emit('data', '{"topmost":1,"hwnd":1234,"applied":1,"changed":1,"swp":1,"t":7}\n');
 
   const [bandReply, fgReply] = await Promise.all([band, fg]);
   assert.equal(bandReply.hwnd, 1234);
   assert.equal(bandReply.applied, 1);
-  assert.equal(fgReply.fg, 1);
+  assert.equal(fgReply.fgon, 1);
   assert.equal(child.stdin.written[0], 'topmost 1234 1 1 1\n');
   assert.equal(child.stdin.written[1], 'fg 1\n');
 });

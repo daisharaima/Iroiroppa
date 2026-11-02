@@ -25,8 +25,9 @@ const REPLY_KEYS = {
   state: 'state',
   watch: 'watching',
   unwatch: 'watching',
-  mouse: 'mouse',
-  fg: 'fg',
+  mouse: 'mouseon',
+  fg: 'fgon',
+  foreground: 'fgname',
   version: 'version',
 };
 
@@ -190,6 +191,9 @@ class NativeHost extends EventEmitter {
   unwatch() { return this.request('unwatch'); }
   setMouse(enabled) { return this.request(`mouse ${enabled ? 1 : 0}`); }
   setForeground(enabled) { return this.request(`fg ${enabled ? 1 : 0}`); }
+
+  /** The current foreground process name, asked once (no spawn). */
+  foreground() { return this.request('foreground'); }
 
   // --- internals ------------------------------------------------------------
 

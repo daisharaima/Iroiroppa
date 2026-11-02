@@ -1661,6 +1661,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       nativeHost = new NativeHost({ log: traceNative ? (line) => console.log('[native]', line) : null });
       nativeHost.start();
       setBandHost(nativeHost);
+      ctx.nativeHost = nativeHost;
       app.on('will-quit', () => nativeHost.stop());
     }
     }

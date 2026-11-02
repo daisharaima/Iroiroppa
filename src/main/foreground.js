@@ -30,11 +30,38 @@ class ForegroundWatcher extends EventEmitter {
     this._refreshName = '';
     this._refreshPromise = null;
     this._refreshProc = null;
+    this.host = null;
+  }
+
+  /**
+   * Take foreground events from the native host instead of spawning PowerShell.
+   * The host is event-driven (SetWinEventHook) and answers `refresh()` with one
+   * IPC line, so the 5 s one-shot query and its 1.24 s process never exist.
+   */
+  attach(host) {
+    if (!host) return;
+    this.host = host;
+    host.on('fg', (message) => {
+      const name = message && message.fg ? String(message.fg) : '';
+      if (!name || name === this.current) return;
+      this.current = name;
+      this.emit('change', name);
+    });
+    host.on('exit', () => this.emit('down'));
+  }
+
+  detach() {
+    this.host = null;
   }
 
   start() {
     if (this.proc) return;
     this.stopped = false;
+    if (this.host) {
+      // One IPC line, no process; the hook reports the current app immediately.
+      this.host.setForeground(true).catch(() => {});
+      return;
+    }
     this._spawn();
   }
 
@@ -65,6 +92,13 @@ class ForegroundWatcher extends EventEmitter {
    * Concurrent calls share one query and a 250 ms cache; failures resolve ''.
    */
   refresh() {
+    // The host answers in ~1 ms and cannot be stale in the way a stream is: it
+    // reads GetForegroundWindow on demand.
+    if (this.host && this.host.available) {
+      return this.host.foreground()
+        .then((reply) => (reply && reply.fgname) || '')
+        .catch(() => '');
+    }
     if (this._refreshPromise) return this._refreshPromise;
     if (Date.now() - this._refreshAt < 250) return Promise.resolve(this._refreshName);
     this._refreshPromise = new Promise((resolve) => {
@@ -134,6 +168,7 @@ class ForegroundWatcher extends EventEmitter {
 
   stop() {
     this.stopped = true;
+    if (this.host) this.host.setForeground(false).catch(() => {});
     if (this._restartTimer) {
       clearTimeout(this._restartTimer);
       this._restartTimer = null;

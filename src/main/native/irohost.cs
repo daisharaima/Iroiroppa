@@ -411,7 +411,7 @@ internal static class Program
         _fgProc = FgCallback;
         _fgHook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, IntPtr.Zero,
             _fgProc, 0, 0, WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
-        Out("{\"fg\":1,\"hook\":" + (_fgHook != IntPtr.Zero ? 1 : 0) + ",\"t\":" + NowMs() + "}");
+        Out("{\"fgon\":1,\"hook\":" + (_fgHook != IntPtr.Zero ? 1 : 0) + ",\"t\":" + NowMs() + "}");
         // Report the current foreground once so the app does not wait for a switch.
         EmitForeground();
     }
@@ -421,7 +421,7 @@ internal static class Program
         if (_fgHook == IntPtr.Zero) return;
         UnhookWinEvent(_fgHook);
         _fgHook = IntPtr.Zero;
-        Out("{\"fg\":0,\"t\":" + NowMs() + "}");
+        Out("{\"fgon\":0,\"t\":" + NowMs() + "}");
     }
 
     // --- command loop ------------------------------------------------------
@@ -497,13 +497,21 @@ internal static class Program
             case "mouse":
                 _mouseOn = arg != "0";
                 if (_mouseOn) InstallMouseHook(); else RemoveMouseHook();
-                Out("{\"mouse\":" + (_mouseOn ? 1 : 0) + "}");
+                Out("{\"mouseon\":" + (_mouseOn ? 1 : 0) + "}");
+                break;
+
+            case "foreground":
+                {
+                    IntPtr fgWnd = GetForegroundWindow();
+                    string fgName = fgWnd == IntPtr.Zero ? string.Empty : ForegroundName(fgWnd);
+                    Out("{\"fgname\":\"" + Escape(fgName) + "\",\"hwnd\":" + fgWnd.ToInt64() + ",\"t\":" + NowMs() + "}");
+                }
                 break;
 
             case "fg":
                 _fgOn = arg != "0";
                 if (_fgOn) InstallFgHook(); else RemoveFgHook();
-                Out("{\"fg\":" + (_fgOn ? 1 : 0) + "}");
+                Out("{\"fgon\":" + (_fgOn ? 1 : 0) + "}");
                 break;
 
             case "quit":
