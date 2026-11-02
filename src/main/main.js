@@ -1683,6 +1683,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
               if (win && !win.isDestroyed()) {
                 sendTo(win, 'interaction:reject', { interactionId: gone.interactionId, reason: gone.reason });
               }
+              if (traceInteraction) console.log(`[interaction] reject ${gone.interactionId} -> win ${gone.windowId} (${gone.reason})`);
             }
           }
         }
