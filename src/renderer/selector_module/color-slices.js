@@ -452,6 +452,13 @@
       // One generation per panel: a newer request bumps it, and an in-flight build whose
       // generation is behind aborts instead of painting stale rows.
       const plotGeneration = [0, 0, 0];
+      // Above this many pixels a plane is never *rebuilt* synchronously, even when no gesture
+      // is in flight: the trailing rebuild after a drag measured 47-61 ms on the hue slice and
+      // landed as a long task right after the pen lifted. The first build still runs
+      // synchronously, because there is no previous image to keep on screen and a chunked
+      // first build could leave the panel blank if a resize made it abort.
+      const COSTLY_PLANE_PX = 40000;
+
       const chunkStats = (window.__plotDbg = window.__plotDbg || { chunked: 0, sync: 0, panels: 0, t: {} });
       /** Accumulate per-section time so a long task can be attributed to a call. */
       const timed = (name, fn) => {
@@ -470,7 +477,7 @@
       const panelPlot = (plane, key, build, canvas, W, H) => {
         let off = lastOff[plane];
         if (!off || off.__key !== key) {
-          if (store.interactive && !plotCache.has(key)) {
+          if ((store.interactive || (W * H > COSTLY_PLANE_PX && lastOff[plane])) && !plotCache.has(key)) {
             if (!chunkedInFlight.has(key)) {
               chunkedInFlight.add(key);
               chunkStats.chunked += 1;
@@ -513,7 +520,15 @@
       // wrong in both directions: 24 rows took 25 frames to finish a plane (up to 234 ms
       // to complete, mostly superseded before it landed), while a whole plane blocks a
       // frame. A time budget adapts to the machine and to the plane's real cost.
-      const CHUNK_BUDGET_MS = 14;
+      // Two budgets, because the two situations want different things:
+      // - during a gesture the frames matter most, so a chunk is small (4 ms) and a plane may
+      //   take a while to land behind the pointer;
+      // - when no gesture is in flight (first paint, the trailing full rebuild) nobody is
+      //   waiting on the next frame, so a bigger chunk finishes the plane sooner. Using the
+      //   small budget for the *first* build left a panel blank for hundreds of ms.
+      const CHUNK_BUDGET_MS = 4;
+      const CHUNK_BUDGET_IDLE_MS = 14;
+      const chunkBudget = () => (store.interactive ? CHUNK_BUDGET_MS : CHUNK_BUDGET_IDLE_MS);
       // At most this many chunks per plane. Three keeps a build inside roughly the time
       // the synchronous build took (one frame's worth of blocking each), while still
       // letting the compositor paint between them. More chunks spread the same work over
@@ -609,7 +624,7 @@
           const stepStart = performance.now();
           const startRow = row;
           const chunkEnd = Math.min(h, startRow + rowsPerChunk);
-          while (row < chunkEnd && performance.now() - stepStart < CHUNK_BUDGET_MS) {
+          while (row < chunkEnd && performance.now() - stepStart < chunkBudget()) {
             const C = (1 - row / (h - 1)) * cmax;
             for (let x = 0; x < w; x += 1) {
               const i = (row * w + x) * 4;
@@ -696,7 +711,7 @@
           const stepStart = performance.now();
           const startRow = row;
           const chunkEnd = Math.min(h, startRow + rowsPerChunk);
-          while (row < chunkEnd && performance.now() - stepStart < CHUNK_BUDGET_MS) {
+          while (row < chunkEnd && performance.now() - stepStart < chunkBudget()) {
             const L = 1 - row / (h - 1);
             for (let x = 0; x < w; x += 1) {
               const i = (row * w + x) * 4;
