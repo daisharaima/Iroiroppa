@@ -380,6 +380,7 @@ function createShortcutActions(ctx, deps = {}) {
         // watcher then only filters by vk. PowerShell remains the fallback.
         if (process.argv.includes('--trace-native')) console.log('[shortcut]', entry.key, entry.accel, 'vk=' + accel.vk, 'host=' + Boolean(ctx.nativeHost));
         if (ctx.nativeHost && accel.vk) watcher.attach(ctx.nativeHost, accel.vk, ctx.helperHealth || null);
+        else if (ctx.helperHealth && accel.vk) ctx.helperHealth.set('keys', 'ps');
         watcher.on('down', () => {
           if (entry.action === 'toggle') toggleTarget(entry.target);
           else beginHold(entry.target, key);

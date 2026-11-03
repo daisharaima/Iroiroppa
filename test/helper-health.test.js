@@ -7,10 +7,13 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { HelperHealth, CAPABILITIES } = require('../src/main/helper-health.js');
 
-test('starts unknown, and reports degraded until every capability is known', () => {
+test('an unreported capability is pending, not degraded', () => {
+  // A profile with no bare-key binding never reports `keys`; that must not leave a
+  // permanent warning.
   const health = new HelperHealth();
-  assert.equal(health.summary().state, 'degraded');
-  assert.match(health.describe(), /not yet known/);
+  assert.equal(health.summary().state, 'healthy');
+  assert.deepEqual(health.summary().pending, CAPABILITIES);
+  assert.match(health.describe(), /not yet reported/);
 
   for (const name of CAPABILITIES) health.set(name, 'host');
   assert.equal(health.summary().state, 'healthy');

@@ -313,7 +313,12 @@ function createPopup() {
   attachRendererRecovery(ctx.popup, 'palette');
   ctx.popup.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
   // Electron drops a zoom applied before the page loads; re-apply it once loaded.
-  ctx.popup.webContents.on('did-finish-load', () => applyZoom(ctx.popup));
+  ctx.popup.webContents.on('did-finish-load', () => {
+    applyZoom(ctx.popup);
+    // Push the current helper state as the page becomes ready: a run that starts degraded
+    // never fires a transition, and the dot would stay hidden.
+    if (ctx.pushHelpers) setTimeout(() => { try { ctx.pushHelpers(); } catch { /* gone */ } }, 0);
+  });
 
   // Restore the position the user last left it at (if any). With no memory the
   // first-run placement in positionPopup() centres under the cursor.
@@ -1740,6 +1745,9 @@ function startFollowFocus() {
   }, 5000);
   if (ctx.fgSafety.unref) ctx.fgSafety.unref();
   ctx.fgHealthy = false;
+  // No host: this watcher is the PowerShell fallback, and saying so is the whole point
+  // of the health dot.
+  if (!ctx.nativeHost && ctx.helperHealth) ctx.helperHealth.set('foreground', 'ps');
   ctx.fgWatcher.start();
 }
 

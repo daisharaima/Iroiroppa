@@ -123,6 +123,21 @@ html, body {
 .module.module-min { overflow: hidden; }
 
 .brand { display: flex; align-items: center; gap: 5px; min-width: 0; flex: 1 1 auto; overflow: hidden; }
+
+/* Native-helper degradation: invisible while everything runs on the host, a small
+   warning dot when a capability fell back or stopped (main publishes it on the
+   health state domain). */
+.helper-health {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--busy);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--busy) 25%, transparent);
+  cursor: help;
+}
+.helper-health.hidden { display: none; }
+.helper-health.down { background: var(--error); box-shadow: 0 0 0 2px color-mix(in srgb, var(--error) 25%, transparent); }
 .logo {
   width: 10px; height: 10px; border-radius: 3px;
   background: conic-gradient(from 210deg, #ff5c6c, #f5b942, #37d67a, #4dd0f7, #6c5ce7, #ff5c6c);

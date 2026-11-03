@@ -1419,6 +1419,11 @@ const {
   applyLocked, reopenFloats, showFloats, windowAtPoint, closeFloatWin,
 } = floats;
 
+// Declared before createWindows: the follow-focus watcher reports which implementation
+// serves it as it starts, and that reads ctx.helperHealth.
+const helperHealth = new HelperHealth();
+ctx.helperHealth = helperHealth;
+
 const windows = createWindows(ctx);
 Object.assign(ctx, windows);
 const {
@@ -1429,20 +1434,35 @@ const {
 
 // The native helper is created before the shortcut engine so a binding registered at
 // startup can route through it; the process itself starts once the app is ready.
-const helperHealth = new HelperHealth();
-
 const wantNativeHost = process.argv.includes('--native-host')
   || (!process.argv.includes('--no-native-host'));
+/** Push the helper state at every window; cheap, and the palette shows it as a dot. */
+const pushHelpers = () => {
+  try {
+    const payload = helperHealth.summary();
+    for (const win of require('electron').BrowserWindow.getAllWindows()) {
+      try { win.webContents.send('helpers:state', payload); } catch { /* gone */ }
+    }
+  } catch { /* not ready */ }
+};
+ctx.pushHelpers = pushHelpers;
+// The renderer asks once it is listening, so the dot is correct at load and not only
+// after the next transition.
+require('electron').ipcMain.handle('helpers:get', () => helperHealth.summary());
+
+// One line per real transition: a capability that silently moved to PowerShell (or
+// stopped) is the thing that used to be invisible. Deliberately outside the host branch:
+// a run that starts in fallback mode must report that too.
+helperHealth.on('changed', (event) => {
+  console.log(`[helpers] ${event.capability}: ${event.from} -> ${event.to} (${helperHealth.describe()})`);
+  pushHelpers();
+  try { setHealth({ helpers: helperHealth.summary() }); } catch { /* before the hub exists */ }
+});
+
 if (wantNativeHost) {
   nativeHost = new NativeHost({ log: traceNative ? (line) => console.log('[native]', line) : null });
   ctx.nativeHost = nativeHost;
-  ctx.helperHealth = helperHealth;
   setBandHealth(helperHealth);
-  // One line per real transition: a capability that silently moved to PowerShell (or
-  // stopped) is the thing that used to be invisible.
-  helperHealth.on('changed', (event) => {
-    console.log(`[helpers] ${event.capability}: ${event.from} -> ${event.to} (${helperHealth.describe()})`);
-  });
 }
 
 const shortcutActions = createShortcutActions(ctx);
@@ -1721,6 +1741,10 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       }
     }
 
+    // Publish the starting point as well as the transitions: a run that begins in
+    // fallback mode never fires a 'changed' event, and the window would show nothing.
+    setHealth({ helpers: helperHealth.summary() });
+
     // Bounded retry: if anything is running on the PowerShell fallback while the host is
     // healthy, try to move it back every 30 s. Without this a transient failure would
     // keep the slow path for the rest of the session.
@@ -1833,6 +1857,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
         // and after-pick closes on a non-Alt stroke.
         ctx.interactionStartedShortcut(info);
       });
+      if (!nativeHost && ctx.helperHealth) ctx.helperHealth.set('pointer', 'ps');
       pointerWatcher.start();
       app.on('will-quit', () => pointerWatcher.stop());
     }

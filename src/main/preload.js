@@ -213,6 +213,9 @@ contextBridge.exposeInMainWorld('csp', {
   quit: () => ipcRenderer.send('app:quit'),
 
   onStatus: (cb) => ipcRenderer.on('companion:status', (_e, s) => cb(s)),
+  // Native-helper health: pushed on every transition and on each window show.
+  onHelpersState: (cb) => ipcRenderer.on('helpers:state', (_e, s) => cb(s)),
+  helpersState: () => ipcRenderer.invoke('helpers:get'),
   onColor: (cb) => ipcRenderer.on('companion:color', (_e, c) => cb(c)),
   onColorPreview: (cb) => ipcRenderer.on('companion:color-preview', (_e, c) => cb(c)),
   // E1: the local-first interaction protocol (docs/STATE.md). `localFirst` is a

@@ -128,6 +128,29 @@
     store.reinterpret();
   }
 
+  /**
+   * Native-helper health: a dot that is invisible while everything runs on the host, amber when
+   * a capability fell back to PowerShell, red when one stopped. A silently dead hook looks exactly
+   * like "the user did not press it", so this has to be visible without opening Settings.
+   */
+  function showHelperHealth(state) {
+    const dot = document.getElementById('helper-health');
+    if (!dot) return;
+    const helpers = state && state.helpers;
+    if (!helpers || helpers.state === 'healthy' || helpers.state === 'unknown'
+      || (!(helpers.onFallback || []).length && !(helpers.unavailable || []).length)) {
+      dot.className = 'helper-health hidden';
+      dot.removeAttribute('data-tip');
+      return;
+    }
+    const parts = [];
+    if (helpers.onFallback && helpers.onFallback.length) parts.push(`on PowerShell: ${helpers.onFallback.join(', ')}`);
+    if (helpers.unavailable && helpers.unavailable.length) parts.push(`stopped: ${helpers.unavailable.join(', ')}`);
+    dot.className = `helper-health${helpers.state === 'down' ? ' down' : ''}`;
+    dot.setAttribute('data-tip', `Native helpers degraded — ${parts.join('; ')}`);
+    dot.setAttribute('aria-label', `Native helpers degraded — ${parts.join('; ')}`);
+  }
+
   // The mode buttons lived in the palette's own footer, which is gone (the profile switcher is
   // the `session` module now), so there is nothing left to reflect here.
   //
@@ -314,6 +337,9 @@
     }, true);
 
     store.subscribe(renderChrome);
+    // Independent of the state model: helper health is a small, always-available channel.
+    if (csp.onHelpersState) csp.onHelpersState(showHelperHealth);
+    if (csp.helpersState) csp.helpersState().then(showHelperHealth).catch(() => {});
     if (window.Iro.state && window.Iro.state.mode === 'model') {
       // The canonical model is the source; each domain has a pure adapter
       // (docs/STATE.md, §12.2). No window hand-mirrors a channel.
@@ -322,7 +348,7 @@
       window.Iro.stateAdapters.color((color) => store.applyIncoming(color));
       window.Iro.stateAdapters.history(store);
       window.Iro.stateAdapters.layout((layout) => board.applyLayout(layout));
-      window.Iro.stateAdapters.health((v) => { window.Iro.health = v; });
+      window.Iro.stateAdapters.health((v) => { window.Iro.health = v; showHelperHealth(v); });
     } else {
       csp.onStatus(updateStatus);
       csp.onColor((color) => store.applyIncoming(color));

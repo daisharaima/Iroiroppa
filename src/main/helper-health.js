@@ -38,33 +38,39 @@ class HelperHealth extends EventEmitter {
     return this.caps[capability];
   }
 
-  /** Overall state: healthy when everything is native, down when nothing serves it. */
+  /**
+   * Overall state: healthy when everything that reports is on the host, down when nothing
+   * serves it, degraded when something fell back or stopped. A capability that has not
+   * reported yet is *pending*, not degraded — a profile with no bare-key binding never
+   * reports `keys` at all, and a permanent warning dot would be a lie.
+   */
   summary() {
-    const states = this.capabilities.map((name) => this.caps[name]);
-    const known = states.filter((state) => state !== 'unknown');
     const degraded = this.capabilities.filter((name) => this.caps[name] === 'ps');
     const down = this.capabilities.filter((name) => this.caps[name] === 'down');
+    const pending = this.capabilities.filter((name) => this.caps[name] === 'unknown');
     let state = 'healthy';
     if (down.length === this.capabilities.length) state = 'down';
-    else if (degraded.length || down.length || known.length < this.capabilities.length) state = 'degraded';
+    else if (degraded.length || down.length) state = 'degraded';
     return {
       state,
       caps: { ...this.caps },
       onFallback: degraded,
       unavailable: down,
+      pending,
     };
   }
 
   /** A one-line description for a log or a status surface. */
   describe() {
-    const { state, onFallback, unavailable } = this.summary();
-    if (state === 'healthy') return 'native helpers healthy';
+    const { state, onFallback, unavailable, pending } = this.summary();
     const parts = [];
     if (onFallback.length) parts.push(`on PowerShell: ${onFallback.join(', ')}`);
     if (unavailable.length) parts.push(`unavailable: ${unavailable.join(', ')}`);
-    const unknown = this.capabilities.filter((name) => this.caps[name] === 'unknown');
-    if (unknown.length) parts.push(`not yet known: ${unknown.join(', ')}`);
-    return `helpers degraded (${parts.join('; ')})`;
+    if (state === 'healthy') {
+      return pending.length ? `native helpers healthy (${pending.join(', ')} not yet reported)` : 'native helpers healthy';
+    }
+    if (pending.length) parts.push(`not yet reported: ${pending.join(', ')}`);
+    return `helpers ${state} (${parts.join('; ')})`;
   }
 }
 
