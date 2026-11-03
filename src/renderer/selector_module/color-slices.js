@@ -529,20 +529,6 @@
       const CHUNK_BUDGET_MS = 4;
       const CHUNK_BUDGET_IDLE_MS = 14;
       const chunkBudget = () => (store.interactive ? CHUNK_BUDGET_MS : CHUNK_BUDGET_IDLE_MS);
-
-      // Chunk work is budgeted per *frame*, not per panel: three panels rebuilding in one frame
-      // used to be three separate budgets, which is how "the other two slices do not follow
-      // smoothly" happens. One window of ~16 ms with a shared ceiling keeps every panel able to
-      // step each frame while the frame itself stays inside its own budget.
-      const CHUNK_WINDOW_MS = 16;
-      const CHUNK_TOTAL_MS = 9;
-      let chunkWindowAt = 0;
-      let chunkWindowUsed = 0;
-      const chunkRoom = () => {
-        const now = performance.now();
-        if (now - chunkWindowAt > CHUNK_WINDOW_MS) { chunkWindowAt = now; chunkWindowUsed = 0; }
-        return chunkWindowUsed < CHUNK_TOTAL_MS;
-      };
       // At most this many chunks per plane. Three keeps a build inside roughly the time
       // the synchronous build took (one frame's worth of blocking each), while still
       // letting the compositor paint between them. More chunks spread the same work over
@@ -635,7 +621,6 @@
           // build, or whose key was superseded: stale rows must never reach a canvas
           // they were not built for.
           if (isStale && isStale()) { onDone(null); return; }
-          if (!chunkRoom()) { requestAnimationFrame(step); return; }
           const stepStart = performance.now();
           const startRow = row;
           const chunkEnd = Math.min(h, startRow + rowsPerChunk);
@@ -662,7 +647,6 @@
           // whole layer sixty times per plane.
           c2d.putImageData(img, 0, 0, 0, startRow, w, row - startRow);
           const stepSpent = performance.now() - stepStart;
-          chunkWindowUsed += stepSpent;
           chunkStats.t.step = Math.round(((chunkStats.t.step || 0) + stepSpent) * 10) / 10;
           chunkStats.t.stepMax = Math.max(chunkStats.t.stepMax || 0, Math.round(stepSpent * 10) / 10);
           if (row < h) {
@@ -724,7 +708,6 @@
         let row = 0;
         const step = () => {
           if (isStale && isStale()) { onDone(null); return; }
-          if (!chunkRoom()) { requestAnimationFrame(step); return; }
           const stepStart = performance.now();
           const startRow = row;
           const chunkEnd = Math.min(h, startRow + rowsPerChunk);
@@ -1084,13 +1067,19 @@
         // still follows. The trailing emit after the stream ends does the
         // full-quality pass (`force`/`interactive` false).
         if (!force && store.interactive) {
-          // Every panel steps each frame. It used to be one panel per frame, round-robin,
-          // which measured fine for the dragged panel but left the other two visibly
-          // chunky ("when I drag 1 slice, the other 2 don't update smoothly"). The shared
-          // per-frame chunk budget is what makes this safe: three panels share one budget
-          // instead of each taking a frame.
-          if (modelId === Models.DEFAULT_ID) renderOklchPlots(null);
-          else renderGenericPlots(null);
+          // One panel per frame, round-robin, excluding the pinned active panel. The
+          // budget comes from the interactive build (src/shared/render-cadence.js): a
+          // plane that fits in a frame never waits, a heavy one is spaced out, and the
+          // overlays are still repainted on every panel.
+          const visible = [];
+          for (let p = 0; p < 3; p += 1) {
+            if (p === dragPanel) continue;
+            if (!panelSections[p].classList.contains('hidden')) visible.push(p);
+          }
+          const pick = Cadence.pickPanel({ visible, cursor: buildCursor, now: performance.now(), holdUntil });
+          if (pick.panel >= 0) buildCursor = pick.cursor;
+          if (modelId === Models.DEFAULT_ID) renderOklchPlots(pick.panel);
+          else renderGenericPlots(pick.panel);
           return;
         }
         if (modelId === Models.DEFAULT_ID) renderOklchPlots(null);
