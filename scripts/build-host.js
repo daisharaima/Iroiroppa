@@ -48,6 +48,25 @@ function build() {
 
   // /target:winexe: no console window may ever flash — the process talks over
   // redirected pipes only. /platform:anycpu keeps it architecture-neutral.
+  //
+  // The file version comes from package.json so the helper always matches the app
+  // it ships with: an exe reporting 0.0.0.0 is unsigned *and* anonymous, which is
+  // the combination a virus heuristic scores worst.
+  const pkg = require(path.join(root, 'package.json'));
+  const version = String(pkg.version || '0.0.0');
+  const parts = version.split('.').map((n) => parseInt(n, 10) || 0);
+  const versionResource = path.join(outDir, 'irohost-version.cs');
+  fs.writeFileSync(versionResource, [
+    'using System.Reflection;',
+    `[assembly: AssemblyVersion("${parts[0]}.${parts[1]}.${parts[2]}.0")]`,
+    `[assembly: AssemblyFileVersion("${parts[0]}.${parts[1]}.${parts[2]}.0")]`,
+    '[assembly: AssemblyProduct("Iroiroppa")]',
+    '[assembly: AssemblyCompany("Iroiroppa")]',
+    `[assembly: AssemblyTitle("Iroiroppa native helper ${version}")]`,
+    '[assembly: AssemblyDescription("Always-on-top band repair, foreground watch, mouse and keyboard hooks")]',
+    '[assembly: AssemblyCopyright("GPL-3.0")]',
+  ].join('\n'), 'utf8');
+
   execFileSync(csc, [
     '/nologo',
     '/target:winexe',
@@ -56,6 +75,7 @@ function build() {
     '/warn:4',
     `/out:${outFile}`,
     source,
+    versionResource,
   ], { stdio: 'inherit', windowsHide: true });
 
   const size = fs.statSync(outFile).size;
