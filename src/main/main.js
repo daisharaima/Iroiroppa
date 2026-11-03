@@ -1424,6 +1424,12 @@ const {
 const helperHealth = new HelperHealth();
 ctx.helperHealth = helperHealth;
 
+// --force-degraded-helpers: pretend a capability fell back, so the degraded UI can be
+// seen and screenshotted without breaking a real helper. Test seam only.
+if (process.argv.includes('--force-degraded-helpers')) {
+  for (const name of ['band', 'foreground', 'pointer', 'keys']) helperHealth.set(name, 'ps');
+}
+
 const windows = createWindows(ctx);
 Object.assign(ctx, windows);
 const {

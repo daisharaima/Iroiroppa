@@ -326,6 +326,13 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   gate: on an sRGB cube the generalised Okhsv reproduces `color.js` to 3e-3 (Ottosson's
   own cusp fit is approximate), the cusp equals the true wall, and Okhsl is monotone and
   round-trips (its `Cmid` is boundary-derived rather than his sRGB polynomial).
+- **A plane is built once.** `buildPlot`/`buildHuePlot` take an optional `onDone`: the
+  synchronous pass is the *cache-only* path, and a caller that wants the plane built across
+  frames must not run it first. Running both built every map twice (once blocking, then again in
+  chunks) and cost 50-75 ms per frame while every counter showed <=10 ms of JavaScript — the
+  duplicate ran before the first timing sample. `test/plot-chunks.test.js` pins the row
+  arithmetic; the chunk count is three with a per-chunk time cap (`PLOT_CHUNKS`,
+  `CHUNK_BUDGET_MS`).
 - **A map must never be cleared before its replacement exists, and never leaves
   transparent holes.** The Disc used to clear the canvas and return while it waited for
   its paced rebuild, which flashed white on every lightness change; it now keeps the last

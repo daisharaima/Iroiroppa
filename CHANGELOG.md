@@ -34,6 +34,12 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A warning dot when a native helper falls back.** If the background helper that keeps the
+  palette above other windows, watches the foreground app or handles a bare-key shortcut stops
+  working, the palette shows a small amber dot beside its name (red when a capability stopped
+  entirely) and names what fell back in its tooltip. Nothing is shown when everything runs
+  normally.
+
 - **Selector modules can read and click CSP's own commands.** The Companion bridge gains the
   name-addressed Quick Access pair — `SyncQuickAccessUIState` to read which commands are on, and
   `DoQuickAccess` to click one — exposed to modules as `cspInvoke({ quickAccess })` and whitelisted
