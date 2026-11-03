@@ -850,6 +850,29 @@
 
       // --- OKLCH: the analytic silhouette ------------------------------------
 
+      /**
+       * Repaint every visible panel's cached map and redraw its guide and pointer.
+       *
+       * This is what makes the Slices follow a drag: a panel's *picture* only changes when
+       * its own fixed axis does (the L×C map is keyed on hue, the H×C on lightness, the hue
+       * strip on chroma), but its *guide* moves with every colour change. Measured cost is
+       * paint <= 0.2 ms and overlay <= 2.9 ms per panel, against 4-15 ms to rebuild a map, so
+       * every panel can afford this every frame while the rebuilds stay paced.
+       */
+      const redrawOverlays = () => {
+        const axes = axesNow();
+        const model = modelNow();
+        for (let p = 0; p < 3; p += 1) {
+          const off = lastOff[p];
+          if (!off || panelSections[p].classList.contains('hidden')) continue;
+          const canvas = panelCanvases[p];
+          if (canvas.clientWidth < 2 || canvas.clientHeight < 2) continue;
+          const { w: W, h: H } = sizeCanvas(canvas, 2.5);
+          const c2d = timed('paint', () => paint(canvas, off, W, H, viewFor(p)));
+          timed('overlay', () => drawOverlay(c2d, p, W, H, model, axes));
+        }
+      };
+
       const renderOklchPlots = (target = null) => {
         const axes = axesNow();
         const fixedFor = (p) => (store.dragging && p === dragPanel && dragAxes) ? dragAxes : axes;
@@ -1063,8 +1086,9 @@
       let buildCursor = 0;
       const renderPlots = (force) => {
         // A local drag or a sibling palette's preview stream: both are a gesture in
-        // flight, so one panel per frame keeps the pointer smooth while every slice
-        // still follows. The trailing emit after the stream ends does the
+        // flight. One *map rebuild* per frame keeps the pointer smooth; every panel's
+        // guide and pointer are redrawn every frame, because those are cheap and they are
+        // what the user actually watches. The trailing emit after the stream ends does the
         // full-quality pass (`force`/`interactive` false).
         if (!force && store.interactive) {
           // One panel per frame, round-robin, excluding the pinned active panel. The
@@ -1078,8 +1102,15 @@
           }
           const pick = Cadence.pickPanel({ visible, cursor: buildCursor, now: performance.now(), holdUntil });
           if (pick.panel >= 0) buildCursor = pick.cursor;
-          if (modelId === Models.DEFAULT_ID) renderOklchPlots(pick.panel);
-          else renderGenericPlots(pick.panel);
+          if (modelId === Models.DEFAULT_ID) {
+            renderOklchPlots(pick.panel);
+            // The panel being rebuilt is already painted; the other two only need their
+            // guide and pointer to move. Without this their pointer froze until their turn
+            // in the round-robin, which is what read as "the other two don't follow".
+            redrawOverlays();
+          } else {
+            renderGenericPlots(pick.panel);
+          }
           return;
         }
         if (modelId === Models.DEFAULT_ID) renderOklchPlots(null);
