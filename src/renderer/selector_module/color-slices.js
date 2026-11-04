@@ -528,7 +528,17 @@
       //   small budget for the *first* build left a panel blank for hundreds of ms.
       const CHUNK_BUDGET_MS = 4;
       const CHUNK_BUDGET_IDLE_MS = 14;
-      const chunkBudget = () => (store.interactive ? CHUNK_BUDGET_MS : CHUNK_BUDGET_IDLE_MS);
+      // The budget follows the chunk count: a single chunk has to be allowed to finish in
+      // its frame, or the time cap would fragment it anyway.
+      const chunkBudget = () => (plotChunks() === 1 ? CHUNK_BUDGET_IDLE_MS : CHUNK_BUDGET_MS);
+
+      // How many frames a plane is spread over. During a gesture the round-robin already
+      // guarantees at most one rebuild per frame, so splitting that rebuild across three
+      // frames only delays the picture: the panel's turn comes round again before the map
+      // has landed, and the user sees the map change every third turn instead of every
+      // turn. One chunk means the picked panel's map appears complete in the frame it was
+      // built -- the behaviour the app had before the chunking work.
+      const plotChunks = () => (store.interactive ? 1 : PLOT_CHUNKS);
       // At most this many chunks per plane. Three keeps a build inside roughly the time
       // the synchronous build took (one frame's worth of blocking each), while still
       // letting the compositor paint between them. More chunks spread the same work over
@@ -614,7 +624,7 @@
         // whole plane, then hand the finished canvas back. The caller keeps the
         // previous image on screen until then (a map is never cleared before its
         // replacement exists).
-        const rowsPerChunk = Chunks.size(h, PLOT_CHUNKS);
+        const rowsPerChunk = Chunks.size(h, plotChunks());
         let row = 0;
         const step = () => {
           // Abandon a build whose canvas was resized, whose panel scheduled a newer
@@ -704,7 +714,7 @@
           return off;
         }
 
-        const rowsPerChunk = Chunks.size(h, PLOT_CHUNKS);
+        const rowsPerChunk = Chunks.size(h, plotChunks());
         let row = 0;
         const step = () => {
           if (isStale && isStale()) { onDone(null); return; }
