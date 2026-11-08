@@ -1078,6 +1078,8 @@ function unregisterSummonHotkey() {
 // (main owns it; ctx.commandRouter is set by ipc.js). A binding that is invalid or
 // already taken is reported and left unregistered, never silently "remembered".
 let commandHotkeys = new Map(); // accelerator -> binding key
+/** Bare-key command bindings, watched by the keyboard hook rather than globalShortcut. */
+let bareCommandKeys = [];
 
 /**
  * Replace every per-module hotkey. Returns `{ ok, registered, failures }` where
@@ -1089,6 +1091,10 @@ function applyCommandHotkeys(bindings) {
     try { globalShortcut.unregister(accel); } catch { /* keep going */ }
   }
   commandHotkeys = new Map();
+  if (typeof ctx.clearCommandBare === 'function') {
+    for (const key of bareCommandKeys) ctx.clearCommandBare(key);
+  }
+  bareCommandKeys = [];
   const registered = {};
   const failures = [];
   for (const [key, accelRaw] of Object.entries(bindings || {})) {
@@ -1097,21 +1103,36 @@ function applyCommandHotkeys(bindings) {
     const target = at === -1 ? '' : key.slice(0, at);
     const command = at === -1 ? '' : key.slice(at + 1);
     if (!accel || !target || !command) continue;
+    // A bare key cannot be a globalShortcut (it would swallow typing everywhere);
+    // it goes through the keyboard hook, which only consumes it while CSP or
+    // Iroiroppa is in front and the typing guard says the user is not typing.
+    const parsed = Match.parseAccelerator(accel);
+    if (parsed.hook) {
+      const res = (ctx.registerCommandBare
+        ? ctx.registerCommandBare({ key, accel, run: () => runCommandHotkey(target, command) })
+        : { ok: false, error: 'invalid' });
+      if (res && res.ok) { bareCommandKeys.push(key); registered[key] = accel; }
+      else failures.push({ key, accel, error: (res && res.error) || 'invalid' });
+      continue;
+    }
     if (!validAccelerator(accel)) { failures.push({ key, accel, error: 'invalid' }); continue; }
     let ok = false;
     try {
-      ok = globalShortcut.register(accel, () => {
-        if (!ctx.isShortcutActive || !ctx.isShortcutActive()) return;
-        try {
-          const p = ctx.commandRouter && ctx.commandRouter.call({ target, command, args: [] });
-          if (p && typeof p.catch === 'function') p.catch(() => {});
-        } catch { /* keep going */ }
-      });
+      ok = globalShortcut.register(accel, () => runCommandHotkey(target, command));
     } catch { ok = false; }
     if (ok) { commandHotkeys.set(accel, key); registered[key] = accel; }
     else failures.push({ key, accel, error: 'taken' });
   }
   return { ok: failures.length === 0, registered, failures };
+}
+
+/** One module command, gated to CSP/Iroiroppa foreground. */
+function runCommandHotkey(target, command) {
+  if (!ctx.isShortcutActive || !ctx.isShortcutActive()) return;
+  try {
+    const p = ctx.commandRouter && ctx.commandRouter.call({ target, command, args: [] });
+    if (p && typeof p.catch === 'function') p.catch(() => {});
+  } catch { /* keep going */ }
 }
 
 /** Release every per-module hotkey (on quit). */
@@ -1120,6 +1141,10 @@ function unregisterCommandHotkeys() {
     try { globalShortcut.unregister(accel); } catch { /* keep going */ }
   }
   commandHotkeys = new Map();
+  if (typeof ctx.clearCommandBare === 'function') {
+    for (const key of bareCommandKeys) ctx.clearCommandBare(key);
+  }
+  bareCommandKeys = [];
 }
 
 /** The stored UI scale, clamped to 0.8–1.6. */

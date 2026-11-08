@@ -104,8 +104,11 @@
   }
 
   /**
-   * Is this a binding Iroiroppa may own? `allowBare` is only used for the
-   * General/Palette reveal keys; module command keys stay modifier-only.
+   * Is this a binding Iroiroppa may own? `allowBare` admits a bare key (a letter, a
+   * digit or an F-key): the General/Palette reveal keys and **module command keys**
+   * both use it, because a bare key goes through the keyboard hook rather than
+   * globalShortcut — the hook only consumes it while the foreground is ours and the
+   * typing guard says the user is not typing.
    */
   function validAccelerator(accel, { allowBare = false } = {}) {
     if (!accel) return true;

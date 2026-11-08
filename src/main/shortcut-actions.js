@@ -59,6 +59,9 @@ function createShortcutActions(ctx, deps = {}) {
   let afterPick = null; // { shown: Set<paletteId>, timer }
   let dismiss = null; // { target } — Toggle mode's auto-dismiss after CSP interaction
   let bareWatchers = new Map(); // key -> BareKeyWatcher
+  // Bare keys bound to module commands; separate from the reveal bindings so the
+  // two edit paths never unregister each other.
+  let commandBares = new Map(); // key -> BareKeyWatcher
   let bareActive = true;
   let bareTyping = false;
   let failures = [];
@@ -259,6 +262,9 @@ function createShortcutActions(ctx, deps = {}) {
     for (const watcher of bareWatchers.values()) {
       try { watcher.setActive(bareActive); } catch { /* gone */ }
     }
+    for (const watcher of commandBares.values()) {
+      try { watcher.setActive(bareActive); } catch { /* gone */ }
+    }
   }
 
   function setBareTyping(typing) {
@@ -266,6 +272,49 @@ function createShortcutActions(ctx, deps = {}) {
     for (const watcher of bareWatchers.values()) {
       try { watcher.setTyping(bareTyping); } catch { /* gone */ }
     }
+    for (const watcher of commandBares.values()) {
+      try { watcher.setTyping(bareTyping); } catch { /* gone */ }
+    }
+  }
+
+  /**
+   * A bare key bound to a module command. Same hook and same typing guard as the
+   * reveal keys: the key is only consumed while the foreground is ours and the
+   * guard says the user is not typing, so a bare letter can never swallow typing.
+   * Returns `{ ok }` or `{ ok: false, error }`, mirroring the globalShortcut path.
+   */
+  function registerCommandBare({ key, accel, run }) {
+    clearCommandBare(key);
+    const parsed = Match.parseAccelerator(accel);
+    if (!parsed.vk || !parsed.hook) return { ok: false, error: 'invalid' };
+    const watcher = new BareWatcher({ accel });
+    if (ctx.nativeHost && parsed.vk) watcher.attach(ctx.nativeHost, parsed.vk, ctx.helperHealth || null);
+    else if (ctx.helperHealth && parsed.vk) ctx.helperHealth.set('keys', 'ps');
+    watcher.on('down', () => {
+      if (ctx.isShortcutActive && !ctx.isShortcutActive()) return;
+      try { run(); } catch { /* never let a command kill the hook */ }
+    });
+    watcher.on('failed', () => { commandBares.delete(key); });
+    watcher.active = bareActive;
+    watcher.typing = bareTyping;
+    if (!watcher.start()) return { ok: false, error: 'unavailable' };
+    commandBares.set(key, watcher);
+    return { ok: true };
+  }
+
+  function clearCommandBare(key) {
+    const watcher = commandBares.get(key);
+    if (!watcher) return false;
+    try { watcher.stop(); } catch { /* already gone */ }
+    commandBares.delete(key);
+    return true;
+  }
+
+  function stopCommandBares() {
+    for (const watcher of commandBares.values()) {
+      try { watcher.stop(); } catch { /* already gone */ }
+    }
+    commandBares = new Map();
   }
 
   /** End a hold; `restore:false` means an explicit hide won the conflict. */
@@ -540,6 +589,7 @@ function createShortcutActions(ctx, deps = {}) {
     unregisterToggles();
     stopHolds();
     stopBare();
+    stopCommandBares();
   }
 
   return {
@@ -558,6 +608,9 @@ function createShortcutActions(ctx, deps = {}) {
     interactionStarted,
     setBareActive,
     setBareTyping,
+    registerCommandBare,
+    clearCommandBare,
+    stopCommandBares,
     toggleTarget,
     /** Move every bare-key binding back to the host after a fallback. */
     retryHosts: () => {

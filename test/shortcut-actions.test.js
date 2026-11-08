@@ -271,6 +271,53 @@ test('a bare toggle uses the keyboard-hook watcher and follows foreground/typing
   watcher.emit('up');
 });
 
+test('a bare key bound to a module command uses the hook, not globalShortcut', () => {
+  const h = harness({ visible: [] });
+  let ran = 0;
+  const res = h.actions.registerCommandBare({
+    key: 'i_1:apply_r1', accel: 'S', run: () => { ran += 1; },
+  });
+  assert.deepEqual(res, { ok: true });
+  assert.equal(h.registered.size, 0, 'a bare key is never a globalShortcut (it would swallow typing)');
+  assert.equal(h.bareWatchers.length, 1, 'it is watched by the keyboard hook instead');
+  const watcher = h.bareWatchers[0];
+  assert.equal(watcher.started, true);
+
+  watcher.emit('down');
+  assert.equal(ran, 1);
+
+  // Foreground and typing are pushed to command watchers too: the hook must not
+  // fire a recipe while the user types a letter into a CSP text field.
+  h.actions.setBareActive(false);
+  assert.deepEqual(watcher.commands.at(-1), ['active', false]);
+  h.ctx.isShortcutActive = () => false;
+  watcher.emit('down');
+  assert.equal(ran, 1, 'the command does not run while the foreground is not ours');
+  h.ctx.isShortcutActive = () => true;
+
+  h.actions.clearCommandBare('i_1:apply_r1');
+  assert.equal(watcher.stopped, true);
+  // Re-registering the same key starts a fresh watcher (the old one is gone).
+  assert.equal(h.actions.registerCommandBare({ key: 'i_1:apply_r1', accel: 'S', run() {} }).ok, true);
+  assert.equal(h.bareWatchers.length, 2);
+});
+
+test('a chord is refused by the bare-key path', () => {
+  const h = harness({ visible: [] });
+  assert.deepEqual(h.actions.registerCommandBare({ key: 'k', accel: 'Ctrl+G', run() {} }),
+    { ok: false, error: 'invalid' }, 'a chord belongs to globalShortcut, not the hook');
+  assert.equal(h.bareWatchers.length, 0);
+});
+
+test('stop() releases every bare command binding', () => {
+  const h = harness({ visible: [] });
+  h.actions.registerCommandBare({ key: 'a:cmd1', accel: 'S', run() {} });
+  h.actions.registerCommandBare({ key: 'b:cmd2', accel: 'Q', run() {} });
+  assert.equal(h.bareWatchers.length, 2);
+  h.actions.stop();
+  for (const w of h.bareWatchers) assert.equal(w.stopped, true);
+});
+
 test('setOption switches mode, position, and auto-dismiss', () => {
   const h = harness({
     shortcuts: Model.normalise({ app: { mode: 'toggle' } }),

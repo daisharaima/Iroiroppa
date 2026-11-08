@@ -1496,6 +1496,8 @@ Object.assign(ctx, {
   interactionStartedShortcut: (info) => shortcutActions.interactionStarted(info),
   setBareActiveShortcut: (active) => shortcutActions.setBareActive(active),
   setBareTypingShortcut: (typing) => shortcutActions.setBareTyping(typing),
+  registerCommandBare: (spec) => shortcutActions.registerCommandBare(spec),
+  clearCommandBare: (key) => shortcutActions.clearCommandBare(key),
   clearAfterPickShortcut: () => shortcutActions.clearAfterPick(),
   pruneShortcutTargets: () => shortcutActions.prune(),
 });
