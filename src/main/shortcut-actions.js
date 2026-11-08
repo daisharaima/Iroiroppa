@@ -62,6 +62,8 @@ function createShortcutActions(ctx, deps = {}) {
   // Bare keys bound to module commands; separate from the reveal bindings so the
   // two edit paths never unregister each other.
   let commandBares = new Map(); // key -> BareKeyWatcher
+  /** Claim bare keys only while the pointer is over CSP's canvas (Settings). */
+  let bareCanvas = Boolean((ctx.settings.get() || {}).bareCanvasOnly);
   let bareActive = true;
   let bareTyping = false;
   let failures = [];
@@ -278,6 +280,21 @@ function createShortcutActions(ctx, deps = {}) {
   }
 
   /**
+   * Canvas gate for bare keys: when on, the hook only claims a bare key while the
+   * pointer is over CSP's canvas, so a letter cannot fire while the cursor rests on
+   * a text field (CSP's own text inputs report no Win32 caret).
+   */
+  function setBareCanvas(value) {
+    bareCanvas = Boolean(value);
+    for (const watcher of bareWatchers.values()) {
+      try { watcher.setCanvas(bareCanvas); } catch { /* gone */ }
+    }
+    for (const watcher of commandBares.values()) {
+      try { watcher.setCanvas(bareCanvas); } catch { /* gone */ }
+    }
+  }
+
+  /**
    * A bare key bound to a module command. Same hook and same typing guard as the
    * reveal keys: the key is only consumed while the foreground is ours and the
    * guard says the user is not typing, so a bare letter can never swallow typing.
@@ -297,6 +314,7 @@ function createShortcutActions(ctx, deps = {}) {
     watcher.on('failed', () => { commandBares.delete(key); });
     watcher.active = bareActive;
     watcher.typing = bareTyping;
+    if (typeof watcher.setCanvas === 'function') watcher.setCanvas(bareCanvas);
     if (!watcher.start()) return { ok: false, error: 'unavailable' };
     commandBares.set(key, watcher);
     return { ok: true };
@@ -444,6 +462,7 @@ function createShortcutActions(ctx, deps = {}) {
         });
         watcher.active = bareActive;
         watcher.typing = bareTyping;
+        if (typeof watcher.setCanvas === 'function') watcher.setCanvas(bareCanvas);
         if (!watcher.start()) failures.push({ key, accel: entry.accel, error: 'unavailable' });
         else bareWatchers.set(key, watcher);
         continue;
@@ -608,6 +627,7 @@ function createShortcutActions(ctx, deps = {}) {
     interactionStarted,
     setBareActive,
     setBareTyping,
+    setBareCanvas,
     registerCommandBare,
     clearCommandBare,
     stopCommandBares,

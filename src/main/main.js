@@ -921,6 +921,9 @@ let lastFollowAt = 0; // when the palette last moved a float with it
 const DEFAULT_SETTINGS = Object.freeze({
   liveSync: true,
   historyGate: false, // record a colour only when a canvas contact uses it
+  // Claim a bare key only while the pointer is over CSP's canvas. Off by default:
+  // the guard below is a heuristic and CSP's own text fields report no Win32 caret.
+  bareCanvasOnly: false,
   markOutOfDisplay: false, // dim the colours the display cannot show (off: nearest colour)
   autoHide: true,
   autoConnect: true,
@@ -1477,6 +1480,7 @@ if (wantNativeHost) {
 const shortcutActions = createShortcutActions(ctx);
 Object.assign(ctx, {
   applyShortcuts: (next) => shortcutActions.apply(next),
+  setBareCanvas: (on) => shortcutActions.setBareCanvas(on),
   applySummonShortcut: (accel) => {
     const current = settings.get();
     const next = ShortcutModel.normalise(current.shortcuts);
@@ -1499,6 +1503,7 @@ Object.assign(ctx, {
   interactionStartedShortcut: (info) => shortcutActions.interactionStarted(info),
   setBareActiveShortcut: (active) => shortcutActions.setBareActive(active),
   setBareTypingShortcut: (typing) => shortcutActions.setBareTyping(typing),
+  setBareCanvasShortcut: (on) => shortcutActions.setBareCanvas(on),
   registerCommandBare: (spec) => shortcutActions.registerCommandBare(spec),
   clearCommandBare: (key) => shortcutActions.clearCommandBare(key),
   clearAfterPickShortcut: () => shortcutActions.clearAfterPick(),
@@ -1910,6 +1915,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     shortcutActions.prune();
     shortcutActions.apply(settings.get());
     if (typeof ctx.setBareActiveShortcut === 'function') ctx.setBareActiveShortcut(ctx.isShortcutActive());
+    if (typeof ctx.setBareCanvasShortcut === 'function') ctx.setBareCanvasShortcut(Boolean(settings.get().bareCanvasOnly));
     applyCommandHotkeys(settings.get().commandBindings);
     buildTray();
 

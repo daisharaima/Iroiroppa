@@ -36,6 +36,7 @@ function harness({ shortcuts = Model.defaults(), commandBindings = {}, visible =
     stop() { this.stopped = true; }
     setActive(value) { this.active = value; this.commands.push(['active', value]); }
     setTyping(value) { this.typing = value; this.commands.push(['typing', value]); }
+    setCanvas(value) { this.canvas = value; this.commands.push(['canvas', value]); }
   }
   let settings = { shortcuts, commandBindings };
   const events = [];
@@ -316,6 +317,26 @@ test('stop() releases every bare command binding', () => {
   assert.equal(h.bareWatchers.length, 2);
   h.actions.stop();
   for (const w of h.bareWatchers) assert.equal(w.stopped, true);
+});
+
+test('the canvas gate reaches both bare-key paths', () => {
+  // When on, the hook only claims a bare key while the pointer is over CSP's canvas,
+  // so a letter cannot fire with the cursor parked on a text field.
+  const h = harness({
+    visible: [],
+    shortcuts: Model.normalise({ app: { mode: 'toggle', toggle: 'H' } }),
+  });
+  h.actions.apply(h.settings());
+  assert.equal(h.bareWatchers.length, 1, 'the reveal key is on the hook path');
+  const reveal = h.bareWatchers[0];
+  h.actions.registerCommandBare({ key: 'i_1:apply_r1', accel: 'S', run() {} });
+  assert.equal(h.bareWatchers.length, 2, 'a bare module command joins it');
+  const command = h.bareWatchers[1];
+
+  h.actions.setBareCanvas(true);
+  for (const w of [reveal, command]) assert.equal(w.canvas, true);
+  h.actions.setBareCanvas(false);
+  for (const w of [reveal, command]) assert.equal(w.canvas, false);
 });
 
 test('setOption switches mode, position, and auto-dismiss', () => {

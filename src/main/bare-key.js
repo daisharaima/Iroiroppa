@@ -40,6 +40,8 @@ class BareKeyWatcher extends EventEmitter {
     this.ready = false;
     this.active = true;
     this.typing = false;
+    /** Only claim the key while the pointer is over CSP's canvas. */
+    this.canvas = false;
     this.host = null;
     this.vk = 0;
   }
@@ -73,6 +75,16 @@ class BareKeyWatcher extends EventEmitter {
     return true;
   }
 
+  /** Gate this binding on the pointer being over CSP's canvas. */
+  setCanvas(value) {
+    this.canvas = Boolean(value);
+    if (this.host && this.vk) {
+      this.host.keyCanvas(this.vk, this.canvas).catch(() => {});
+    }
+    // The PowerShell helper has no canvas check; a re-registration is pointless there,
+    // so the flag simply means "not gated" until the host is back.
+  }
+
   start() {
     if (this.proc || this.stopped === false) return false;
 
@@ -85,7 +97,7 @@ class BareKeyWatcher extends EventEmitter {
         if (ok && host.available) {
           this.ready = true;
           this.emit('ready');
-          host.addKey(this.vk, this.active, this.typing).catch(() => {});
+          host.addKey(this.vk, this.active, this.typing, this.canvas).catch(() => {});
           if (this.health) this.health.set('keys', 'host');
           return;
         }

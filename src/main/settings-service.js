@@ -40,6 +40,9 @@ function createSettingsService({ file, defaults = {}, hooks = {} } = {}) {
       || prev.autoHide !== next.autoHide) {
       if (typeof hooks.applyShortcuts === 'function') hooks.applyShortcuts(next);
     }
+    if (prev.bareCanvasOnly !== next.bareCanvasOnly) {
+      if (typeof hooks.setBareCanvas === 'function') hooks.setBareCanvas(next.bareCanvasOnly === true);
+    }
     if (JSON.stringify(prev.commandBindings || {}) !== JSON.stringify(next.commandBindings || {})) {
       hooks.applyCommandHotkeys(next.commandBindings);
     }

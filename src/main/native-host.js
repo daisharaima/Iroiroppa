@@ -197,13 +197,15 @@ class NativeHost extends EventEmitter {
   setForeground(enabled) { return this.request(`fg ${enabled ? 1 : 0}`); }
 
   /** Register a bare-key binding: the host hooks it and reports down/up. */
-  addKey(vk, active = true, typing = false) {
-    return this.request(`key ${vk} ${active ? 1 : 0} ${typing ? 1 : 0}`);
+  addKey(vk, active = true, typing = false, canvas = false) {
+    return this.request(`key ${vk} ${active ? 1 : 0} ${typing ? 1 : 0} ${canvas ? 1 : 0}`);
   }
 
   keyOff(vk) { return this.request(`keyoff ${vk}`); }
   keyActive(vk, value) { return this.request(`keyactive ${vk} ${value ? 1 : 0}`); }
   keyTyping(vk, value) { return this.request(`keytyping ${vk} ${value ? 1 : 0}`); }
+  /** Claim the key only while the pointer is over CSP's canvas. */
+  keyCanvas(vk, value) { return this.request(`keycanvas ${vk} ${value ? 1 : 0}`); }
 
   /** The current foreground process name, asked once (no spawn). */
   foreground() { return this.request('foreground'); }

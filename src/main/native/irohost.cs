@@ -153,6 +153,9 @@ internal static class Program
         public int Vk;
         public bool Active = true;
         public bool Typing;
+        /// Only claim the key while the pointer is over CSP's canvas (drawn-on area),
+        /// so a bare letter cannot fire while the cursor rests on a text field.
+        public bool Canvas;
         public bool Claimed;
     }
 
@@ -629,6 +632,14 @@ internal static class Program
         return false;
     }
 
+    /// True when the pointer is over CSP's canvas right now (see IsCanvasAt).
+    private static bool CanvasUnderCursor()
+    {
+        POINT p;
+        if (!GetCursorPos(out p)) return false;
+        return IsCanvasAt(p.x, p.y);
+    }
+
     /// A modifier held means the user is doing something else (Ctrl+S, not a bare key).
     private static bool ModifierDown()
     {
@@ -655,7 +666,8 @@ internal static class Program
                     if (down)
                     {
                         if (binding.Claimed) return (IntPtr)1;      // auto-repeat while held
-                        if (binding.Active && !binding.Typing && !ModifierDown() && !NativeTyping())
+                        if (binding.Active && !binding.Typing && !ModifierDown() && !NativeTyping()
+                            && (!binding.Canvas || CanvasUnderCursor()))
                         {
                             binding.Claimed = true;
                             Enqueue("{\"key\":\"down\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
@@ -869,7 +881,7 @@ internal static class Program
 
             case "key":
                 {
-                    // key <vk> [active] [typing]   -> register a bare-key binding
+                    // key <vk> [active] [typing] [canvas]   -> register a bare-key binding
                     string[] parts = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length == 0) { Fail("key needs a vk"); break; }
 
@@ -884,6 +896,7 @@ internal static class Program
                     }
                     if (parts.Length > 1) binding.Active = parts[1] != "0";
                     if (parts.Length > 2) binding.Typing = parts[2] != "0";
+                    if (parts.Length > 3) binding.Canvas = parts[3] != "0";
 
                     if (!EnsureKeyboardHook())
                     {
@@ -907,6 +920,7 @@ internal static class Program
 
             case "keyactive":
             case "keytyping":
+            case "keycanvas":
                 {
                     string[] parts = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length < 2) { Fail(cmd + " needs vk and 0|1"); break; }
@@ -914,7 +928,9 @@ internal static class Program
                     KeyBinding binding;
                     if (!_bindings.TryGetValue(vk, out binding)) { Fail("unknown vk"); break; }
                     bool value = parts[1] != "0";
-                    if (cmd == "keyactive") binding.Active = value; else binding.Typing = value;
+                    if (cmd == "keyactive") binding.Active = value;
+                    else if (cmd == "keycanvas") binding.Canvas = value;
+                    else binding.Typing = value;
                     Out("{\"" + cmd + "\":" + (value ? 1 : 0) + ",\"vk\":" + vk + "}");
                 }
                 break;
