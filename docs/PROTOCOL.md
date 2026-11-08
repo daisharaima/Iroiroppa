@@ -173,6 +173,14 @@ Gotchas, all load-bearing:
   `GetQuickAccessData`, which dumps every toolbar set and is diagnostic only.
 - A click is a toggle for the five checkboxes and a selection for the
   `toolcomposite*` group, so never click a flag that already matches.
+- **`toolcompositeblend` *is* "Normal"** — a real member of the group, selected by
+  CSP's own *Change blending mode to Normal* shortcut, not an empty state. There is
+  no command that clears the group, so "Normal" is a click on `toolcompositeblend`.
+- **Color mixing hides the blend mode.** While `toolbrushusewatercolor` is on, the
+  host reports no mode at all and greys the control out, so a `toolcomposite*` click
+  is accepted and **changes nothing**; turning mixing off brings the remembered mode
+  back (it is *hidden*, not reset). Treat "no mode on the wire" as *unknown*, never as
+  Normal, and never as a reason to report a failed click as a success.
 - The app exposes both calls to selector modules through the existing privileged
   channel: `cspInvoke({ quickAccess: { op: 'read', names } })` and
   `cspInvoke({ quickAccess: { op: 'click', name } })`. `service.js` validates and
