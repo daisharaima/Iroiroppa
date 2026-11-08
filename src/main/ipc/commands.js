@@ -52,10 +52,33 @@ function register(ctx, h) {
 
   // The summon hotkey (docs/DEV.md). Register first; only persist when it took,
   // so a key another app already owns is not remembered as if it worked.
-  ipcMain.handle('shortcut:setSummon', (_e, accel) => ctx.setShowShortcut({ target: 'app', action: 'toggle', accel }));
+  ipcMain.handle('shortcut:setSummon', (_e, accel) => setShowShortcutGuarded({ target: 'app', action: 'toggle', accel }));
+
+  // ---- CSP ownership guard --------------------------------------------------
+  // Iroiroppa's own keys are real global shortcuts, so a chord (or a bare tool
+  // letter) that Clip Studio Paint already uses would be swallowed before CSP saw
+  // it. Refuse it here, naming the CSP side, instead of silently stealing the key.
+  function cspRefusal(accel) {
+    const owner = ctx.cspAccelOwner ? ctx.cspAccelOwner(accel) : null;
+    if (!owner) return null;
+    return {
+      ok: false,
+      error: 'csp-conflict',
+      conflictWith: owner.label,
+      conflictKind: owner.kind,
+      message: `${owner.label} already uses that shortcut in Clip Studio Paint`,
+    };
+  }
+
+  function setShowShortcutGuarded(spec) {
+    const accel = spec && spec.accel;
+    const refused = accel ? cspRefusal(accel) : null;
+    if (refused) return refused;
+    return ctx.setShowShortcut(spec);
+  }
 
   // The unified General/Palette binding editor (Settings → Shortcuts).
-  ipcMain.handle('shortcut:set', (_e, spec = {}) => ctx.setShowShortcut(spec));
+  ipcMain.handle('shortcut:set', (_e, spec = {}) => setShowShortcutGuarded(spec));
   ipcMain.handle('shortcut:setOption', (_e, spec = {}) => ctx.setShortcutOption(spec));
   ipcMain.handle('shortcut:setAltClick', (_e, spec = {}) => ctx.setAltClickTarget(spec.target));
 
@@ -116,6 +139,17 @@ function register(ctx, h) {
   ipcMain.handle('shortcut:setBinding', (_e, { key, accel } = {}) => {
     const k = String(key || '').trim();
     if (!k || k.indexOf(':') === -1) return { ok: false, failures: [{ key: k, error: 'invalid' }] };
+    const a0 = String(accel || '').trim();
+    const refused = a0 ? cspRefusal(a0) : null;
+    if (refused) {
+      return {
+        ok: false,
+        failures: [{ key: k, error: 'csp-conflict' }],
+        conflictWith: refused.conflictWith,
+        conflictKind: refused.conflictKind,
+        message: refused.message,
+      };
+    }
     const current = { ...(ctx.settings.get().commandBindings || {}) };
     const trial = { ...current };
     const a = String(accel || '').trim();

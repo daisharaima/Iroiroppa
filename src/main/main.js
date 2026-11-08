@@ -62,6 +62,7 @@ const { createCaptureService } = require('./capture-service');
 const { decodeQrFrame } = require('./capture');
 const { createSender } = require('./sender');
 const cspShortcuts = require('./csp-shortcuts');
+const cspAccel = require('../shared/csp-accel');
 const { createMainI18n } = require('./i18n');
 const { portableDataDir, portableRoot, usableDataDir } = require('./portable');
 const { downloadTo, assertWritableDir, portableHelperScript } = require('./update-install');
@@ -1351,6 +1352,8 @@ const ctx = {
     root: settings.get().cspDataDir || undefined,
     documents: app.getPath('documents'),
   }),
+  /** The CSP command/tool that already owns an accelerator, or null (see csp-accel.js). */
+  cspAccelOwner: (accel) => cspOwnerOf(accel),
   resolveCspFolder: (root) => cspShortcuts.resolveFolder(
     root === undefined ? (settings.get().cspDataDir || '') : root,
     { documents: app.getPath('documents') },
@@ -1980,6 +1983,28 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     // The document is saved on a short debounce; make sure the last change lands.
     layout.dispose();
   });
+}
+
+// --- CSP accelerator ownership --------------------------------------------
+// A binding is a real global shortcut, so a chord CSP owns is swallowed before CSP
+// sees it. The list costs a SQLite read, and bindings change rarely, so cache it.
+let cspAccelCache = null;
+let cspAccelCacheAt = 0;
+
+/** `{ label, kind }` for the CSP command/tool that owns `accel`, else null. */
+function cspOwnerOf(accel) {
+  if (!accel || !settings) return null;
+  const now = Date.now();
+  if (!cspAccelCache || now - cspAccelCacheAt > 15000) {
+    try {
+      cspAccelCache = cspShortcuts.list({
+        root: settings.get().cspDataDir || undefined,
+        documents: app.getPath('documents'),
+      });
+    } catch { cspAccelCache = { commands: [], tools: [] }; }
+    cspAccelCacheAt = now;
+  }
+  return cspAccel.cspOwner(accel, cspAccelCache);
 }
 
 module.exports = { DEFAULT_SETTINGS };
