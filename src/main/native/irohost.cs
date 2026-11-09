@@ -291,6 +291,8 @@ internal static class Program
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT point);
     [DllImport("user32.dll")]
+    private static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")]
     private static extern IntPtr WindowFromPoint(POINT point);
     [DllImport("user32.dll")]
     private static extern int GetClassName(IntPtr hWnd, StringBuilder name, int max);
@@ -861,6 +863,34 @@ internal static class Program
                 _watchThread = null;
                 _watchHwnd = IntPtr.Zero;
                 Out("{\"watching\":0,\"repairs\":" + _repairs + "}");
+                break;
+
+            case "move":
+                {
+                    // Diagnostic: put the pointer somewhere, for the bare-key canvas probe.
+                    string[] parts = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 2) { Fail("move needs x y"); break; }
+                    int mx = ParseInt(parts[0], 0);
+                    int my = ParseInt(parts[1], 0);
+                    bool moved = SetCursorPos(mx, my);
+                    Out("{\"moved\":" + (moved ? 1 : 0) + ",\"x\":" + mx + ",\"y\":" + my + "}");
+                }
+                break;
+
+            case "cursor":
+                {
+                    // Diagnostic: where is the pointer, and is it over CSP's canvas?
+                    // Used by the bare-key probe, which must attribute each claimed press
+                    // to the pointer's position at that moment.
+                    POINT cp;
+                    if (!GetCursorPos(out cp)) { Fail("could not read the cursor"); break; }
+                    string cname = ProcessNameOfWindow(WindowFromPoint(new POINT { x = cp.x, y = cp.y }));
+                    Out("{\"cursor\":1,\"x\":" + cp.x + ",\"y\":" + cp.y
+                        + ",\"process\":\"" + Escape(cname) + "\""
+                        + ",\"csp\":" + (IsCsp(cname) ? "true" : "false")
+                        + ",\"canvas\":" + (IsCanvasAt(cp.x, cp.y) ? "true" : "false")
+                        + ",\"t\":" + NowMs() + "}");
+                }
                 break;
 
             case "hit":

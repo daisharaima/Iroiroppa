@@ -32,6 +32,10 @@ const REPLY_KEYS = {
   keyoff: 'keydel',
   keyactive: 'keyactive',
   keytyping: 'keytyping',
+  keycanvas: 'keycanvas',
+  cursor: 'cursor',
+  hit: 'hit',
+  move: 'moved',
   version: 'version',
 };
 
@@ -206,6 +210,15 @@ class NativeHost extends EventEmitter {
   keyTyping(vk, value) { return this.request(`keytyping ${vk} ${value ? 1 : 0}`); }
   /** Claim the key only while the pointer is over CSP's canvas. */
   keyCanvas(vk, value) { return this.request(`keycanvas ${vk} ${value ? 1 : 0}`); }
+
+  /** Where the pointer is, and whether it is over CSP's canvas (diagnostic). */
+  cursor() { return this.request('cursor'); }
+
+  /** Put the pointer at a screen point (diagnostic, for the canvas-gate probe). */
+  move(x, y) { return this.request(`move ${Math.round(x)} ${Math.round(y)}`); }
+
+  /** Would a press at (x, y) land on CSP's canvas? (diagnostic, never presses) */
+  hit(x, y) { return this.request(`hit ${Math.round(x)} ${Math.round(y)}`); }
 
   /** The current foreground process name, asked once (no spawn). */
   foreground() { return this.request('foreground'); }

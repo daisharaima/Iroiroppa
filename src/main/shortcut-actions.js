@@ -63,7 +63,9 @@ function createShortcutActions(ctx, deps = {}) {
   // two edit paths never unregister each other.
   let commandBares = new Map(); // key -> BareKeyWatcher
   /** Claim bare keys only while the pointer is over CSP's canvas (Settings). */
-  let bareCanvas = Boolean((ctx.settings.get() || {}).bareCanvasOnly);
+  // Read from settings inside `apply()`, never here: `ctx.settings` is still null while
+  // main constructs this object (the settings service is attached later).
+  let bareCanvas = false;
   let bareActive = true;
   let bareTyping = false;
   let failures = [];
@@ -432,6 +434,8 @@ function createShortcutActions(ctx, deps = {}) {
     unregisterToggles();
     stopHolds();
     stopBare();
+    stopCommandBares();
+    bareCanvas = Boolean((settings || {}).bareCanvasOnly);
     failures = [];
     const shortcuts = ShortcutModel.normalise(settings.shortcuts);
     const list = ShortcutModel.bindings(shortcuts, null);
