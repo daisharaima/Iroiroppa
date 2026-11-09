@@ -7,6 +7,17 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The three Color Slices maps now move together while one of them is dragged.** The
+  two panels you are not dragging used to update in visible steps (one per frame,
+  round-robin), and the Hue × Lightness slice stopped updating altogether: its build
+  called a helper that only existed in the other panel's builder, so every frame threw
+  before the map was handed over. All three planes now go through one builder, and an
+  analytic plane costs ~3-5 ms instead of 7-18 ms — the map no longer re-tests the gamut
+  and re-converts every pixel — so both sibling maps land on every frame of a drag. The
+  guide, crosshair and pointer still redraw every frame.
+
 ### Changed
 
 - **Dragging a colour map no longer stutters.** The palette used to compute each map once on
@@ -26,6 +37,26 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   bare-key binding instead of a PowerShell process per binding, with the same guards
   (dialog, caret, open IME, I-beam cursor, held modifier). A saved shortcut now also
   registers at startup — it used to wait for the next settings change.
+
+- **Module commands can be bound to a bare key.** A chord is still a real global
+  shortcut, but a bare letter, digit or F-key now goes through the keyboard hook, so a
+  selector module can use `S`/`Q`/`A` the way earlier pickers did without the key being
+  swallowed system-wide: it only fires while Clip Studio Paint (or one of our windows)
+  is in front and the typing guard says you are not typing. `applyCommandHotkeys`
+  routes the two shapes to `globalShortcut` or `registerCommandBare`.
+
+- **A shortcut Clip Studio Paint already uses is refused.** Iroiroppa's reveal keys and
+  module command keys are real global shortcuts, so a chord CSP owns would be swallowed
+  before CSP saw it (binding Ctrl+G to a module stopped New Layer from working) and a
+  bare letter can be one of CSP's own tool keys (E is Soft 2). Both of CSP's tables —
+  menu commands and tool/brush keys — are now checked, and a refused binding names the
+  CSP side instead of silently taking the key. Existing saved bindings are left alone.
+
+- **Optional canvas gate for bare keys (`bareCanvasOnly`).** CSP paints its own UI: its
+  windows are not Win32 dialogs and its text fields report no caret, so the typing guard
+  cannot see them. With the setting on, a bare key is claimed only while the pointer is
+  over CSP's canvas, which is where drawing happens. Off by default; it applies to reveal
+  keys and module keys alike.
 
 - **The always-on-top band is repaired every 100 ms instead of every 500 ms.** A
   dropped band bit used to leave the palette behind another window for up to half a

@@ -158,17 +158,23 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   for the guide, the raster and the Shift-lock. **Index the field with its own width and
   height**, never the current canvas size: the interactive map is native-pixel while the
   canvas is 2×, and mixing them scrambles the contour into stacked lines. During any gesture (a local
-  drag or a sibling palette's preview stream) the visible Slices rebuild round-robin,
-  one panel per frame at **native device pixels**, with overlays every frame — never a
-  soft or block-filled map, and never a stalled pointer. The budget is measured in the
-  **interactive** build (`src/shared/render-cadence.js#holdFor`): a plane that fits a
-  frame never waits, a heavy one (HelmGen class) is spaced out, and the trailing emit
-  after the gesture rebuilds everything at full (supersampled) quality. Never measure it
-  from the trailing dpr-2 plane — that is ~4× the pixels and it used to mark every model
-  "expensive", freezing the maps for the whole next gesture (the "other slices don't
-  update" report). The plane itself is built by `src/shared/raster-plane.js`, one
-  conversion chain per pixel — the old five-chain loop was what made HelmGen/CIELAB lag.
-  See docs/PERF.md.
+  drag or a sibling palette's preview stream) every visible Slices panel is painted every
+  frame and every panel whose map is stale **rebuilds**, as many as fit the frame
+  (`render-cadence.js#choosePanels`) — never a soft or block-filled map, and never a
+  stalled pointer. The analytic OKLCH plane is ~3-5 ms (`src/shared/slice-plane.js`:
+  hoisted per-plane constants, one conversion chain, `raster-plane`'s LUT gamma), so both
+  sibling maps of a drag land together; rebuilding them one per frame is what made them
+  update in visible steps (the "other slices don't update smoothly" report, and the
+  H×L plane never completing — it re-tested the gamut and re-converted every pixel).
+  A rasterised model plane is an order of magnitude dearer, so it keeps one panel per
+  frame and the measured hold below. The budget is measured in the **interactive** build
+  (`holdFor`/`choosePanels`): a plane that fits a frame never waits, a heavy one
+  (HelmGen class) is spaced out, and the trailing emit after the gesture rebuilds
+  everything at full (supersampled) quality. Never measure it from the trailing dpr-2
+  plane — that is ~4× the pixels and it used to mark every model "expensive", freezing
+  the maps for the whole next gesture (the "other slices don't update" report). The plane
+  itself is built by `src/shared/raster-plane.js`, one conversion chain per pixel — the
+  old five-chain loop was what made HelmGen/CIELAB lag. See docs/PERF.md.
 - **Module planes are derived from axis roles, not a global index order.**
   `color-models.js#planesFor` puts the fixed-hue plane first (`L × C`, `V × S`, …);
   slice names are the two free channels. A module's height edge writes the same
@@ -199,7 +205,8 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   transition". The pointer is clamped to the document gamut, so it never sits outside the
   drawn shape.
 - **Canvas backing stores have a pixel budget, not a fixed dpr.** `canvas-size.js`
-  (`backingScale`) caps the total pixels (~260k idle, ~110k live), so a module stretched big
+  (`backingScale`) caps the total pixels (~70k, the same in idle and in a drag — the
+  owner's call), so a module stretched big
   only gives up supersampling, never sharpness, and never renders 4× the pixels of its
   normal size. Slices, Disc and Wheel all size through it. **The Wheel and Disc use one
   native backing in idle and drag**; `store.interactive` may change rebuild cadence, never
@@ -270,7 +277,18 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   owns one `WH_KEYBOARD_LL` hook for every binding, checks foreground/caret/dialog/IME/
   I-beam and the Iroiroppa text-focus state before it blocks the key, and passes it
   through when in doubt, so typing is never swallowed. `bare-keys.ps1` remains the
-  fallback when the host is unavailable.
+  fallback when the host is unavailable. **Module command keys take the same two paths**:
+  a chord is a `globalShortcut`, a bare key (letter, digit or F-key) is a hook watcher
+  (`applyCommandHotkeys` → `registerCommandBare`), so a module can bind a bare letter
+  without stealing it from every other app. **`bareCanvasOnly` adds a
+  canvas gate**: with it on, the hook claims a bare key only while the pointer is over
+  CSP's canvas (`IsCanvasAt`), because CSP paints its own UI — its panels are Qt windows,
+  and its Qt text entry reports no Win32 caret (measured: only a native `#32770` dialog
+  and ordinary Win32 controls set one), so the typing guard alone cannot be trusted
+  there. Off by default, and it applies to reveal
+  keys and module keys alike; the PowerShell fallback has no canvas check. Verified
+  live: gate on + canvas → claimed, gate on + panel → refused, gate off + panel →
+  claimed (so the gate, not the typing guard, is what refuses).
 - **Native `<select>` and native `title=` are not allowed to own the visible list.** Their
   OS windows are outside the topmost band. `kernel/select-overlay.js` opens the options on
   the overlay, and `kernel/tooltip.js` converts a runtime `title` to `data-tip` on hover.
@@ -326,13 +344,15 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   gate: on an sRGB cube the generalised Okhsv reproduces `color.js` to 3e-3 (Ottosson's
   own cusp fit is approximate), the cusp equals the true wall, and Okhsl is monotone and
   round-trips (its `Cmid` is boundary-derived rather than his sRGB polynomial).
-- **A plane is built once.** `buildPlot`/`buildHuePlot` take an optional `onDone`: the
-  synchronous pass is the *cache-only* path, and a caller that wants the plane built across
-  frames must not run it first. Running both built every map twice (once blocking, then again in
+- **A plane is built once.** `buildPlot` takes an optional `onDone`: the synchronous pass
+  is the *cache-only* path, and a caller that wants the plane built across frames must not
+  run it first. Running both built every map twice (once blocking, then again in
   chunks) and cost 50-75 ms per frame while every counter showed <=10 ms of JavaScript — the
   duplicate ran before the first timing sample. `test/plot-chunks.test.js` pins the row
   arithmetic; the chunk count is three with a per-chunk time cap (`PLOT_CHUNKS`,
-  `CHUNK_BUDGET_MS`).
+  `CHUNK_BUDGET_MS`), and one during a gesture so a plane lands in the frame it starts in.
+  All three Slices planes (both silhouettes and the hue strip) go through that one builder
+  and `src/shared/slice-plane.js`: there is no second hue-plot loop to drift out of step.
 - **A map must never be cleared before its replacement exists, and never leaves
   transparent holes.** The Disc used to clear the canvas and return while it waited for
   its paced rebuild, which flashed white on every lightness change; it now keeps the last
