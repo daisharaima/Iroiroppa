@@ -152,6 +152,26 @@ host will not toggle right now.
       "ItemIDCommandName": "toolpressuretosize", "ItemIDToolUuid": "" } ] }
 ```
 
+**The reply also carries `CanExecuteSetterCommand`, `CheckedItemIDs`, `SyncTargetType`
+and `IsManipulating`** (measured on CSP 5.x, 2026-11-09). What each is worth:
+
+| Field | Meaning in practice |
+| --- | --- |
+| `CheckedItemIDs` | the items that are **on**, by `ItemIDCommandName` |
+| `DisabledItemIDs` | the requested items CSP will refuse right now |
+| `IsManipulating` | true while a stroke/value is in progress; changes within ~0.5 s |
+| `CanExecuteSetterCommand` | false while manipulating — **not** a reliable "busy" flag (it reads true again mid-edit) |
+| `SyncTargetType` | `"Invalid"` on this build in every state; do not use it |
+
+**A text layer is visible in the reply, and that is the only wire-level "the user is
+typing" signal.** Measured over one session: with a brush active the reply reports the
+on flags and an empty `DisabledItemIDs`; with the Text tool (or any tool that has no
+brush toggles) it reports **no checked item and every requested item disabled**, for the
+whole time the text is being edited. So the rule is: *nothing on **and** something
+disabled means CSP would refuse a recipe anyway.* That is what Iroiroppa uses to pass a
+bare-key shortcut through to CSP instead of swallowing it (`main.js`
+`noteQuickAccessState` → the native hook's busy flag).
+
 **Write** — `DoQuickAccess`, a *click* (not a set):
 
 ```json

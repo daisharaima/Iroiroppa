@@ -66,6 +66,10 @@ function createShortcutActions(ctx, deps = {}) {
   // Read from settings inside `apply()`, never here: `ctx.settings` is still null while
   // main constructs this object (the settings service is attached later).
   let bareCanvas = false;
+  /** CSP would refuse a Quick Access command now (text edit, non-brush tool). */
+  let bareBusy = false;
+  /** Report bare keys without swallowing them. */
+  let bareObserve = false;
   let bareActive = true;
   let bareTyping = false;
   let failures = [];
@@ -297,6 +301,35 @@ function createShortcutActions(ctx, deps = {}) {
   }
 
   /**
+   * CSP would refuse a Quick Access command right now: a text layer is being edited, a
+   * non-brush tool is active, or a stroke is in progress. Measured: in those states CSP
+   * lists every brush-toggle item under `DisabledItemIDs`, so a recipe could not apply
+   * anyway. Pushing the flag into the hook makes the key pass through to CSP instead of
+   * being swallowed.
+   */
+  function setBareBusy(value) {
+    bareBusy = Boolean(value);
+    for (const watcher of bareWatchers.values()) {
+      try { watcher.setBusy(bareBusy); } catch { /* gone */ }
+    }
+    for (const watcher of commandBares.values()) {
+      try { watcher.setBusy(bareBusy); } catch { /* gone */ }
+    }
+  }
+
+  /** Report a bare key without swallowing it (the app below still receives it). */
+  function setBareObserve(value) {
+    bareObserve = Boolean(value);
+    const push = (watcher) => {
+      if (typeof watcher.setObserve === 'function') {
+        try { watcher.setObserve(bareObserve); } catch { /* gone */ }
+      }
+    };
+    for (const watcher of bareWatchers.values()) push(watcher);
+    for (const watcher of commandBares.values()) push(watcher);
+  }
+
+  /**
    * A bare key bound to a module command. Same hook and same typing guard as the
    * reveal keys: the key is only consumed while the foreground is ours and the
    * guard says the user is not typing, so a bare letter can never swallow typing.
@@ -317,6 +350,8 @@ function createShortcutActions(ctx, deps = {}) {
     watcher.active = bareActive;
     watcher.typing = bareTyping;
     if (typeof watcher.setCanvas === 'function') watcher.setCanvas(bareCanvas);
+    if (typeof watcher.setBusy === 'function') watcher.setBusy(bareBusy);
+    if (typeof watcher.setObserve === 'function') watcher.setObserve(bareObserve);
     if (!watcher.start()) return { ok: false, error: 'unavailable' };
     commandBares.set(key, watcher);
     return { ok: true };
@@ -436,6 +471,7 @@ function createShortcutActions(ctx, deps = {}) {
     stopBare();
     stopCommandBares();
     bareCanvas = Boolean((settings || {}).bareCanvasOnly);
+    bareObserve = Boolean((settings || {}).bareObserve);
     failures = [];
     const shortcuts = ShortcutModel.normalise(settings.shortcuts);
     const list = ShortcutModel.bindings(shortcuts, null);
@@ -467,6 +503,8 @@ function createShortcutActions(ctx, deps = {}) {
         watcher.active = bareActive;
         watcher.typing = bareTyping;
         if (typeof watcher.setCanvas === 'function') watcher.setCanvas(bareCanvas);
+        if (typeof watcher.setBusy === 'function') watcher.setBusy(bareBusy);
+        if (typeof watcher.setObserve === 'function') watcher.setObserve(bareObserve);
         if (!watcher.start()) failures.push({ key, accel: entry.accel, error: 'unavailable' });
         else bareWatchers.set(key, watcher);
         continue;
@@ -632,6 +670,8 @@ function createShortcutActions(ctx, deps = {}) {
     setBareActive,
     setBareTyping,
     setBareCanvas,
+    setBareBusy,
+    setBareObserve,
     registerCommandBare,
     clearCommandBare,
     stopCommandBares,

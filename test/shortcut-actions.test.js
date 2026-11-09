@@ -37,6 +37,8 @@ function harness({ shortcuts = Model.defaults(), commandBindings = {}, visible =
     setActive(value) { this.active = value; this.commands.push(['active', value]); }
     setTyping(value) { this.typing = value; this.commands.push(['typing', value]); }
     setCanvas(value) { this.canvas = value; this.commands.push(['canvas', value]); }
+    setBusy(value) { this.busy = value; this.commands.push(['busy', value]); }
+    setObserve(value) { this.observe = value; this.commands.push(['observe', value]); }
   }
   let settings = { shortcuts, commandBindings };
   const events = [];
@@ -337,6 +339,29 @@ test('the canvas gate reaches both bare-key paths', () => {
   for (const w of [reveal, command]) assert.equal(w.canvas, true);
   h.actions.setBareCanvas(false);
   for (const w of [reveal, command]) assert.equal(w.canvas, false);
+});
+
+test('CSP refusing a command mutes bare keys, and observer mode still reports them', () => {
+  // Measured on CSP: while a text layer is edited the Quick Access reply reports no flag
+  // on and everything requested as disabled, so the hook must pass the key through.
+  const h = harness({
+    visible: [],
+    shortcuts: Model.normalise({ app: { mode: 'toggle', toggle: 'H' } }),
+  });
+  h.actions.apply(h.settings());
+  const reveal = h.bareWatchers[0];
+  h.actions.registerCommandBare({ key: 'i_1:apply_r1', accel: 'S', run() {} });
+  const command = h.bareWatchers[1];
+
+  h.actions.setBareBusy(true);
+  for (const w of [reveal, command]) assert.equal(w.busy, true, 'both paths are muted');
+  h.actions.setBareBusy(false);
+  for (const w of [reveal, command]) assert.equal(w.busy, false);
+
+  h.actions.setBareObserve(true);
+  for (const w of [reveal, command]) assert.equal(w.observe, true);
+  h.actions.setBareObserve(false);
+  for (const w of [reveal, command]) assert.equal(w.observe, false);
 });
 
 test('setOption switches mode, position, and auto-dismiss', () => {

@@ -58,6 +58,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   over CSP's canvas, which is where drawing happens. Off by default; it applies to reveal
   keys and module keys alike.
 
+- **A bare key is never swallowed while CSP is editing text.** The Companion reply says
+  so: with the Text tool active CSP reports no checked Quick Access item and every
+  requested item disabled, for as long as the text is edited. That reading now mutes
+  every bare-key binding (the key passes through to CSP), and it expires after 2.5 s so a
+  stalled poll cannot mute shortcuts for good. `bareObserve` additionally reports a bare
+  key without consuming it, so a misfire can never eat a keystroke.
+
 - **The always-on-top band is repaired every 100 ms instead of every 500 ms.** A
   dropped band bit used to leave the palette behind another window for up to half a
   second; it is now fixed within about a tenth of one, because the repair cost is the

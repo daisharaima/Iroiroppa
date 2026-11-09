@@ -42,6 +42,10 @@ class BareKeyWatcher extends EventEmitter {
     this.typing = false;
     /** Only claim the key while the pointer is over CSP's canvas. */
     this.canvas = false;
+    /** CSP says it would refuse a Quick Access command (text layer, non-brush tool). */
+    this.busy = false;
+    /** Report the key but never swallow it, so a misfire cannot eat a keystroke. */
+    this.observe = false;
     this.host = null;
     this.vk = 0;
   }
@@ -85,6 +89,21 @@ class BareKeyWatcher extends EventEmitter {
     // so the flag simply means "not gated" until the host is back.
   }
 
+  /** CSP says it would refuse a Quick Access command right now: pass the key through. */
+  setBusy(value) {
+    this.busy = Boolean(value);
+    if (this.host && this.vk) this.host.keyBusy(this.vk, this.busy).catch(() => {});
+    // No equivalent in the PowerShell helper: there the key is always gated by the
+    // foreground/typing checks only.
+  }
+
+  /** Report the key without swallowing it. */
+  setObserve(value) {
+    this.observe = Boolean(value);
+    if (this.host && this.vk) this.host.keyObserve(this.vk, this.observe).catch(() => {});
+    // The PowerShell helper never consumed a bare key either, so observer is its default.
+  }
+
   start() {
     if (this.proc || this.stopped === false) return false;
 
@@ -98,6 +117,8 @@ class BareKeyWatcher extends EventEmitter {
           this.ready = true;
           this.emit('ready');
           host.addKey(this.vk, this.active, this.typing, this.canvas).catch(() => {});
+          host.keyBusy(this.vk, this.busy).catch(() => {});
+          host.keyObserve(this.vk, this.observe).catch(() => {});
           if (this.health) this.health.set('keys', 'host');
           return;
         }

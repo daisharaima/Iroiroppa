@@ -156,6 +156,12 @@ internal static class Program
         /// Only claim the key while the pointer is over CSP's canvas (drawn-on area),
         /// so a bare letter cannot fire while the cursor rests on a text field.
         public bool Canvas;
+        /// CSP reports that it would refuse a Quick Access command right now (a text layer,
+        /// any non-brush tool, or a stroke in progress), so a bare key must pass through.
+        public bool Busy;
+        /// Report the key but never swallow it: the app below still receives it, so a
+        /// misfire can never eat a keystroke.
+        public bool Observe;
         public bool Claimed;
     }
 
@@ -292,6 +298,8 @@ internal static class Program
     private static extern bool GetCursorPos(out POINT point);
     [DllImport("user32.dll")]
     private static extern bool SetCursorPos(int x, int y);
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
     [DllImport("user32.dll")]
     private static extern IntPtr WindowFromPoint(POINT point);
     [DllImport("user32.dll")]
@@ -642,6 +650,62 @@ internal static class Program
         return IsCanvasAt(p.x, p.y);
     }
 
+    /// Every signal NativeTyping() looks at, reported separately. A single "typing=1"
+    /// cannot say WHICH check fired, and with a host that paints its own UI (CSP) that
+    /// is the only way to learn whether it is detected at all.
+    private static void ReportTypingSignals()
+    {
+        IntPtr fg = GetForegroundWindow();
+        if (fg == IntPtr.Zero) { Out("{\"typing\":0,\"why\":\"no-foreground\"}"); return; }
+
+        var cls = new StringBuilder(256);
+        GetClassName(fg, cls, 256);
+        string className = cls.ToString();
+        bool dialog = className == "#32770";
+
+        uint pid;
+        uint thread = GetWindowThreadProcessId(fg, out pid);
+        bool caret = false, blink = false;
+        var gui = new GUITHREADINFO();
+        gui.cbSize = (uint)Marshal.SizeOf(typeof(GUITHREADINFO));
+        if (thread != 0 && GetGUIThreadInfo(thread, ref gui))
+        {
+            caret = gui.hwndCaret != IntPtr.Zero;
+            blink = (gui.flags & 1) != 0;
+        }
+
+        bool ime = false;
+        IntPtr ctxIme = ImmGetContext(fg);
+        if (ctxIme != IntPtr.Zero)
+        {
+            ime = ImmGetOpenStatus(ctxIme);
+            ImmReleaseContext(fg, ctxIme);
+        }
+
+        bool ibeam = false;
+        long cursorHandle = 0;
+        var cursor = new CURSORINFO();
+        cursor.cbSize = (uint)Marshal.SizeOf(typeof(CURSORINFO));
+        if (GetCursorInfo(ref cursor) && cursor.hCursor != IntPtr.Zero)
+        {
+            cursorHandle = cursor.hCursor.ToInt64();
+            IntPtr beam = LoadCursor(IntPtr.Zero, (IntPtr)IDC_IBEAM);
+            ibeam = beam != IntPtr.Zero && cursor.hCursor == beam;
+        }
+
+        Out("{\"typing\":1"
+            + ",\"fg\":\"" + Escape(ProcessNameOfWindow(fg)) + "\""
+            + ",\"cls\":\"" + Escape(className) + "\""
+            + ",\"dialog\":" + (dialog ? 1 : 0)
+            + ",\"caret\":" + (caret ? 1 : 0)
+            + ",\"blink\":" + (blink ? 1 : 0)
+            + ",\"ime\":" + (ime ? 1 : 0)
+            + ",\"ibeam\":" + (ibeam ? 1 : 0)
+            + ",\"cursor\":\"0x" + cursorHandle.ToString("x") + "\""
+            + ",\"result\":" + (NativeTyping() ? 1 : 0)
+            + ",\"t\":" + NowMs() + "}");
+    }
+
     /// A modifier held means the user is doing something else (Ctrl+S, not a bare key).
     private static bool ModifierDown()
     {
@@ -667,12 +731,14 @@ internal static class Program
 
                     if (down)
                     {
-                        if (binding.Claimed) return (IntPtr)1;      // auto-repeat while held
-                        if (binding.Active && !binding.Typing && !ModifierDown() && !NativeTyping()
-                            && (!binding.Canvas || CanvasUnderCursor()))
+                        if (binding.Claimed) return binding.Observe ? CallNextHookEx(_keyHook, nCode, wParam, lParam) : (IntPtr)1;
+                        if (binding.Active && !binding.Typing && !binding.Busy && !ModifierDown()
+                            && !NativeTyping() && (!binding.Canvas || CanvasUnderCursor()))
                         {
                             binding.Claimed = true;
                             Enqueue("{\"key\":\"down\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
+                            // Observer mode: the app underneath still gets the key.
+                            if (binding.Observe) return CallNextHookEx(_keyHook, nCode, wParam, lParam);
                             return (IntPtr)1;                        // swallow it
                         }
                     }
@@ -680,6 +746,7 @@ internal static class Program
                     {
                         binding.Claimed = false;
                         Enqueue("{\"key\":\"up\",\"vk\":" + info.vkCode + ",\"t\":" + NowMs() + "}");
+                        if (binding.Observe) return CallNextHookEx(_keyHook, nCode, wParam, lParam);
                         return (IntPtr)1;
                     }
                 }
@@ -865,6 +932,22 @@ internal static class Program
                 Out("{\"watching\":0,\"repairs\":" + _repairs + "}");
                 break;
 
+            case "typing":
+                // Diagnostic: which typing signal (if any) sees the foreground window.
+                ReportTypingSignals();
+                break;
+
+            case "sendkey":
+                {
+                    // Diagnostic: inject one keystroke. Spawning a helper process to do it
+                    // steals the foreground, which is exactly what these probes measure.
+                    int vk = ParseInt(arg.Trim(), 0);
+                    keybd_event((byte)vk, 0, 0, UIntPtr.Zero);
+                    keybd_event((byte)vk, 0, 2, UIntPtr.Zero);
+                    Out("{\"sent\":" + vk + ",\"t\":" + NowMs() + "}");
+                }
+                break;
+
             case "move":
                 {
                     // Diagnostic: put the pointer somewhere, for the bare-key canvas probe.
@@ -951,6 +1034,8 @@ internal static class Program
             case "keyactive":
             case "keytyping":
             case "keycanvas":
+            case "keybusy":
+            case "keyobserve":
                 {
                     string[] parts = arg.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length < 2) { Fail(cmd + " needs vk and 0|1"); break; }
@@ -960,6 +1045,8 @@ internal static class Program
                     bool value = parts[1] != "0";
                     if (cmd == "keyactive") binding.Active = value;
                     else if (cmd == "keycanvas") binding.Canvas = value;
+                    else if (cmd == "keybusy") binding.Busy = value;
+                    else if (cmd == "keyobserve") binding.Observe = value;
                     else binding.Typing = value;
                     Out("{\"" + cmd + "\":" + (value ? 1 : 0) + ",\"vk\":" + vk + "}");
                 }

@@ -924,6 +924,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   // Claim a bare key only while the pointer is over CSP's canvas. Off by default:
   // the guard below is a heuristic and CSP's own text fields report no Win32 caret.
   bareCanvasOnly: false,
+  bareObserve: false,
   markOutOfDisplay: false, // dim the colours the display cannot show (off: nearest colour)
   autoHide: true,
   autoConnect: true,
@@ -1478,9 +1479,34 @@ if (wantNativeHost) {
 }
 
 const shortcutActions = createShortcutActions(ctx);
+/** How long a "CSP is busy" reading is trusted without a fresh Quick Access read. */
+const CSP_BUSY_TTL_MS = 2500;
+let cspBusyTimer = null;
 Object.assign(ctx, {
   applyShortcuts: (next) => shortcutActions.apply(next),
   setBareCanvas: (on) => shortcutActions.setBareCanvas(on),
+  /**
+   * Truthful CSP-side suppressor for bare keys. Measured on CSP 5.x: while a text layer
+   * is edited (or any non-brush tool is active) the Quick Access reply reports *no* flag
+   * on and lists every requested flag as disabled; with a brush it reports the on flags
+   * and an empty disabled list. So "nothing on, something disabled" means CSP would
+   * refuse a recipe anyway — a bare key must then pass through to CSP instead of being
+   * swallowed. It expires, so a stalled poll can never mute the shortcuts for good.
+   */
+  noteQuickAccessState: (state) => {
+    const on = Array.isArray(state && state.on) ? state.on.length : 0;
+    const disabled = Array.isArray(state && state.disabled) ? state.disabled.length : 0;
+    const busy = disabled > 0 && on === 0;
+    shortcutActions.setBareBusy(busy);
+    if (cspBusyTimer) { clearTimeout(cspBusyTimer); cspBusyTimer = null; }
+    if (busy) {
+      cspBusyTimer = setTimeout(() => {
+        cspBusyTimer = null;
+        shortcutActions.setBareBusy(false);
+      }, CSP_BUSY_TTL_MS);
+    }
+    return busy;
+  },
   applySummonShortcut: (accel) => {
     const current = settings.get();
     const next = ShortcutModel.normalise(current.shortcuts);

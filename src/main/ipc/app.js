@@ -95,7 +95,11 @@ function register(ctx, trusted = () => false) {
     const qa = spec && spec.quickAccess;
     if (qa && typeof qa === 'object') {
       if (qa.op === 'read' && ctx.service && typeof ctx.service.readQuickAccess === 'function') {
-        return ctx.service.readQuickAccess(qa.names);
+        const out = await ctx.service.readQuickAccess(qa.names);
+        // Feed the keyboard-hook suppressor: this read is the only thing in the app that
+        // can tell CSP is editing text (docs/PROTOCOL.md, "Quick Access").
+        if (out && out.ok && typeof ctx.noteQuickAccessState === 'function') ctx.noteQuickAccessState(out);
+        return out;
       }
       if (qa.op === 'click' && ctx.service && typeof ctx.service.clickQuickAccess === 'function') {
         return ctx.service.clickQuickAccess(qa.name);

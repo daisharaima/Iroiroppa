@@ -33,9 +33,13 @@ const REPLY_KEYS = {
   keyactive: 'keyactive',
   keytyping: 'keytyping',
   keycanvas: 'keycanvas',
+  keybusy: 'keybusy',
+  keyobserve: 'keyobserve',
   cursor: 'cursor',
   hit: 'hit',
   move: 'moved',
+  sendkey: 'sent',
+  typing: 'typing',
   version: 'version',
 };
 
@@ -211,14 +215,26 @@ class NativeHost extends EventEmitter {
   /** Claim the key only while the pointer is over CSP's canvas. */
   keyCanvas(vk, value) { return this.request(`keycanvas ${vk} ${value ? 1 : 0}`); }
 
+  /** CSP would refuse a Quick Access command now, so pass the key through. */
+  keyBusy(vk, value) { return this.request(`keybusy ${vk} ${value ? 1 : 0}`); }
+
+  /** Report the key without swallowing it (the app below still receives it). */
+  keyObserve(vk, value) { return this.request(`keyobserve ${vk} ${value ? 1 : 0}`); }
+
   /** Where the pointer is, and whether it is over CSP's canvas (diagnostic). */
   cursor() { return this.request('cursor'); }
 
   /** Put the pointer at a screen point (diagnostic, for the canvas-gate probe). */
   move(x, y) { return this.request(`move ${Math.round(x)} ${Math.round(y)}`); }
 
+  /** Inject one keystroke by virtual-key code (diagnostic; does not touch the foreground). */
+  sendKey(vk) { return this.request(`sendkey ${vk}`); }
+
   /** Would a press at (x, y) land on CSP's canvas? (diagnostic, never presses) */
   hit(x, y) { return this.request(`hit ${Math.round(x)} ${Math.round(y)}`); }
+
+  /** Which typing signal (if any) sees the foreground window (diagnostic). */
+  typingSignals() { return this.request('typing'); }
 
   /** The current foreground process name, asked once (no spawn). */
   foreground() { return this.request('foreground'); }

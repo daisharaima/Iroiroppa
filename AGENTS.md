@@ -288,7 +288,13 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   there. Off by default, and it applies to reveal
   keys and module keys alike; the PowerShell fallback has no canvas check. Verified
   live: gate on + canvas → claimed, gate on + panel → refused, gate off + panel →
-  claimed (so the gate, not the typing guard, is what refuses).
+  claimed (so the gate, not the typing guard, is what refuses). **CSP's own text edit is
+  visible on the wire**: with the Text tool (or any tool without brush toggles) the Quick
+  Access reply reports nothing checked and every requested item disabled, so
+  `noteQuickAccessState` mutes every bare binding for as long as that lasts (2.5 s TTL if
+  the poll stalls) and the key passes through. `bareObserve` reports a bare key without
+  consuming it, so a misfire cannot eat a keystroke; `CanExecuteSetterCommand` is *not*
+  used for this — it is false during strokes too and true again mid-edit.
 - **Native `<select>` and native `title=` are not allowed to own the visible list.** Their
   OS windows are outside the topmost band. `kernel/select-overlay.js` opens the options on
   the overlay, and `kernel/tooltip.js` converts a runtime `title` to `data-tip` on hover.
