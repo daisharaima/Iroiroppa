@@ -512,6 +512,32 @@ user's settings or history; the script aborts if that profile is missing.
 the `--open-settings` / `--settings-shot` dev flags. Never hand-crop or retouch a
 capture with a real profile or real history in it.
 
+## What never goes in this repository
+
+This repo is the public side. Do not put anything here — code, docs, commits, comments,
+tests, screenshots, release notes — that names or describes the maintainer's other apps,
+repos or personal tooling, or that records their own configuration: real shortcut
+assignments, `settings.json` contents, brush/recipe names, personal file paths, Companion
+pairing data. Describe a *mechanism* ("a keyboard hook that only fires while the host is
+up front"), never the tool it came from. Examples and fixtures use synthetic values
+(`Ctrl+Shift+K`, `recipe#1`).
+
+Why: a public commit is permanent, and a name is enough to link this project to private
+work. If a real value is genuinely needed to explain a bug, it belongs in the git-ignored
+`_private/` folder.
+
+Before pushing, `npm test` is not the gate for this one — check the tree and the unpushed
+commits:
+
+```
+git grep -niE "<private names>|appdata|<local disk paths>|ctrl\+shift\+alt" HEAD
+git log --format=%B origin/main..HEAD | grep -niE "<private names>"
+```
+
+If a name already landed, scrub **history**, not just the working tree: while it is
+unpushed, `git commit --amend` or an interactive rebase is enough; once pushed, treat it
+as a leak and tell the maintainer before rewriting a published `main`.
+
 ## Token discipline
 
 Cost is dominated by **new** (uncached) text: every fresh file read, command
