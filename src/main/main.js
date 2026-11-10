@@ -1674,6 +1674,11 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     const defaults = { ...DEFAULT_SETTINGS };
     if (!defaults.proofProfile) defaults.proofProfile = findAdobeRgbProfile() || findBundledProfile();
     settings = createSettingsService({ file: path.join(dir, 'settings.json'), defaults, hooks: ctx });
+    // The observer switch did nothing until 2026-11-11 (it was never pushed to the hook),
+    // so a stored `false` is not a choice the user could have made. Turn it on once.
+    if (settings.get().bareObserveMigrated !== true) {
+      settings.commit({ bareObserve: true, bareObserveMigrated: true });
+    }
     // One-time shortcut migration: the old summon key becomes General show/hide.
     {
       const cur = settings.get();

@@ -70,7 +70,10 @@ function createShortcutActions(ctx, deps = {}) {
   let bareBusy = false;
   /** Report bare keys without swallowing them. */
   let bareObserve = false;
-  let bareActive = true;
+  // Start inactive: a bare key must not be claimed until we actually know the
+  // foreground. Claiming while "unknown" is what ate keystrokes in other apps when the
+  // foreground watcher was not up yet.
+  let bareActive = false;
   let bareTyping = false;
   let failures = [];
 

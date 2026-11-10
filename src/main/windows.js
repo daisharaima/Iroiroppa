@@ -1747,6 +1747,9 @@ function startFollowFocus() {
   ctx.fgWatcher.on('down', () => {
     // The watcher is not authoritative while it is down: keep, never guess.
     ctx.fgHealthy = false;
+    // …and stop claiming bare keys, because "we do not know the foreground" must never
+    // mean "claim everywhere": a dead watcher used to swallow those keys in every app.
+    if (typeof ctx.setBareActiveShortcut === 'function') ctx.setBareActiveShortcut(false);
     traceFocus('watcher down -> keep');
   });
   // Safety net. `foreground.ps1` is event-driven, and a missed event (a lock screen,
