@@ -63,6 +63,7 @@ The current color's HEX, channel values and sRGB appearance. Click the left half
 Search and run Clip Studio Paint's commands and tools. Use **All**, **Command** or **Tool** to filter; click a row to run it.
 
 - Reads the **current workspace** (`workspace_*.spws`), not a factory list.
+- **Scroll to the bottom** to load more rows (300 at a time), or press **Load more**.
 - Press **↻** after saving the workspace or closing Clip Studio Paint.
 - Set the CSP data folder with **Locate CSP data folder…** or **Settings → General**.
 - Bind a key from the module's **⋯** menu.

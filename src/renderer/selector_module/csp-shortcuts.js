@@ -45,6 +45,11 @@
     create(ctx) {
       const csp = ctx.csp;
       let mode = 'csp';
+      // The list is 1,077 rows on a real workspace, and building every row costs a visible
+      // pause. It renders in pages of PAGE; reaching the bottom loads the next one.
+      const PAGE = 300;
+      let shownLimit = PAGE;
+      let lastPageKey = '';
       let data = { ok: false, reason: '', commands: [], tools: [], workspace: {} };
       let app = {
         commands: [],
@@ -147,6 +152,13 @@
 
       const list = document.createElement('div');
       list.className = 'csp-shortcuts-list';
+      // Reaching the end of the rendered page loads the next, so scrolling a 1,077-row
+      // workspace never dead-ends.
+      list.addEventListener('scroll', () => {
+        if (list.scrollTop + list.clientHeight < list.scrollHeight - 24) return;
+        const more = list.querySelector('.csp-shortcuts-more');
+        if (more) more.click();
+      });
       root.append(tabs, chips, searchRow, meta, sourceHint, status, locate, list);
       ctx.el.append(root);
 
@@ -260,6 +272,9 @@
         chips.classList.toggle('hidden', mode === 'app');
         locate.classList.toggle('hidden', mode === 'app' || data.ok);
         const q = search.value.trim().toLowerCase();
+        // A new query, filter or tab starts the list again; only scrolling keeps it long.
+        const pageKey = `${mode}|${kindFilter}|${keyQuery}|${q}`;
+        if (pageKey !== lastPageKey) { lastPageKey = pageKey; shownLimit = PAGE; }
         list.textContent = '';
         status.textContent = '';
         status.classList.toggle('hidden', true);
@@ -277,7 +292,7 @@
               || r.accels.some((a) => String(a).toLowerCase().includes(q))
               || String(r.raw || '').toLowerCase().includes(q);
           });
-          for (const r of shown.slice(0, 300)) {
+          for (const r of shown.slice(0, shownLimit)) {
             const row = document.createElement('button');
             row.type = 'button';
             row.className = `csp-shortcut-row${r.kind === 'tool' ? ' tool' : ''}`;
@@ -291,6 +306,22 @@
             if (r.invoke) row.addEventListener('click', () => csp.cspInvoke({ accel: r.invoke }));
             else row.disabled = true;
             list.append(row);
+          }
+          // More than one page: a button, and the scroll listener above presses it at the
+          // bottom, so a 1,077-row workspace is browsable without typing a query.
+          if (shown.length > shownLimit) {
+            const left = shown.length - shownLimit;
+            const more = document.createElement('button');
+            more.type = 'button';
+            more.className = 'csp-shortcuts-more';
+            more.textContent = `Load more (${left} left)`;
+            more.addEventListener('click', () => {
+              shownLimit += PAGE;
+              const at = list.scrollTop;
+              render();
+              list.scrollTop = at; // keep the reader where they were
+            });
+            list.append(more);
           }
           if (!shown.length) {
             status.textContent = keyQuery

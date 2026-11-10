@@ -522,7 +522,9 @@ Auto-height modules (Color Stat, Session) have no edge. `ratioFromDrag()` in
   table), shows the file's saved time, and has a Refresh button that re-resolves the
   current workspace. CSP may not write edits until the workspace is saved/closed.
   It resolves readable names (`csp-command-names.js`), groups commands vs tools, and filters by
-  the next pressed shortcut. Tool/subtool names come from the Node databases; there is no brush-level
+  the next pressed shortcut. **The list renders 300 rows at a time** and appends the next page when
+  the reader reaches the bottom (or presses *Load more*), so a 1,077-row workspace does not build
+  every row up front and never dead-ends. Tool/subtool names come from the Node databases; there is no brush-level
   shortcut to show.
   The **CSP** and **Iroiroppa** tabs share the module width equally; the **All**, **Command** and
   **Tool** filters keep their text width and stay on one line on a small screen. The

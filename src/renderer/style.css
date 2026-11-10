@@ -1248,6 +1248,9 @@ body.locked #resize-grip { display: none; }
 .csp-shortcut-row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font: inherit; font-size: 0.82em; text-align: left; padding: 1px 4px; background: none; border: 0; border-radius: 4px; cursor: pointer; }
 .csp-shortcut-row:hover { background: rgba(127, 127, 127, 0.18); }
 .csp-shortcut-row:disabled { opacity: 0.5; cursor: default; }
+/* More than one page of rows: a quiet full-width button that matches a row's weight. */
+.csp-shortcuts-more { font: inherit; font-size: 0.82em; padding: 3px 4px; margin-top: 2px; background: none; border: 1px dashed var(--line); border-radius: 4px; cursor: pointer; color: inherit; opacity: .8; }
+.csp-shortcuts-more:hover { opacity: 1; background: var(--hover); }
 .csp-shortcut-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .csp-shortcut-accel { opacity: 0.7; white-space: nowrap; }
 .csp-shortcuts-empty { font-size: 0.82em; opacity: 0.6; padding: 4px; }
