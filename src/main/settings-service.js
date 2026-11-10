@@ -43,6 +43,9 @@ function createSettingsService({ file, defaults = {}, hooks = {} } = {}) {
     if (prev.bareCanvasOnly !== next.bareCanvasOnly) {
       if (typeof hooks.setBareCanvas === 'function') hooks.setBareCanvas(next.bareCanvasOnly === true);
     }
+    if (prev.bareObserve !== next.bareObserve) {
+      if (typeof hooks.setBareObserve === 'function') hooks.setBareObserve(next.bareObserve === true);
+    }
     if (JSON.stringify(prev.commandBindings || {}) !== JSON.stringify(next.commandBindings || {})) {
       hooks.applyCommandHotkeys(next.commandBindings);
     }

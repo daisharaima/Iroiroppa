@@ -32,6 +32,8 @@ function baseHooks(record = []) {
     applyWindowTheme: noop,
     applyLanguage: noop,
     applyHistoryGate: (v) => record.push(['applyHistoryGate', v]),
+    setBareCanvas: (v) => record.push(['setBareCanvas', v]),
+    setBareObserve: (v) => record.push(['setBareObserve', v]),
   };
 }
 
@@ -63,6 +65,22 @@ test('commit runs the side effects a changed setting calls for', () => {
   assert.equal(svc.get().autoHide, true);
   assert.equal(svc.get().locked, true);
   assert.equal(svc.get().historyGate, true);
+});
+
+test('the bare-key switches take effect live, without a restart', () => {
+  // A setting a running watcher has to learn about is useless if it only lands on the
+  // next apply: the hook would keep its old behaviour for the whole session.
+  const calls = [];
+  const svc = createSettingsService({
+    file: tmpFile(),
+    defaults: { bareCanvasOnly: false, bareObserve: false },
+    hooks: baseHooks(calls),
+  });
+  svc.commit({ bareObserve: true });
+  svc.commit({ bareCanvasOnly: true });
+  svc.commit({ bareObserve: false });
+  assert.deepEqual(calls.filter((c) => c[0] === 'setBareObserve').map((c) => c[1]), [true, false]);
+  assert.deepEqual(calls.filter((c) => c[0] === 'setBareCanvas').map((c) => c[1]), [true]);
 });
 
 test('commit re-applies shortcuts when the block changes', () => {

@@ -925,7 +925,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   // Claim a bare key only while the pointer is over CSP's canvas. Off by default:
   // the guard below is a heuristic and CSP's own text fields report no Win32 caret.
   bareCanvasOnly: false,
-  bareObserve: false,
+  bareObserve: true,
   markOutOfDisplay: false, // dim the colours the display cannot show (off: nearest colour)
   autoHide: true,
   autoConnect: true,
@@ -1497,6 +1497,7 @@ function applyBareBusy(busy) {
 Object.assign(ctx, {
   applyShortcuts: (next) => shortcutActions.apply(next),
   setBareCanvas: (on) => shortcutActions.setBareCanvas(on),
+  setBareObserve: (on) => shortcutActions.setBareObserve(on),
   /**
    * Truthful CSP-side suppressor for bare keys. Measured on CSP 5.x: while a text layer
    * is edited (or any non-brush tool is active) the Quick Access reply reports *no* flag

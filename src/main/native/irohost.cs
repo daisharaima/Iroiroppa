@@ -160,8 +160,9 @@ internal static class Program
         /// any non-brush tool, or a stroke in progress), so a bare key must pass through.
         public bool Busy;
         /// Report the key but never swallow it: the app below still receives it, so a
-        /// misfire can never eat a keystroke.
-        public bool Observe;
+        /// misfire can never eat a keystroke. Defaults to true: a binding that forgets
+        /// to say otherwise must not be able to lose a key.
+        public bool Observe = true;
         public bool Claimed;
     }
 
