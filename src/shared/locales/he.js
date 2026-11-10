@@ -112,7 +112,7 @@
     'module.color-slider.name': 'מחוון',
     'module.color-stat.name': 'נתוני צבע',
     'module.csp-color.name': 'צבעי CSP',
-    'module.csp-shortcuts.name': 'קיצורי CSP',
+    'module.csp-shortcuts.name': 'ספריית קיצורים',
     'module.session.name': 'הפעלה',
     'module.label.searchShortcuts': 'חיפוש קיצורים…',
     'module.settings.model': 'מודל',

@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Roda de cores',
     'module.colour-constructor.name': 'Construtor de cores',
     'module.csp-color.name': 'Cor do CSP',
-    'module.csp-shortcuts.name': 'Atalhos do CSP',
+    'module.csp-shortcuts.name': 'Biblioteca de atalhos',
     'module.dither-calculator.name': 'Calculadora de retícula',
     'module.painting-study.name': 'Estudo de pintura',
     'module.palette-tools.name': 'Ferramentas de paleta',

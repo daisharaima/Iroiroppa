@@ -1,6 +1,6 @@
 'use strict';
 
-// Selector module: CSP Shortcuts — CSP's own command/tool shortcuts and the
+// Selector module: Shortcut Library — CSP's own command/tool shortcuts and the
 // app's module-command bindings, in one place. CSP's files are read-only; the
 // manager can browse/invoke them and edit Iroiroppa's own bindings, and it warns
 // when an app binding collides with a CSP shortcut.
@@ -37,7 +37,7 @@
 
   reg.modules['csp-shortcuts'] = {
     id: 'csp-shortcuts',
-    name: 'CSP Shortcuts',
+    name: 'Shortcut Library',
     version: 2,
     defaults: {},
     minSize() { return { width: 150, height: 92 }; },

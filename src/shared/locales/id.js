@@ -111,7 +111,7 @@
     'module.color-slider.name': 'Penggeser',
     'module.color-stat.name': 'Statistik warna',
     'module.csp-color.name': 'Warna CSP',
-    'module.csp-shortcuts.name': 'Pintasan CSP',
+    'module.csp-shortcuts.name': 'Pustaka pintasan',
     'module.session.name': 'Sesi',
     'module.label.searchShortcuts': 'Cari pintasan…',
     'module.settings.model': 'Model',

@@ -65,7 +65,7 @@
     'module.color-wheel.name': '色轮',
     'module.colour-constructor.name': '颜色构建器',
     'module.csp-color.name': 'CSP 颜色',
-    'module.csp-shortcuts.name': 'CSP 快捷键',
+    'module.csp-shortcuts.name': '快捷键库',
     'module.dither-calculator.name': '抖动计算器',
     'module.painting-study.name': '写生分析',
     'module.palette-tools.name': '调色板工具',

@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Färghjul',
     'module.colour-constructor.name': 'Färgkonstruktör',
     'module.csp-color.name': 'CSP-färg',
-    'module.csp-shortcuts.name': 'CSP-genvägar',
+    'module.csp-shortcuts.name': 'Genvägsbibliotek',
     'module.dither-calculator.name': 'Dither-kalkylator',
     'module.painting-study.name': 'Målarstudie',
     'module.palette-tools.name': 'Palettverktyg',

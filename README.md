@@ -31,7 +31,7 @@ Each module does one job and can be shown, hidden, duplicated, resized with its 
 - **Color Disc** — hue × chroma on a circle with a Slider-style lightness row underneath; Shift locks the model's native lightness contour.
 - **Color History** — recently picked colors you can reuse.
 - **Color Stat** — the current color's hex code and channel values.
-- **CSP Shortcuts** — search and run Clip Studio Paint's own commands (you can point it at a non-default CSP data folder).
+- **Shortcut Library** — search and run Clip Studio Paint's own commands (you can point it at a non-default CSP data folder).
 
 **More modules in development.**
 

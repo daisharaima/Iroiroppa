@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Ruota colori',
     'module.colour-constructor.name': 'Costruttore di colori',
     'module.csp-color.name': 'Colore CSP',
-    'module.csp-shortcuts.name': 'Scorciatoie CSP',
+    'module.csp-shortcuts.name': 'Libreria di scorciatoie',
     'module.dither-calculator.name': 'Calcolatore di dithering',
     'module.painting-study.name': 'Studio di pittura',
     'module.palette-tools.name': 'Strumenti tavolozza',

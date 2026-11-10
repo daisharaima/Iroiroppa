@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Fargehjul',
     'module.colour-constructor.name': 'Fargebygger',
     'module.csp-color.name': 'CSP-farge',
-    'module.csp-shortcuts.name': 'CSP-hurtigtaster',
+    'module.csp-shortcuts.name': 'Hurtigtastbibliotek',
     'module.dither-calculator.name': 'Dither-kalkulator',
     'module.painting-study.name': 'Maleristudie',
     'module.palette-tools.name': 'Palettverktøy',

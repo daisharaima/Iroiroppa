@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'カラーホイール',
     'module.colour-constructor.name': 'カラーコンストラクター',
     'module.csp-color.name': 'CSP カラー',
-    'module.csp-shortcuts.name': 'CSP ショートカット',
+    'module.csp-shortcuts.name': 'ショートカットライブラリ',
     'module.dither-calculator.name': 'ディザ計算',
     'module.painting-study.name': '模写スタディ',
     'module.palette-tools.name': 'パレットツール',

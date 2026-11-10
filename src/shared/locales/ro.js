@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Roata culorilor',
     'module.colour-constructor.name': 'Constructor de culori',
     'module.csp-color.name': 'Culoare CSP',
-    'module.csp-shortcuts.name': 'Comenzi rapide CSP',
+    'module.csp-shortcuts.name': 'Bibliotecă de comenzi rapide',
     'module.dither-calculator.name': 'Calculator de dithering',
     'module.painting-study.name': 'Studiu de pictură',
     'module.palette-tools.name': 'Instrumente pentru paletă',

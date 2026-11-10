@@ -65,7 +65,7 @@
     'module.color-wheel.name': '色環',
     'module.colour-constructor.name': '色彩建構器',
     'module.csp-color.name': 'CSP 色彩',
-    'module.csp-shortcuts.name': 'CSP 快速鍵',
+    'module.csp-shortcuts.name': '快速鍵庫',
     'module.dither-calculator.name': '抖動計算器',
     'module.painting-study.name': '寫生分析',
     'module.palette-tools.name': '調色盤工具',

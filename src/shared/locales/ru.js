@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Цветовое колесо',
     'module.colour-constructor.name': 'Конструктор цвета',
     'module.csp-color.name': 'Цвет CSP',
-    'module.csp-shortcuts.name': 'Горячие клавиши CSP',
+    'module.csp-shortcuts.name': 'Библиотека горячих клавиш',
     'module.dither-calculator.name': 'Калькулятор дизеринга',
     'module.painting-study.name': 'Этюд',
     'module.palette-tools.name': 'Инструменты палитры',

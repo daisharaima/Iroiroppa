@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Farbrad',
     'module.colour-constructor.name': 'Farbkonstruktor',
     'module.csp-color.name': 'CSP-Farbe',
-    'module.csp-shortcuts.name': 'CSP-Tastenkürzel',
+    'module.csp-shortcuts.name': 'Tastenkürzel-Bibliothek',
     'module.dither-calculator.name': 'Rasterrechner',
     'module.painting-study.name': 'Malstudie',
     'module.palette-tools.name': 'Palettenwerkzeuge',

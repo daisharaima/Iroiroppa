@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Kleurenwiel',
     'module.colour-constructor.name': 'Kleurenbouwer',
     'module.csp-color.name': 'CSP-kleur',
-    'module.csp-shortcuts.name': 'CSP-sneltoetsen',
+    'module.csp-shortcuts.name': 'Sneltoetsbibliotheek',
     'module.dither-calculator.name': 'Dither-rekenmachine',
     'module.painting-study.name': 'Schilderstudie',
     'module.palette-tools.name': 'Paletgereedschap',

@@ -517,7 +517,7 @@ Auto-height modules (Color Stat, Session) have no edge. `ratioFromDrag()` in
   has no contour when its fixed axis is that model's native light axis. A sample whose
   target is unreachable is dropped, never drawn along the panel edge. The line is red while
   locked. — main records a CSP **pick** (a change that supplies or changes the active slot's colour; an inactive-slot diff or a pure foreground/background switch adds nothing). A left-button release over CSP takes a fresh protocol read, so the newest tile appears on release with the exact last colour; a 450 ms settle covers picks with no pointer release (keyboard, hex, paste). **Record only while drawing** (one global setting, shown here) records only a non-Alt canvas contact: picks are noted, and the next canvas down takes a fresh read and adds the colour actually used. Every window only mirrors the shared list.
-- **CSP Shortcuts** — CSP's own list is read-only. It reads only the current
+- **Shortcut Library** — CSP's own list is read-only. It reads only the current
   workspace `.spws` (falling back to `default.khc` only when that workspace has no
   table), shows the file's saved time, and has a Refresh button that re-resolves the
   current workspace. CSP may not write edits until the workspace is saved/closed.

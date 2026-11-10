@@ -51,7 +51,7 @@
 
 | Symptom | Fix |
 | --- | --- |
-| CSP Shortcuts is empty | Set the data folder, save the workspace or close Clip Studio Paint, then press **↻**. |
+| Shortcut Library is empty | Set the data folder, save the workspace or close Clip Studio Paint, then press **↻**. |
 | A CSP command does nothing | Click the Clip Studio Paint canvas first, then run the command. |
 | Color History is empty | It fills as you pick. |
 | Color Stat shows no numbers | Connect to Clip Studio Paint first. |

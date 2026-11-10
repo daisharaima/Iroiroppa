@@ -120,7 +120,7 @@
     'module.color-slider.name': 'شريط التمرير',
     'module.color-stat.name': 'إحصاء اللون',
     'module.csp-color.name': 'ألوان CSP',
-    'module.csp-shortcuts.name': 'اختصارات CSP',
+    'module.csp-shortcuts.name': 'مكتبة الاختصارات',
     'module.session.name': 'الجلسة',
     'module.label.searchShortcuts': 'بحث في الاختصارات…',
     'module.settings.model': 'النموذج',

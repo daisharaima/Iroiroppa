@@ -111,7 +111,7 @@
     'module.color-slider.name': 'Thanh trượt',
     'module.color-stat.name': 'Thống kê màu',
     'module.csp-color.name': 'Màu CSP',
-    'module.csp-shortcuts.name': 'Phím tắt CSP',
+    'module.csp-shortcuts.name': 'Thư viện phím tắt',
     'module.session.name': 'Phiên',
     'module.label.searchShortcuts': 'Tìm phím tắt…',
     'module.settings.model': 'Mô hình',

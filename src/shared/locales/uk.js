@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Кольорове коло',
     'module.colour-constructor.name': 'Конструктор кольорів',
     'module.csp-color.name': 'Колір CSP',
-    'module.csp-shortcuts.name': 'Гарячі клавіші CSP',
+    'module.csp-shortcuts.name': 'Бібліотека гарячих клавіш',
     'module.dither-calculator.name': 'Калькулятор дизерингу',
     'module.painting-study.name': 'Малярський етюд',
     'module.palette-tools.name': 'Інструменти палітри',

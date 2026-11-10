@@ -47,7 +47,7 @@
     { id: 'csp-color', name: 'CSP Color', autoHeight: false, instanceable: false, group: 'core', defaultRatio: 0.12, capabilities: { companion: 'optional' } },
     // CSP's own command shortcuts and tool keys, read from its SQLite files and
     // invoked over the protocol or a native key send.
-    { id: 'csp-shortcuts', name: 'CSP Shortcuts', autoHeight: false, instanceable: true, group: 'utility', defaultRatio: 0.9, capabilities: { companion: 'optional', sender: 'optional' } },
+    { id: 'csp-shortcuts', name: 'Shortcut Library', autoHeight: false, instanceable: true, group: 'utility', defaultRatio: 0.9, capabilities: { companion: 'optional', sender: 'optional' } },
     // The app's own control panel — the only singleton that is *worth* mounting in a palette,
     // and the home of the connection state, the profile switcher and the Settings entry
     // (docs/LAYOUT.md, "One palette").

@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Koło barw',
     'module.colour-constructor.name': 'Kreator kolorów',
     'module.csp-color.name': 'Kolor CSP',
-    'module.csp-shortcuts.name': 'Skróty CSP',
+    'module.csp-shortcuts.name': 'Biblioteka skrótów',
     'module.dither-calculator.name': 'Kalkulator ditheringu',
     'module.painting-study.name': 'Studium malarskie',
     'module.palette-tools.name': 'Narzędzia palety',

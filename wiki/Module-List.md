@@ -56,9 +56,9 @@ Recent colors, newest first. Click a tile to reuse it. Stored locally in `histor
 
 The current color's HEX, channel values and sRGB appearance. Click the left half of HEX to copy, the right half to paste, or double-click to type.
 
-## CSP Shortcuts
+## Shortcut Library
 
-![CSP Shortcuts module](images/module-csp-shortcuts.png)
+![Shortcut Library module](images/module-csp-shortcuts.png)
 
 Search and run Clip Studio Paint's commands and tools. Use **All**, **Command** or **Tool** to filter; click a row to run it.
 

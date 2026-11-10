@@ -36,7 +36,7 @@ Set the document profile and choose whether to dim colors the display cannot sho
 
 ### CSP data folder
 
-The folder containing `CLIPStudioPaintVer…`, used by the [CSP Shortcuts module](Module-List.md). **Auto** restores the usual location.
+The folder containing `CLIPStudioPaintVer…`, used by the [Shortcut Library module](Module-List.md). **Auto** restores the usual location.
 
 ### Settings file
 

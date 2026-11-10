@@ -111,7 +111,7 @@
     'module.color-slider.name': 'แถบเลื่อน',
     'module.color-stat.name': 'สถิติสี',
     'module.csp-color.name': 'สี CSP',
-    'module.csp-shortcuts.name': 'ปุ่มลัด CSP',
+    'module.csp-shortcuts.name': 'คลังปุ่มลัด',
     'module.session.name': 'เซสชัน',
     'module.label.searchShortcuts': 'ค้นหาปุ่มลัด…',
     'module.settings.model': 'โมเดล',

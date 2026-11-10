@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Barevné kolo',
     'module.colour-constructor.name': 'Tvůrce barev',
     'module.csp-color.name': 'Barva CSP',
-    'module.csp-shortcuts.name': 'Zkratky CSP',
+    'module.csp-shortcuts.name': 'Knihovna zkratek',
     'module.dither-calculator.name': 'Výpočet ditheringu',
     'module.painting-study.name': 'Malířská studie',
     'module.palette-tools.name': 'Nástroje palety',

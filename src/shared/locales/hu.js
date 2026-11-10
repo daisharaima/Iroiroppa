@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Színkerék',
     'module.colour-constructor.name': 'Színépítő',
     'module.csp-color.name': 'CSP-szín',
-    'module.csp-shortcuts.name': 'CSP-gyorsbillentyűk',
+    'module.csp-shortcuts.name': 'Gyorsbillentyű-könyvtár',
     'module.dither-calculator.name': 'Dither-számológép',
     'module.painting-study.name': 'Festészeti tanulmány',
     'module.palette-tools.name': 'Palettaeszközök',

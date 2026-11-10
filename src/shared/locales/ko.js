@@ -65,7 +65,7 @@
     'module.color-wheel.name': '색상환',
     'module.colour-constructor.name': '색상 구성기',
     'module.csp-color.name': 'CSP 색상',
-    'module.csp-shortcuts.name': 'CSP 단축키',
+    'module.csp-shortcuts.name': '단축키 라이브러리',
     'module.dither-calculator.name': '디더 계산기',
     'module.painting-study.name': '사생 연구',
     'module.palette-tools.name': '팔레트 도구',

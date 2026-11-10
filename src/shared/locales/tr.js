@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Renk çemberi',
     'module.colour-constructor.name': 'Renk oluşturucu',
     'module.csp-color.name': 'CSP rengi',
-    'module.csp-shortcuts.name': 'CSP kısayolları',
+    'module.csp-shortcuts.name': 'Kısayol Kitaplığı',
     'module.dither-calculator.name': 'Dither hesaplayıcı',
     'module.painting-study.name': 'Resim çalışması',
     'module.palette-tools.name': 'Palet araçları',

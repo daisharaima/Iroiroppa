@@ -115,7 +115,7 @@
     'module.color-stat.name': 'Color Stat',
     'module.color-wheel.name': 'Color Wheel',
     'module.csp-color.name': 'CSP Color',
-    'module.csp-shortcuts.name': 'CSP Shortcuts',
+    'module.csp-shortcuts.name': 'Shortcut Library',
     'module.session.name': 'Session',
     'module.wheel.shape': 'Shape',
     'module.wheel.shape.triangle': 'Triangle',

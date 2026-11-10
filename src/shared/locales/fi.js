@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Väriympyrä',
     'module.colour-constructor.name': 'Värinrakentaja',
     'module.csp-color.name': 'CSP-väri',
-    'module.csp-shortcuts.name': 'CSP-pikanäppäimet',
+    'module.csp-shortcuts.name': 'Pikanäppäinkirjasto',
     'module.dither-calculator.name': 'Dither-laskuri',
     'module.painting-study.name': 'Maalaustutkielma',
     'module.palette-tools.name': 'Palettityökalut',

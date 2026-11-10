@@ -4,7 +4,7 @@
  * CSP stores its modifiers as a Windows bitfield (Ctrl/Shift/Alt) and the key as a
  * loose string (`N`, `F12`, `DELETE`, `NUM+`). Electron accelerators use names like
  * `CommandOrControl+Shift+N`. This module normalizes both to one form so the
- * CSP Shortcuts manager can warn about a real collision instead of a spelling one.
+ * Shortcut Library module can warn about a real collision instead of a spelling one.
  *
  * Loads as CommonJS in Node and as a global `IroShortcutMatch` in the renderer.
  */

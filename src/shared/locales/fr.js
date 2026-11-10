@@ -65,7 +65,7 @@
     'module.color-wheel.name': 'Roue chromatique',
     'module.colour-constructor.name': 'Constructeur de couleurs',
     'module.csp-color.name': 'Couleur CSP',
-    'module.csp-shortcuts.name': 'Raccourcis CSP',
+    'module.csp-shortcuts.name': 'Bibliothèque de raccourcis',
     'module.dither-calculator.name': 'Calculateur de tramage',
     'module.painting-study.name': 'Étude de peinture',
     'module.palette-tools.name': 'Outils de palette',
