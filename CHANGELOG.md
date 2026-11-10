@@ -65,6 +65,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   stalled poll cannot mute shortcuts for good. `bareObserve` additionally reports a bare
   key without consuming it, so a misfire can never eat a keystroke.
 
+- **One Quick Access poll serves the whole app.** A module declares the command names it
+  cares about (`csp:watch`); main asks about the union once at 500 ms, publishes the
+  snapshot on `csp:quickState`, and keeps the last name set after the last module
+  unloads so the mute above survives. Nothing subscribed and nothing remembered means no
+  poll at all. Applying still takes its own fresh read before clicking — a snapshot can
+  be one interval old.
+
 - **The always-on-top band is repaired every 100 ms instead of every 500 ms.** A
   dropped band bit used to leave the palette behind another window for up to half a
   second; it is now fixed within about a tenth of one, because the repair cost is the

@@ -44,6 +44,7 @@ const { createPanes } = require('./panes');
 const { createWindows } = require('./windows');
 const whatsNew = require('./whats-new');
 const { createShortcutActions } = require('./shortcut-actions');
+const { createQuickState } = require('./quick-state');
 const ShortcutModel = require('../shared/shortcut-model');
 const Proof = require('../shared/proof');
 const Color = require('../shared/color');
@@ -1482,9 +1483,28 @@ const shortcutActions = createShortcutActions(ctx);
 /** How long a "CSP is busy" reading is trusted without a fresh Quick Access read. */
 const CSP_BUSY_TTL_MS = 2500;
 let cspBusyTimer = null;
+/** One place decides the hook's mute, whichever path noticed first. */
+function applyBareBusy(busy) {
+  shortcutActions.setBareBusy(Boolean(busy));
+  if (cspBusyTimer) { clearTimeout(cspBusyTimer); cspBusyTimer = null; }
+  if (busy) {
+    cspBusyTimer = setTimeout(() => {
+      cspBusyTimer = null;
+      shortcutActions.setBareBusy(false);
+    }, CSP_BUSY_TTL_MS);
+  }
+}
 Object.assign(ctx, {
   applyShortcuts: (next) => shortcutActions.apply(next),
   setBareCanvas: (on) => shortcutActions.setBareCanvas(on),
+  /**
+   * Truthful CSP-side suppressor for bare keys. Measured on CSP 5.x: while a text layer
+   * is edited (or any non-brush tool is active) the Quick Access reply reports *no* flag
+   * on and lists every requested flag as disabled; with a brush it reports the on flags
+   * and an empty disabled list. So "nothing on, something disabled" means CSP would
+   * refuse a recipe anyway — a bare key must then pass through to CSP instead of being
+   * swallowed. It expires, so a stalled poll can never mute the shortcuts for good.
+   */
   /**
    * Truthful CSP-side suppressor for bare keys. Measured on CSP 5.x: while a text layer
    * is edited (or any non-brush tool is active) the Quick Access reply reports *no* flag
@@ -1497,14 +1517,7 @@ Object.assign(ctx, {
     const on = Array.isArray(state && state.on) ? state.on.length : 0;
     const disabled = Array.isArray(state && state.disabled) ? state.disabled.length : 0;
     const busy = disabled > 0 && on === 0;
-    shortcutActions.setBareBusy(busy);
-    if (cspBusyTimer) { clearTimeout(cspBusyTimer); cspBusyTimer = null; }
-    if (busy) {
-      cspBusyTimer = setTimeout(() => {
-        cspBusyTimer = null;
-        shortcutActions.setBareBusy(false);
-      }, CSP_BUSY_TTL_MS);
-    }
+    applyBareBusy(busy);
     return busy;
   },
   applySummonShortcut: (accel) => {
@@ -1520,6 +1533,29 @@ Object.assign(ctx, {
     };
   },
   stopShowShortcuts: () => shortcutActions.stop(),
+  /**
+   * The one Quick Access poll in the app (src/main/quick-state.js). Modules declare the
+   * names they care about; the poll asks about the union once at one interval and
+   * publishes the answer. It also drives the bare-key mute, which is why the last name
+   * set is remembered after the last module unloads.
+   */
+  quickState: (() => {
+    const qs = createQuickState({
+      read: async (names) => {
+        if (!ctx.service || typeof ctx.service.readQuickAccess !== 'function') {
+          return { ok: false, error: 'unavailable' };
+        }
+        return ctx.service.readQuickAccess(names);
+      },
+      onBusy: (busy) => applyBareBusy(busy),
+      onChange: (snap) => {
+        broadcast('csp:quickState', {
+          ok: snap.ok, on: snap.on, disabled: snap.disabled, names: snap.names, at: snap.at,
+        });
+      },
+    });
+    return qs;
+  })(),
   endHoldShortcut: () => shortcutActions.endHold(),
   setShowShortcut: (spec) => shortcutActions.set(spec),
   setShortcutOption: (spec) => shortcutActions.setOption(spec),

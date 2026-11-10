@@ -294,7 +294,10 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   `noteQuickAccessState` mutes every bare binding for as long as that lasts (2.5 s TTL if
   the poll stalls) and the key passes through. `bareObserve` reports a bare key without
   consuming it, so a misfire cannot eat a keystroke; `CanExecuteSetterCommand` is *not*
-  used for this — it is false during strokes too and true again mid-edit.
+  used for this — it is false during strokes too and true again mid-edit. **One poll serves
+  the whole app**: a module declares the names it wants (`csp:watch`), main asks about the
+  union at 500 ms and publishes `csp:quickState`, and the last name set is kept after the
+  module unloads so the mute outlives it. Applying a recipe still reads fresh first.
 - **Native `<select>` and native `title=` are not allowed to own the visible list.** Their
   OS windows are outside the topmost band. `kernel/select-overlay.js` opens the options on
   the overlay, and `kernel/tooltip.js` converts a runtime `title` to `data-tip` on hover.

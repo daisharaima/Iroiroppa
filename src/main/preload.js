@@ -53,6 +53,14 @@ contextBridge.exposeInMainWorld('csp', {
   capabilities: () => ipcRenderer.invoke('capabilities:get'),
   captureSources: () => ipcRenderer.invoke('capture:sources'),
   cspShortcuts: () => ipcRenderer.invoke('csp:shortcuts'),
+  // The shared Quick Access reader: declare the command names you care about once and
+  // main polls the union of every subscriber, at one interval, and publishes changes.
+  watchQuickAccess: (names) => ipcRenderer.invoke('csp:watch', names),
+  unwatchQuickAccess: () => ipcRenderer.invoke('csp:unwatch'),
+  quickAccessState: () => ipcRenderer.invoke('csp:quickState'),
+  onQuickAccessState: (fn) => {
+    ipcRenderer.on('csp:quickState', (e, snap) => fn(snap));
+  },
   i18nLocales: () => ipcRenderer.invoke('i18n:locales'),
   cspInvoke: (spec) => ipcRenderer.invoke('csp:invoke', spec),
   onCapabilities: (fn) => {

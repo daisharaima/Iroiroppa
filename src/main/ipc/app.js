@@ -100,8 +100,7 @@ function register(ctx, trusted = () => false) {
         // can tell CSP is editing text (docs/PROTOCOL.md, "Quick Access").
         if (out && out.ok && typeof ctx.noteQuickAccessState === 'function') ctx.noteQuickAccessState(out);
         return out;
-      }
-      if (qa.op === 'click' && ctx.service && typeof ctx.service.clickQuickAccess === 'function') {
+      }      if (qa.op === 'click' && ctx.service && typeof ctx.service.clickQuickAccess === 'function') {
         return ctx.service.clickQuickAccess(qa.name);
       }
       return { ok: false, error: 'bad quickAccess spec' };
@@ -114,6 +113,27 @@ function register(ctx, trusted = () => false) {
     if (spec.accel && ctx.sender) return ctx.sender.sendKeys(spec.accel);
     return { ok: false, error: 'no invoke path' };
   });
+  // Shared Quick Access reader (src/main/quick-state.js). A module names the commands it
+  // cares about once; main polls the union and publishes the snapshot to every window.
+  // The interpretation of the names stays in the module — the app never hardcodes one.
+  ipcMain.handle('csp:watch', (event, names) => {
+    if (!trusted(event)) return { ok: false, error: 'untrusted sender' };
+    if (!ctx.quickState) return { ok: false, error: 'unavailable' };
+    const owner = String(event.sender.id || 'window');
+    const count = ctx.quickState.watch(owner, names);
+    return { ok: true, watching: count };
+  });
+  ipcMain.handle('csp:unwatch', (event) => {
+    if (!trusted(event)) return { ok: false, error: 'untrusted sender' };
+    if (!ctx.quickState) return { ok: false, error: 'unavailable' };
+    ctx.quickState.unwatch(String(event.sender.id || 'window'));
+    return { ok: true };
+  });
+  ipcMain.handle('csp:quickState', () => {
+    if (!ctx.quickState) return { ok: false, error: 'unavailable' };
+    return { ok: true, ...ctx.quickState.state(), busy: ctx.quickState.isBusy() };
+  });
+
   ipcMain.handle('app:version', () => app.getVersion());
   // The About tab: versions, build kind and the data folder. `isPortable` comes from
   // main (the build kind is fixed at launch, before userData is chosen).
