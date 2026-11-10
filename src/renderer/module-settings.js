@@ -56,7 +56,22 @@
 
   function fitWindow() {
     const app = document.getElementById('app');
-    if (app) csp.resizeModuleSettings(Math.ceil(app.offsetHeight));
+    if (!app) return;
+    // Measure the CONTENT, not the box: `#app` is clipped by the window, so its own
+    // offsetHeight stays at the old window height and the panel never grows. The body may
+    // also scroll (the safety net), which clamps its scrollHeight to the same stale box, so
+    // measure with the overflow opened for one frame and put it back.
+    const body = document.querySelector('.ms-body');
+    const prev = body ? body.style.overflow : '';
+    if (body) body.style.overflow = 'visible';
+    const content = Math.ceil(Math.max(
+      app.offsetHeight,
+      app.scrollHeight,
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+    ));
+    if (body) body.style.overflow = prev;
+    csp.resizeModuleSettings(content);
   }
 
   async function loadDef(id) {
@@ -318,6 +333,21 @@
     if (typeof ResizeObserver === 'function') {
       const app = document.getElementById('app');
       if (app) new ResizeObserver(() => requestAnimationFrame(fitWindow)).observe(app);
+    }
+    // …and the content itself: a module may redraw its settings after the window is already
+    // sized (a dropdown replacing a grid, a recipe selected, a section added), and `#app`
+    // then keeps the old height, so no ResizeObserver fires and the lower half of the panel
+    // stays clipped - the "the settings lost some options" report.
+    if (typeof MutationObserver === 'function') {
+      const body = document.querySelector('.ms-body');
+      if (body) {
+        let queued = false;
+        new MutationObserver(() => {
+          if (queued) return;
+          queued = true;
+          requestAnimationFrame(() => { queued = false; fitWindow(); });
+        }).observe(body, { childList: true, subtree: true, attributes: true });
+      }
     }
   }
 

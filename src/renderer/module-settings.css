@@ -26,6 +26,11 @@ body.module-settings-window #titlebar {
 .ms-body {
   display: flex; flex-direction: column; gap: 8px;
   padding: 10px;
+  /* Safety net: if a window height is ever stale (a module's content changed shape while
+     the popout was re-measuring), the settings must still be reachable by scrolling rather
+     than be clipped away. */
+  overflow-y: auto;
+  min-height: 0;
 }
 .ms-actions { display: flex; flex-direction: column; gap: 6px; }
 .ms-icon-actions { display: flex; flex-direction: row; align-items: center; gap: 4px; }
