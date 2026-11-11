@@ -26,7 +26,6 @@
   const Overlay = window.IroPickerOverlay;
 
   const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
-  const clamp255 = (x) => clamp(Math.round(x), 0, 255);
   const clamp01 = (x) => clamp(x, 0, 1);
 
   const SHOW_KEYS = ['constantHue', 'constantLightness', 'constantChroma'];
@@ -305,6 +304,9 @@
       const Raster = window.IroRasterPlane;
       const Contour = window.IroContour;
       const Cadence = window.IroRenderCadence;
+      // The analytic plane's per-pixel maths (src/shared/slice-plane.js): hoisted
+      // constants and a LUT gamma, so a panel-sized plane is ~3-4 ms.
+      const Plane = window.IroSlicePlane;
       const identity = SV ? SV.composeView(0, false, false) : { rotate: 0, flipH: false, flipV: false };
       const panelViews = [identity, identity, identity];
       const viewFor = (p) => panelViews[p] || identity;
@@ -435,9 +437,6 @@
       // requested again: the interactive tick fires every frame, and queueing the same
       // plane twelve times only delays the one that lands.
       const chunkedInFlight = new Set();
-      // Wall time from the first chunk to the finished canvas: chunking trades this
-      // (longer) against the main thread never blocking (shorter).
-      let buildStartedAt = 0;
       // rAF pauses while the page is hidden. A build in flight then never completes and
       // its key would stay "in flight" for the rest of the session, so that panel would
       // never rebuild again. Abandon everything and let the next visible pass restart it.
@@ -459,7 +458,18 @@
       // first build could leave the panel blank if a resize made it abort.
       const COSTLY_PLANE_PX = 40000;
 
+      const round1 = (x) => Math.round(x * 10) / 10;
+      // Per-panel build counters, so "does this map land every frame?" is a number
+      // (`--perf-gaps` reports `__plotDbg`). `ms`/`maxMs` are the plane's own fill time:
+      // the old `t.complete`/`completeMax` timed from one shared timestamp, so two
+      // overlapping builds reported seconds.
       const chunkStats = (window.__plotDbg = window.__plotDbg || { chunked: 0, sync: 0, panels: 0, t: {} });
+      if (typeof chunkStats.chunked !== 'number') chunkStats.chunked = 0;
+      if (typeof chunkStats.sync !== 'number') chunkStats.sync = 0;
+      if (typeof chunkStats.panels !== 'number') chunkStats.panels = 0;
+      if (!chunkStats.t || typeof chunkStats.t !== 'object') chunkStats.t = {};
+      if (!Array.isArray(chunkStats.p)) chunkStats.p = [{ n: 0, ms: 0, maxMs: 0 }, { n: 0, ms: 0, maxMs: 0 }, { n: 0, ms: 0, maxMs: 0 }];
+
       /** Accumulate per-section time so a long task can be attributed to a call. */
       const timed = (name, fn) => {
         const start = performance.now();
@@ -482,7 +492,6 @@
               chunkedInFlight.add(key);
               chunkStats.chunked += 1;
               const generation = ++plotGeneration[plane];
-              buildStartedAt = performance.now();
               const isStale = () => generation !== plotGeneration[plane]
                 || canvas.width !== W || canvas.height !== H;
               build((built) => {
@@ -492,10 +501,6 @@
                   chunkStats.t.aborted = (chunkStats.t.aborted || 0) + 1;
                   return;
                 }
-                const spent = performance.now() - buildStartedAt;
-                chunkStats.t.complete = Math.round(((chunkStats.t.complete || 0) + spent) * 10) / 10;
-                chunkStats.t.completeMax = Math.max(chunkStats.t.completeMax || 0, Math.round(spent * 10) / 10);
-                chunkStats.t.completed = (chunkStats.t.completed || 0) + 1;
                 if (generation !== plotGeneration[plane]) return;
                 built.__key = key;
                 lastOff[plane] = built;
@@ -532,12 +537,11 @@
       // its frame, or the time cap would fragment it anyway.
       const chunkBudget = () => (plotChunks() === 1 ? CHUNK_BUDGET_IDLE_MS : CHUNK_BUDGET_MS);
 
-      // How many frames a plane is spread over. During a gesture the round-robin already
-      // guarantees at most one rebuild per frame, so splitting that rebuild across three
-      // frames only delays the picture: the panel's turn comes round again before the map
-      // has landed, and the user sees the map change every third turn instead of every
-      // turn. One chunk means the picked panel's map appears complete in the frame it was
-      // built -- the behaviour the app had before the chunking work.
+      // How many frames a plane is spread over. During a gesture every stale map is
+      // rebuilt on the frame its turn comes up, so a plane that took two frames would be
+      // superseded by the next request before it ever landed -- the map would stop
+      // updating while the pointer kept moving. One chunk means a plane completes in the
+      // step it starts (they are ~3-4 ms; see src/shared/slice-plane.js).
       const plotChunks = () => (store.interactive ? 1 : PLOT_CHUNKS);
       // At most this many chunks per plane. Three keeps a build inside roughly the time
       // the synchronous build took (one frame's worth of blocking each), while still
@@ -547,85 +551,56 @@
       // Chunk arithmetic lives in one tested place (src/shared/plot-chunks.js).
       const Chunks = (typeof IroPlotChunks !== 'undefined') ? IroPlotChunks : { size: (h, c) => Math.max(1, Math.ceil(h / c)) };
 
-      const buildPlot = (key, w, h, intervalsAt, colorAt, lumaAt, onDone, isStale) => {
+      /**
+       * Build one analytic plane — synchronously for the cache-only path (the first
+       * paint), or across frames with `onDone`.
+       *
+       * The per-pixel maths lives in src/shared/slice-plane.js: it hoists the plane's
+       * constants and gamma-encodes through the raster plane's LUT, which is ~3-4 ms for
+       * a panel-sized plane instead of 7-18 ms. That is what lets both sibling maps
+       * rebuild in the same frame as the drag instead of stepping one per frame.
+       */
+      const buildPlot = (plane, key, spec, onDone, isStale) => {
         const cached = plotCache.get(key);
-        if (cached && cached.width === w && cached.height === h) {
+        if (cached && cached.width === spec.width && cached.height === spec.height) {
           if (onDone) onDone(cached);
           return cached;
         }
 
+        const w = spec.width;
+        const h = spec.height;
         const off = document.createElement('canvas');
         off.width = w; off.height = h;
         const c2d = off.getContext('2d');
         const img = c2d.createImageData(w, h);
         const data = img.data;
         const luma = new Float32Array(w * h).fill(NaN);
-
-        const put = (i, r, g, b) => {
-          data[i] = clamp255(r); data[i + 1] = clamp255(g); data[i + 2] = clamp255(b); data[i + 3] = 255;
-        };
-
-        const cmax = store.cmax();
-        const minC = cmax / Math.max(1, h - 1);
-        const cols = new Array(w);
-        for (let x = 0; x < w; x++) cols[x] = intervalsAt(x / (w - 1));
+        // The plane's per-column constants (the silhouette intervals, the hue
+        // coefficients) are part of the frame's cost, so the pacing budget includes them.
+        const prepStart = performance.now();
+        const prep = Plane.prepare(spec);
+        const prepMs = performance.now() - prepStart;
 
         // The synchronous pass is the CACHE-ONLY path. A caller that wants the plane
         // built across frames must not pay for it first: doing exactly that was the
         // uninstrumented block that made every "chunked" build cost more than the code
         // it replaced (it ran the whole plane, then built it again chunked).
-        if (!onDone) for (let y = 0; y < h; y++) {
-          const C = (1 - y / (h - 1)) * cmax;
-          for (let x = 0; x < w; x++) {
-            const i = (y * w + x) * 4;
-            const ivs = cols[x];
-            let inside = false;
-            for (let k = 0; k < ivs.length; k++) {
-              if (C >= ivs[k][0] && C <= ivs[k][1]) { inside = true; break; }
-            }
-            if (inside) {
-              const { r, g, b } = colorAt(x / (w - 1), C);
-              put(i, r, g, b);
-              luma[y * w + x] = lumaAt(x / (w - 1));
-            } else {
-              data[i + 3] = 0;
-            }
-          }
-        }
-
-        // A sub-pixel-wide interval (a primary fin) still gets one scanline. It runs at
-        // completion, in both paths, so a chunked build does not lose fins that fall
-        // outside the last chunk's uploaded rectangle.
-        const drawFins = () => {
-          for (let x = 0; x < w; x++) {
-            const ivs = cols[x];
-            for (let k = 0; k < ivs.length; k++) {
-              const iv = ivs[k];
-              if (iv[1] - iv[0] >= minC) continue;
-              const y = clamp(Math.round((1 - iv[1] / cmax) * (h - 1)), 0, h - 1);
-              const i = (y * w + x) * 4;
-              const C = (1 - y / (h - 1)) * cmax;
-              const { r, g, b } = colorAt(x / (w - 1), C);
-              put(i, r, g, b);
-              luma[y * w + x] = lumaAt(x / (w - 1));
-            }
-          }
-        };
-
         if (!onDone) {
-          drawFins();
+          Plane.fillRows(prep, data, luma, 0, h);
+          Plane.paintFins(prep, data, luma);
           c2d.putImageData(img, 0, 0);
           plotCache.set(key, off);
           off.__luma = luma;
           return off;
         }
 
-        // Chunked: paint whole rows per frame so the main thread never blocks for the
-        // whole plane, then hand the finished canvas back. The caller keeps the
+        // Chunked: paint whole row bands per frame so the main thread never blocks for
+        // the whole plane, then hand the finished canvas back. The caller keeps the
         // previous image on screen until then (a map is never cleared before its
         // replacement exists).
         const rowsPerChunk = Chunks.size(h, plotChunks());
         let row = 0;
+        let spent = prepMs;
         const step = () => {
           // Abandon a build whose canvas was resized, whose panel scheduled a newer
           // build, or whose key was superseded: stale rows must never reach a canvas
@@ -633,123 +608,39 @@
           if (isStale && isStale()) { onDone(null); return; }
           const stepStart = performance.now();
           const startRow = row;
-          const chunkEnd = Math.min(h, startRow + rowsPerChunk);
-          while (row < chunkEnd && performance.now() - stepStart < chunkBudget()) {
-            const C = (1 - row / (h - 1)) * cmax;
-            for (let x = 0; x < w; x += 1) {
-              const i = (row * w + x) * 4;
-              const ivs = cols[x];
-              let inside = false;
-              for (let k = 0; k < ivs.length; k += 1) {
-                if (C >= ivs[k][0] && C <= ivs[k][1]) { inside = true; break; }
-              }
-              if (inside) {
-                const { r, g, b } = colorAt(x / (w - 1), C);
-                put(i, r, g, b);
-                luma[row * w + x] = lumaAt(x / (w - 1));
-              } else {
-                data[i + 3] = 0;
-              }
-            }
-            row += 1;
-          }
-          // Only the rows just built: a full-canvas copy per chunk invalidated the
-          // whole layer sixty times per plane.
+          // A band is the plane's share of one frame, so the time budget is checked
+          // between bands: one `fillRows` call is the unit of work.
+          do {
+            const end = Math.min(h, row + rowsPerChunk);
+            Plane.fillRows(prep, data, luma, row, end);
+            row = end;
+          } while (row < h && performance.now() - stepStart < chunkBudget());
+          // Only the rows just built: a full-canvas copy per chunk invalidated the whole
+          // layer sixty times per plane.
           c2d.putImageData(img, 0, 0, 0, startRow, w, row - startRow);
-          const stepSpent = performance.now() - stepStart;
-          chunkStats.t.step = Math.round(((chunkStats.t.step || 0) + stepSpent) * 10) / 10;
-          chunkStats.t.stepMax = Math.max(chunkStats.t.stepMax || 0, Math.round(stepSpent * 10) / 10);
+          const chunkMs = performance.now() - stepStart;
+          spent += chunkMs;
+          chunkStats.t.step = round1((chunkStats.t.step || 0) + chunkMs);
+          chunkStats.t.stepMax = Math.max(chunkStats.t.stepMax || 0, round1(chunkMs));
           if (row < h) {
             requestAnimationFrame(step);
             return;
           }
-          drawFins();
           // The fins may sit in rows no chunk uploaded; one full copy at the end is
           // cheaper than tracking them.
+          Plane.paintFins(prep, data, luma);
           c2d.putImageData(img, 0, 0);
           plotCache.set(key, off);
           off.__luma = luma;
-          onDone(off);
-        };
-        requestAnimationFrame(step);
-        return off;
-      };
-
-      /** Hue slice: a per-pixel in-gamut mask at a fixed chroma. */
-      const buildHuePlot = (key, w, h, C, onDone, isStale) => {
-        const cached = plotCache.get(key);
-        if (cached && cached.width === w && cached.height === h) {
-          if (onDone) onDone(cached);
-          return cached;
-        }
-
-        const off = document.createElement('canvas');
-        off.width = w; off.height = h;
-        const c2d = off.getContext('2d');
-        const img = c2d.createImageData(w, h);
-        const data = img.data;
-        const luma = new Float32Array(w * h).fill(NaN);
-
-        if (!onDone) for (let y = 0; y < h; y++) {
-          const L = 1 - y / (h - 1);
-          for (let x = 0; x < w; x++) {
-            const i = (y * w + x) * 4;
-            const H = (x / (w - 1)) * 360;
-            if (store.inGamut(L, C, H)) {
-              const f = Color.fitToSrgb(L, C, H);
-              data[i] = clamp255(f.r * 255);
-              data[i + 1] = clamp255(f.g * 255);
-              data[i + 2] = clamp255(f.b * 255);
-              data[i + 3] = 255;
-              luma[y * w + x] = L;
-            } else {
-              data[i + 3] = 0;
-            }
-          }
-        }
-        if (!onDone) {
-          c2d.putImageData(img, 0, 0);
-          plotCache.set(key, off);
-          off.__luma = luma;
-          return off;
-        }
-
-        const rowsPerChunk = Chunks.size(h, plotChunks());
-        let row = 0;
-        const step = () => {
-          if (isStale && isStale()) { onDone(null); return; }
-          const stepStart = performance.now();
-          const startRow = row;
-          const chunkEnd = Math.min(h, startRow + rowsPerChunk);
-          while (row < chunkEnd && performance.now() - stepStart < chunkBudget()) {
-            const L = 1 - row / (h - 1);
-            for (let x = 0; x < w; x += 1) {
-              const i = (row * w + x) * 4;
-              const H = (x / (w - 1)) * 360;
-              if (store.inGamut(L, C, H)) {
-                const f = Color.fitToSrgb(L, C, H);
-                data[i] = clamp255(f.r * 255);
-                data[i + 1] = clamp255(f.g * 255);
-                data[i + 2] = clamp255(f.b * 255);
-                data[i + 3] = 255;
-                luma[row * w + x] = L;
-              } else {
-                data[i + 3] = 0;
-              }
-            }
-            row += 1;
-          }
-          c2d.putImageData(img, 0, 0, 0, startRow, w, row - startRow);
-          if (row < h) {
-            requestAnimationFrame(step);
-            return;
-          }
-          drawFins();
-          // The fins may sit in rows no chunk uploaded; one full copy at the end is
-          // cheaper than tracking them.
-          c2d.putImageData(img, 0, 0);
-          plotCache.set(key, off);
-          off.__luma = luma;
+          // The pacing budget comes from the *interactive* build only: the trailing
+          // full-quality plane is a bigger job, and measuring it marked every model
+          // expensive and froze the maps for the whole next gesture.
+          const measured = round1(spent);
+          if (store.interactive) planeMs[plane] = measured;
+          const stats = chunkStats.p[plane];
+          stats.n += 1;
+          stats.ms = round1(stats.ms + measured);
+          stats.maxMs = Math.max(stats.maxMs, measured);
           onDone(off);
         };
         requestAnimationFrame(step);
@@ -861,32 +752,21 @@
       // --- OKLCH: the analytic silhouette ------------------------------------
 
       /**
-       * Repaint every visible panel's cached map and redraw its guide and pointer.
+       * The three analytic OKLCH planes.
        *
-       * This is what makes the Slices follow a drag: a panel's *picture* only changes when
-       * its own fixed axis does (the L×C map is keyed on hue, the H×C on lightness, the hue
-       * strip on chroma), but its *guide* moves with every colour change. Measured cost is
-       * paint <= 0.2 ms and overlay <= 2.9 ms per panel, against 4-15 ms to rebuild a map, so
-       * every panel can afford this every frame while the rebuilds stay paced.
+       * Every visible panel is painted on every pass — its cached map, its guide and its
+       * pointer. `allowed` is the set of panels that may *rebuild* on this pass: during a
+       * gesture that is every panel whose map is stale, because an analytic plane is
+       * ~3-4 ms (src/shared/slice-plane.js) and two of them fit one frame. A panel that
+       * gets no turn keeps its last map and still moves its pointer and guide, so nothing
+       * freezes.
        */
-      const redrawOverlays = () => {
+      const renderOklchPlots = (allowed = null) => {
         const axes = axesNow();
         const model = modelNow();
-        for (let p = 0; p < 3; p += 1) {
-          const off = lastOff[p];
-          if (!off || panelSections[p].classList.contains('hidden')) continue;
-          const canvas = panelCanvases[p];
-          if (canvas.clientWidth < 2 || canvas.clientHeight < 2) continue;
-          const { w: W, h: H } = sizeCanvas(canvas, 2.5);
-          const c2d = timed('paint', () => paint(canvas, off, W, H, viewFor(p)));
-          timed('overlay', () => drawOverlay(c2d, p, W, H, model, axes));
-        }
-      };
-
-      const renderOklchPlots = (target = null) => {
-        const axes = axesNow();
+        const cmax = store.cmax();
         const fixedFor = (p) => (store.dragging && p === dragPanel && dragAxes) ? dragAxes : axes;
-        const want = (p, off) => target === null || target === p || !off;
+        const want = (p, off) => allowed === null || allowed.has(p) || !off;
 
         // Lightness x Chroma at the current hue.
         {
@@ -895,20 +775,17 @@
           const canvas = panelCanvases[plane];
           if (!section.classList.contains('hidden') && canvas.clientWidth >= 2 && canvas.clientHeight >= 2) {
             const { w: W, h: H } = sizeCanvas(canvas, 2.5);
-            const rw = W, rh = H;
             const fixed = fixedFor(plane);
-            const key = `lc:${store.plotKeyTag()}:${fixed[2].toFixed(3)}:${rw}x${rh}`;
+            const key = `lc:${store.plotKeyTag()}:${fixed[2].toFixed(3)}:${W}x${H}`;
             if (want(plane, lastOff[plane])) {
-              panelPlot(plane, key, (done, isStale) => buildPlot(key, rw, rh,
-                (xNorm) => store.chromaIntervals(clamp(xNorm, 0, 1), fixed[2]),
-                (xNorm, c) => {
-                  const f = Color.fitToSrgb(clamp(xNorm, 0, 1), c, fixed[2]);
-                  return { r: clamp255(f.r * 255), g: clamp255(f.g * 255), b: clamp255(f.b * 255) };
-                },
-                (xNorm) => clamp(xNorm, 0, 1), done, isStale), canvas, W, H);
+              const spec = {
+                kind: 'lc', width: W, height: H, cmax, fixed,
+                intervalsAt: (u) => store.chromaIntervals(clamp(u, 0, 1), fixed[2]),
+              };
+              panelPlot(plane, key, (done, isStale) => buildPlot(plane, key, spec, done, isStale), canvas, W, H);
             } else if (lastOff[plane]) {
               const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
-              drawOverlay(c2d, plane, W, H, modelNow(), axes);
+              drawOverlay(c2d, plane, W, H, model, axes);
             }
           }
         }
@@ -920,20 +797,17 @@
           const canvas = panelCanvases[plane];
           if (!section.classList.contains('hidden') && canvas.clientWidth >= 2 && canvas.clientHeight >= 2) {
             const { w: W, h: H } = sizeCanvas(canvas, 2.5);
-            const rw = W, rh = H;
             const fixed = fixedFor(plane);
-            const key = `hc:${store.plotKeyTag()}:${fixed[0].toFixed(3)}:${rw}x${rh}`;
+            const key = `hc:${store.plotKeyTag()}:${fixed[0].toFixed(3)}:${W}x${H}`;
             if (want(plane, lastOff[plane])) {
-              panelPlot(plane, key, (done, isStale) => buildPlot(key, rw, rh,
-                (xNorm) => store.chromaIntervals(fixed[0], xNorm * 360),
-                (xNorm, c) => {
-                  const f = Color.fitToSrgb(fixed[0], c, xNorm * 360);
-                  return { r: clamp255(f.r * 255), g: clamp255(f.g * 255), b: clamp255(f.b * 255) };
-                },
-                () => fixed[0], done, isStale), canvas, W, H);
+              const spec = {
+                kind: 'hc', width: W, height: H, cmax, fixed,
+                intervalsAt: (u) => store.chromaIntervals(fixed[0], u * 360),
+              };
+              panelPlot(plane, key, (done, isStale) => buildPlot(plane, key, spec, done, isStale), canvas, W, H);
             } else if (lastOff[plane]) {
               const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
-              drawOverlay(c2d, plane, W, H, modelNow(), axes);
+              drawOverlay(c2d, plane, W, H, model, axes);
             }
           }
         }
@@ -945,14 +819,20 @@
           const canvas = panelCanvases[plane];
           if (!section.classList.contains('hidden') && canvas.clientWidth >= 2 && canvas.clientHeight >= 2) {
             const { w: W, h: H } = sizeCanvas(canvas, 2.5);
-            const rw = W, rh = H;
             const fixed = fixedFor(plane);
-            const key = `hue:${store.plotKeyTag()}:${fixed[1].toFixed(3)}:${rw}x${rh}`;
+            const key = `hue:${store.plotKeyTag()}:${fixed[1].toFixed(3)}:${W}x${H}`;
             if (want(plane, lastOff[plane])) {
-              panelPlot(plane, key, (done, isStale) => buildHuePlot(key, rw, rh, fixed[1], done, isStale), canvas, W, H);
+              const spec = {
+                kind: 'hue', width: W, height: H, cmax, fixed,
+                // A working gamut is wider than the screen: its test is the proof's, and
+                // the pixels past the sRGB window stay holes (the Slices show what they
+                // can pick).
+                inDocument: store.useWorkingGamut() ? (L, C, Hh) => store.inGamut(L, C, Hh) : null,
+              };
+              panelPlot(plane, key, (done, isStale) => buildPlot(plane, key, spec, done, isStale), canvas, W, H);
             } else if (lastOff[plane]) {
               const c2d = paint(canvas, lastOff[plane], W, H, viewFor(plane));
-              drawOverlay(c2d, plane, W, H, modelNow(), axes);
+              drawOverlay(c2d, plane, W, H, model, axes);
             }
           }
         }
@@ -1094,31 +974,43 @@
       };
 
       let buildCursor = 0;
+      // Last measured *interactive* build cost per panel, in ms. `choosePanels` uses it
+      // to decide how many maps can rebuild in this frame (src/shared/render-cadence.js).
+      const planeMs = [0, 0, 0];
+      // The reuse budget for a frame's rebuilds. A 16.7 ms frame also paints three maps,
+      // extracts three guide contours (~1.2 ms each) and draws three pointers, so this
+      // is what is left for the maps themselves. Measured on the dev machine: an
+      // analytic plane is ~3-5 ms including its per-column constants, so the two
+      // sibling maps of a drag fit together; a heavier model (or a slower machine) falls
+      // back to one map per frame instead of dropping the frame.
+      const FRAME_BUILD_BUDGET_MS = 11;
+
       const renderPlots = (force) => {
         // A local drag or a sibling palette's preview stream: both are a gesture in
-        // flight. One *map rebuild* per frame keeps the pointer smooth; every panel's
-        // guide and pointer are redrawn every frame, because those are cheap and they are
-        // what the user actually watches. The trailing emit after the stream ends does the
-        // full-quality pass (`force`/`interactive` false).
+        // flight. Every panel is painted every frame (cheap: a map blit plus its guide
+        // and pointer), and every panel whose map is stale rebuilds as long as it fits
+        // the frame. The trailing emit after the stream ends does the full-quality pass
+        // (`force`/`interactive` false).
         if (!force && store.interactive) {
-          // One panel per frame, round-robin, excluding the pinned active panel. The
-          // budget comes from the interactive build (src/shared/render-cadence.js): a
-          // plane that fits in a frame never waits, a heavy one is spaced out, and the
-          // overlays are still repainted on every panel.
           const visible = [];
           for (let p = 0; p < 3; p += 1) {
             if (p === dragPanel) continue;
             if (!panelSections[p].classList.contains('hidden')) visible.push(p);
           }
-          const pick = Cadence.pickPanel({ visible, cursor: buildCursor, now: performance.now(), holdUntil });
-          if (pick.panel >= 0) buildCursor = pick.cursor;
           if (modelId === Models.DEFAULT_ID) {
-            renderOklchPlots(pick.panel);
-            // The panel being rebuilt is already painted; the other two only need their
-            // guide and pointer to move. Without this their pointer froze until their turn
-            // in the round-robin, which is what read as "the other two don't follow".
-            redrawOverlays();
+            // The analytic planes are cheap, so the two sibling maps normally rebuild
+            // together and move with the pointer instead of stepping every other frame.
+            const pick = Cadence.choosePanels({
+              visible, cursor: buildCursor, costs: planeMs,
+              budget: FRAME_BUILD_BUDGET_MS, now: performance.now(),
+            });
+            buildCursor = pick.cursor;
+            renderOklchPlots(new Set(pick.panels));
           } else {
+            // A rasterised model plane is an order of magnitude dearer, so it keeps the
+            // one-panel-per-frame cadence and its own measured hold.
+            const pick = Cadence.pickPanel({ visible, cursor: buildCursor, now: performance.now(), holdUntil });
+            if (pick.panel >= 0) buildCursor = pick.cursor;
             renderGenericPlots(pick.panel);
           }
           return;
@@ -1314,6 +1206,9 @@
         onResize({ width }) {
           narrow = width < 150;
           updateFooter();
+          // The panels changed size, so last gesture's build costs describe a different
+          // job: forget them and let the next gesture measure again.
+          planeMs[0] = planeMs[1] = planeMs[2] = 0;
           renderPlots(true);
         },
         onSettings(settings) {
@@ -1323,6 +1218,7 @@
             plotCache.clear();
             lastOff[0] = lastOff[1] = lastOff[2] = null;
             buildCursor = 0;
+            planeMs[0] = planeMs[1] = planeMs[2] = 0;
             lockLight = null;
             applyLabels();
           }

@@ -14,6 +14,7 @@ touching the colour maths, the proof transform or a render path.
 | `Color.oklchToRgb` / `rgbToOklch` | 0.1 / 0.16 µs | |
 | a full silhouette rebuild (254 columns) | 0.5 ms | a plot-cache miss; the maps are rAF-coalesced |
 | plane raster, `src/shared/raster-plane.js` (205×170) | 3.6 / 4.8 / 45 / 60 ms | CIELAB / CIELCH / HelmGen / HelmGen LCH. One conversion chain per pixel: axes → OKLab → linear sRGB → LUT gamma → sRGB bounds test; the old loop was ~6× slower (five conversions and the LUT-free `fitToSrgb` per pixel) |
+| analytic slice plane, `src/shared/slice-plane.js` (386×181, ~70k px) | 3.2–3.8 ms + ~1.2 ms prepare | one Slices panel: L×C, H×C or the hue strip. Same trick as the rasteriser — the plane's constants hoisted out of the pixel loop (trigonometry per column, not per pixel), one OKLCH → sRGB chain, the LUT gamma — plus the silhouette intervals computed once per column. The old loop re-tested the gamut and re-converted every painted pixel (`fitToSrgb`), 7–18 ms |
 | vendored `GenSpace.toXYZ` / `space.fromXYZ` | 0.99 / 0.54 µs | the reason HelmGen stays expensive: a chain of optional corrections with `hypot`/`atan2` |
 | wheel ring rebuild (300²) | ~10 ms | the Color Wheel's hue ring: the gamut-max-chroma table plus the per-pixel gamut test |
 | wheel inner raster (fixed-hue plane) | cached per fixed axis | it used to be keyed on every axis, so a lightness drag rebuilt it every frame (~a hundred ms for HelmGen); it is now rebuilt only when the fixed axis changes, at native device pixels during a gesture and supersampled when idle |
@@ -23,10 +24,19 @@ touching the colour maths, the proof transform or a render path.
 ## The interactive render contract
 
 - While a gesture is in flight (a local drag or a sibling palette's preview stream,
-  `ColorStore#interactive`) modules render **one raster per frame** at most, and an
-  expensive model's plane is built at native device pixels instead of 2× supersampling
-  (four times fewer pixels; it stays 1:1 with the screen, never soft). The trailing
-  emit after the stream ends rebuilds everything at full quality.
+  `ColorStore#interactive`) modules rebuild maps under a measured budget, never at a
+  lower resolution, and an expensive model's plane is built at native device pixels
+  instead of 2× supersampling (four times fewer pixels; it stays 1:1 with the screen,
+  never soft). The trailing emit after the stream ends rebuilds everything at full
+  quality.
+- **The Slices rebuild every map that fits the frame.** All three analytic planes are
+  ~3-5 ms each (`src/shared/slice-plane.js`), so the two sibling maps of a drag land on
+  the same frame as the pointer (`render-cadence.js#choosePanels`, an 11 ms budget out
+  of the 16.7 ms frame). Rebuilding them one panel per frame — the old round-robin —
+  made them update in visible steps, and the H×L plane could never complete at all: it
+  cost 17.7 ms, over the single chunk's 14 ms cap, so every turn superseded it and its
+  map froze while the pointer kept moving. A rasterised model plane is 4-45 ms and keeps
+  the one-panel-per-frame cadence.
 - A model whose last **interactive** build cost more than ~14 ms is spaced out by
   `src/shared/render-cadence.js#holdFor`; pointer, crosshair and guide keep every
   panel live. The budget must be measured in the interactive build only — the trailing
@@ -89,18 +99,23 @@ touching the colour maths, the proof transform or a render path.
 
 - **The OKLCH path is unchanged.** The canonical swap (`ColorStore` now holds
   OKLab) costs one conversion per colour change, not per pixel; `oklabToRgb` is
-  the same maths `oklchToRgb` already did, and the analytic silhouette and the
-  slider gradients are untouched (`test/oklab-canonical.test.js`).
+  the same maths `oklchToRgb` already did, and the slider gradients are untouched
+  (`test/oklab-canonical.test.js`). The analytic silhouette moved to
+  `slice-plane.js` without changing its picture: `test/slice-plane.test.js` pins every
+  plane against the reference `fitToSrgb` loop (no channel moves by more than one
+  8-bit step, the silhouette alpha matches, the lightness field matches, the primary
+  fin survives).
 - **The raster map is the one new hot path, and the drag budget is explicit.** A
   full plane is ~166 ms at 500² (`npm run bench`, ~0.4 µs/pixel: `okhsvToOklab` →
   `oklabToOklch` → `inGamut` → `oklabToRgb`). Its cache key is the plane's fixed
-  axis, the gamut and the size — never the selected colour. During **any** drag the
-  visible Slices rebuild **one panel per animation frame, round-robin**, at the full
-  backing resolution; a panel's fixed axis is pinned only while that panel is the
-  active drag, the other panels use the live axes so they visibly follow. The
+  axis, the gamut and the size — never the selected colour. During **any** drag
+  every visible panel that fits the frame rebuilds (`choosePanels`), at the same
+  backing resolution as idle; a panel's fixed axis is pinned only while that panel is
+  the active drag, the other panels use the live axes so they visibly follow. The
   crosshair and guide are overlays redrawn on every panel every frame. Sibling panels
   reuse their full-resolution cached raster, so they never become a 1× upscale.
-  ~45 ms per 1× slice plane at 354 px, at most one plane per frame.
+  ~45 ms per 1× slice plane at 354 px for a dense model, so those keep one plane per
+  frame; the analytic OKLCH planes are ~3-5 ms and rebuild together.
 - **The Color Wheel's outer band is a static image** (keyed on size, ring width and
   split), so it never rebuilds as the selection moves; the inner band follows the
   held lightness (quantised to 0.005 while dragging) and the cusp is cached per

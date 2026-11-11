@@ -583,18 +583,25 @@ plausible refactor silently breaks it (that is the test for the core list).
   show/hide toggle; the Slider has no guide. The crosshair is separate: full-width/height
   hairlines under the small ring
   pointer.
-- **Slice rasters follow a drag live without freezing it.** During any drag, the
-  visible panels are rebuilt round-robin (one panel per frame) at the **full backing
-  resolution**, with the crosshair/guide overlay redrawn on every panel every frame;
-  sibling panels reuse their full-resolution cached raster. No downscaled or
-  block-filled map is ever shown. The active panel's fixed axes stay pinned; a
-  dragged slice's other panels use the live axes. Freezing the other panels until
-  release was the "slices don't update" bug; dropping the backing canvas to 1× was
-  the jagged-edge regression. The same "one panel per frame" rule covers a
-  Wheel/Disc/Slider drag, so those modules do not make the Slices rasterise three
-  full maps per pointer move. Palette and float windows disable Chromium background
-  throttling so a sibling palette keeps its frame loop while another window is
-  dragged.
+- **Slice rasters follow a drag live without freezing it.** During any drag, every
+  visible panel is painted every frame (its cached map plus the crosshair/guide
+  overlay) and every panel whose map is stale **rebuilds**, as many as fit the frame's
+  budget (`render-cadence.js#choosePanels`) — for the analytic OKLCH planes that is
+  normally all of them, because one costs ~3-5 ms (`slice-plane.js`). A rasterised
+  model plane is dearer and keeps one panel per frame with its measured hold. Either
+  way a plane completes in the chunk it starts: during a gesture `plotChunks()` is 1,
+  so a build that needed a second frame would be superseded by the next request and its
+  map would freeze while the pointer kept moving (that is exactly what the H×L strip
+  did: 17.7 ms per plane, over the 14 ms cap, plus a second loop that called an
+  undefined `drawFins`).
+  Maps render at the **same backing resolution in idle and in a drag**, and sibling
+  panels reuse their full-resolution cached raster — no downscaled or block-filled map
+  is ever shown. The active panel's fixed axes stay pinned; a dragged slice's other
+  panels use the live axes. Freezing the other panels until release was the "slices
+  don't update" bug; dropping the backing canvas to 1× was the jagged-edge regression;
+  rebuilding the siblings one per frame was the "the other slices update in steps"
+  report. Palette and float windows disable Chromium background throttling so a
+  sibling palette keeps its frame loop while another window is dragged.
 - **The wheel's hue ring is a fixed-lightness gamut edge, not OKHSV max-sat.**
   OKHSV S=1/V=1 follows the sRGB blue fin and jumps at the primary (a visible blue
   seam). Both bands sample a constant-OKLab-L max-chroma edge; the outer is fixed at

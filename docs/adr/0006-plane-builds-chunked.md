@@ -1,7 +1,8 @@
 # 0006 — Plane builds are chunked; a worker was measured and rejected for the default planes
 
-Status: accepted 2026-11-02. Code: `buildPlot`/`buildHuePlot` in
-`src/renderer/selector_module/color-slices.js`, `kernel/plane-worker.js`.
+Status: accepted 2026-11-02. Code: `buildPlot` in
+`src/renderer/selector_module/color-slices.js` (the hue strip shares that builder since
+2026-11-04, see 0007), `kernel/plane-worker.js`.
 
 ## Context
 
