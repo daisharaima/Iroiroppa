@@ -41,7 +41,7 @@
     "culori": "4.0.2",
     "electron": "44.6.0",
     "electron-builder": "^26.15.3",
-    "helmlab": "1.0.0",
+    "helmlab": "1.0.1",
     "lcms-wasm": "^1.0.5"
   },
   "build": {
