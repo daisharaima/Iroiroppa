@@ -223,6 +223,10 @@ human clicking:
 | `--lock` | lock the layout (also reports the windows' resizable state) |
 | `--pos <x>,<y>` | place the palette (keeps float tests on screen) |
 | `--move-float <floatId>=top\|bottom\|left\|right[,<gap>]` | drop a float off that edge (verifies snapping) |
+| `--lens <moduleId\|instanceId>[=<bits>]` | put a Quantize lens on a mounted selector (bits `3,3,3` by default) and announce it; the way a `--shot` shows bands |
+| `--lens-probe` | print the lens buttons' state from the palette (`{buttons, active, labels}`) |
+| `--open-lens <moduleId\|instanceId>` | open the Lens window for that selector |
+| `--lens-shot <png>` | capture the Lens window (pair with `--open-lens`) |
 | `--module-hover left\|right\|top\|bottom\|middle` | hover an external module over the palette |
 | `--module-set <id>=<key>:<value>` | patch a module setting as another window would |
 | `--module-size <moduleId>=<ratio>` | set a module's locked height:width ratio (its first placed instance) |

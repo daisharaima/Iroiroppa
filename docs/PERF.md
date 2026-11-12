@@ -145,3 +145,19 @@ touching the colour maths, the proof transform or a render path.
   answers its boundary from a lazily filled 1° × 1/96 grid, so a disc plane (one
   lightness row) fills 360 cells once and the H×L plane fills the grid once per
   profile; the per-pixel path after that is a bilinear lookup.
+
+## A lens costs one table lookup per pixel (2026-11-13)
+
+A Quantize lens adds a conversion to the document's channels and a lookup of the band's
+display colour (precomputed per profile + bits: 512 entries at 3/3/3, capped at 2^18, past
+which it converts per pixel). Measured on this build, one Slices plane at 386x181:
+
+| Plane | No lens | 3/3/3 lens |
+|---|---|---|
+| sRGB document (no profile) | 1.27 ms | 1.92 ms |
+| Adobe RGB profile | 1.23 ms | 5.49 ms |
+
+Both stay inside the 11 ms frame budget, so the sibling panels of a drag still land
+together; the Adobe RGB case is the one that eats most of the frame, and a dearer model
+keeps the existing one-panel-per-frame pacing. Reproduce with
+`.scratch/color-lens/bench.js` / `bench2.js` (transient, not committed).

@@ -231,6 +231,41 @@ which window mounts which instance) and correlates a cross-window call by
 when this window mounts the target. A renderer that does not load the bus (the
 Settings preview) simply exposes no commands.
 
+### Lenses
+
+A **lens** changes what a selector's map shows and therefore what clicking it means. It is
+**not a module**: it has no manifest entry, no board slot and no `layout.json` instance. It
+latches onto one selector *instance* and lives in that instance's own settings
+(`modules/<id>.json`, key `lens`), so duplicating the instance duplicates its lens and
+unmounting it takes the lens away.
+
+A selector opts in with `lens: true` on its def. Its card then offers a lens button left of
+the collapse arrow; the button opens the **Lens window**, a second popout kind beside the
+module-settings popout (both can be open at once), which lists the lenses that apply to that
+instance. While a lens is on, the button is accent-tinted and the card shows a short label
+(`Quantize · 3/3/3`). Settings → Modules carries a *Lenses* row listing every instance that
+has one, with a clear button and Clear all.
+
+**v1 has one lens, Quantize**: a per-channel bit grid over the *document's* channels
+(`R/G/B`), so 3/3/3 gives 512 shades. Controls: one stepper per channel (1–8 bits), a uniform
+preset row, a shade count. 8 bits is no change.
+
+Two rules make a lens safe:
+
+- **The pick is not optional.** One function (`src/shared/lens.js`) produces both the painted
+  pixel (`applySrgb`) and the recorded colour (`applyLab`), so what you see is what gets
+  recorded — a lens that moved the bitmap but not the picker would be the same bug as a
+  display-only rotate.
+- **A band colour is a real document colour.** Document channels are clamped before
+  rounding, so a band is on the grid *and* in the document's gamut by construction; no snap
+  can move it off the grid. While a lens is on it also replaces the out-of-gamut display
+  treatment inside the map: every pixel with a colour paints its band at full strength.
+
+It reaches every colour field: the Slices planes (both raster paths), the Disc, the Wheel's
+inner shape **and its hue ring**, and the Slider bars (as hard-edged gradient stops).
+`src/renderer/kernel/lens-access.js` is the one place that knows what "the document's
+channels" mean for the active profile.
+
 ## 5. Files & folders
 
 ```

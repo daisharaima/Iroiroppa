@@ -40,3 +40,19 @@ Click a slot in **CSP Color** to choose which slot picks write to.
 | **Color Wheel** | Fast hue changes. |
 | **Color Slider** | Small, precise adjustments. |
 | **Color Disc** | A large hue-and-chroma target. |
+
+## Limit a picker to a few shades (a lens)
+
+Each color picker has a small **lens** button in its title bar, just left of the arrow that
+folds the card. A lens changes what the picker shows *and* what clicking it gives you, so the
+picture never promises a color the click would not produce.
+
+The only lens so far is **Quantize**. It rounds each channel to a number of bits: 3 bits per
+channel leaves 512 shades, 1 bit leaves 8. The map becomes flat bands, and clicking a band
+gives you exactly that band's color — useful for a poster, a limited palette or a study in
+flat color. The little number row sets every channel at once; the three sliders below set
+one channel at a time. 8 bits means "no change".
+
+While a lens is on, its button is tinted and the card says `Quantize · 3/3/3`. To remove it,
+open the lens window and pick **None**, or use Settings → Modules → Lenses, which lists every
+picker that has one and can clear them all.

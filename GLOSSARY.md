@@ -22,3 +22,6 @@ means the concept stays internal and must not appear there.
 
 Renaming a term means updating this table **and** `wiki/Glossary.md` in the same
 commit; the wiki uses only the user-facing wording.
+| **Lens** | A transform latched onto one selector instance that changes what its map shows *and* what clicking it records. Not a module: no board slot. `docs/MODULES.md` → "Lenses". |
+| **Band** | One cell of a lens's grid — the flat patch of map a lens produces, and the exact colour a click there records. |
+| **Bit grid** | A quantiser that rounds each document channel to `2^bits` steps (3/3/3 = 512 colours). The only v1 lens. |

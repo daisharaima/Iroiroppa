@@ -649,3 +649,34 @@ plausible refactor silently breaks it (that is the test for the core list).
 - **CSP menucommand ids are never shown raw.** `csp-command-names.js` resolves a live
   toolbar label, then a curated name, then a tokenized human name; the raw id stays in
   the tooltip. Tool/brush names come from CSP's Node databases, not only the tool DB.
+
+## Lenses (2026-11-13)
+
+A **lens** is a transform latched onto one selector *instance*: no manifest entry, no board
+slot, state under `lens` in that instance's `modules/<id>.json`. v1 is **Quantize**, a
+per-channel bit grid over the document's channels (`docs/MODULES.md` → "Lenses",
+`docs/adr/0008`).
+
+- **One function, both directions.** `src/shared/lens.js` produces the painted pixel
+  (`applySrgb`) and the recorded value (`applyLab`) from the same band. A raster-only lens
+  is the same bug as a display-only rotate: the map would claim a colour the click does not
+  record. `applyLab` derives the document value itself rather than round-tripping through
+  the painted display colour, so a wide-gamut band keeps its chroma.
+- **On the grid and in gamut, by construction.** Document channels are clamped to 0..1
+  before rounding, so every band is `k / (2^bits - 1)` and a real document colour. Never
+  insert a snap or a fit between the lens and the store: either one can move the value off
+  the grid, which is the promise the whole feature makes.
+- **The lens replaces the display treatment inside the map.** A band paints at full
+  strength (`alpha 255`), not as a hole and not as the dimmed pale stand-in: the pixel now
+  means a reachable colour. The *display-window* question (a document colour the sRGB screen
+  cannot show) is unchanged and only applies when no lens is on.
+- **It reaches every colour field, or it does not ship.** Slices' two raster paths
+  (`slice-plane#encode`, `raster-plane#renderPlane`), the Disc (`pixelFromLab`), the Wheel's
+  inner shape **and its hue ring**, and the Slider's bars. The ring and the bars are
+  gradients: their bands need duplicated stops, or CSS interpolates the continuum back in.
+- **`src/renderer/kernel/lens-access.js` is the only reader of `store.proof`** for this
+  purpose. It is also the only place that knows a LUT/CMYK profile in this app is a soft
+  proof over an sRGB document, so the grid is always three channels (see
+  `.scratch/color-lens/DECISIONS.md`, B1, for the reasoning).
+- **The warped plane must not reach the worker.** `plane-worker` has no lens, so a lensed
+  plane builds on the main thread; the flag is checked where the worker is chosen.

@@ -7,6 +7,16 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Lenses.** A selector card now carries a lens button beside its collapse arrow. A lens
+  changes what that map shows **and** what clicking it records, and v1 has one: **Quantize**,
+  a per-channel bit grid (`3/3/3` = 512 shades) over the document's own channels, so every
+  band is a colour the document can actually hold. It works on Color Slices, Color Disc, the
+  Color Wheel (inner shape and hue ring) and the Color Slider's bars; a lens is per instance,
+  and the card shows `Quantize · 3/3/3` while one is on. Settings → Modules lists every
+  instance with a lens and can clear them all. `docs/MODULES.md` → "Lenses".
+
 ### Fixed
 
 - **A palette containing a locked-ratio card no longer resizes that card when you drag

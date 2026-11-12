@@ -353,6 +353,19 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   gate: on an sRGB cube the generalised Okhsv reproduces `color.js` to 3e-3 (Ottosson's
   own cusp fit is approximate), the cusp equals the true wall, and Okhsl is monotone and
   round-trips (its `Cmid` is boundary-derived rather than his sRGB polynomial).
+- **A lens is one function used by both the map and the pick.** A lens (v1: Quantize, a
+  per-channel bit grid over the *document's* channels) latches onto a selector **instance** —
+  no manifest entry, no board slot; its state is `lens` in that instance's `modules/<id>.json`.
+  `src/shared/lens.js` produces the painted pixel and the recorded value from the same band,
+  so the map cannot claim a colour the click will not record; `docs/adr/0008`. Document
+  channels are **clamped before rounding**, which is what makes a band on-the-grid *and* in
+  gamut by construction — never add a path that snaps a lensed value, or the grid breaks.
+  `src/renderer/kernel/lens-access.js` is the only place that reads `store.proof` to decide
+  what the document's channels are. A band's display colour is a table lookup (512 entries at
+  3 bits) and degrades to one conversion per pixel past 2^18 bands. The Wheel's ring and the
+  Slider's bars are gradient hosts: their bands need **duplicated stops**, or CSS interpolates
+  the continuum back in.
+
 - **A plane is built once.** `buildPlot` takes an optional `onDone`: the synchronous pass
   is the *cache-only* path, and a caller that wants the plane built across frames must not
   run it first. Running both built every map twice (once blocking, then again in
