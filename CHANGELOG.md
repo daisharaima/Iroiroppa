@@ -9,6 +9,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A palette containing a locked-ratio card no longer resizes that card when you drag
+  something else.** The last card of an all-natural column was made to absorb the column's
+  leftover space, which for a locked-ratio card meant its height stopped following its
+  ratio: dragging any edge in that palette grew the dragged card and shrank the last one,
+  while the palette itself never changed height. A locked-ratio card never absorbs slack
+  now, and an all-natural palette grows to fit its content instead.
+
 - **Dragging a card's bottom edge changes only that card.** A handle between two modules
   used to resize whichever of them had a locked height — often the one *below*, so a drag
   looked like it moved two cards at once, and the bottom edge of a one-line card resized

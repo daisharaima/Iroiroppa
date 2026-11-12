@@ -132,6 +132,15 @@ it): every module is stacked top to bottom in that single column.
   palette whose modules all fit their own size is exactly as tall as its content —
   the window grows to, and shrinks onto, its **tallest column**.
 
+  **The module that absorbs a column's slack is never a locked-ratio one.**
+  `_moduleWeightOpts` marks the last card of an all-natural column `stretchLast`, because
+  nothing may leave empty space — but a ratio card's height is its ratio times the width, so
+  stretching it made *every* edge drag in that column resize it (the palette stayed the same
+  height, so the slack had to go somewhere). It is excluded now; instead, `_reconcile`
+  grows the window when an all-natural column needs more room than the window has, and
+  `_fitToContent` still shrinks it. A locked-ratio card therefore only ever changes when its
+  own edge is dragged.
+
   **A stored `auto` height yields to a newly declared ratio.** When a module that sized to
   its content switches to locked-ratio sizing (declares `defaultRatio` and drops
   `autoHeight`), a board that already holds its `auto` record converges on the declared

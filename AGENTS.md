@@ -449,7 +449,11 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
 - **Nothing may leave empty space in a column.** A module alone in a column (an
   edge drop, a float's sole module) always fills it; only when something else in
   the column is fluid does an `autoHeight` module keep its own size.
-  `_applyModuleWeight(el, mod, { alone, stretchLast })` encodes this.
+  `_applyModuleWeight(el, mod, { alone, stretchLast })` encodes this. **A locked-ratio
+  module is never the one that stretches**: its height is the ratio times the width, so
+  letting the last card absorb the slack made any edge drag in that column resize it
+  instead of the palette fitting its content. An all-natural column whose cards need more
+  room than the window has grows the window in `_reconcile`.
 - **A theme's CSS is injected after the base styles and the token block, and the
   tokens go in a `<style>` block — never inline on `<html>`.** Inline styles outrank
   a theme's stylesheet, so moving the tokens back inline silently breaks every theme

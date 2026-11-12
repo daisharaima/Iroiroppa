@@ -695,6 +695,14 @@
       if (this._handleUserDrag()) return;
       this._enforceWindowMin();
       this._fitToContent();
+      // An all-natural column whose cards now need MORE room than the window has (a ratio
+      // grew, a card was expanded) must grow the window: nothing can absorb that slack any
+      // more, so without this the last card is just clipped. Shrinking stays with
+      // _fitToContent.
+      if (this._allNatural() && !this._hasCollapsedModule()) {
+        const natural = this._naturalHeight();
+        if (natural && natural > window.innerHeight + 1) this._fitNaturalWindow();
+      }
     }
 
     /**
@@ -1159,9 +1167,14 @@
       const mods = col && Array.isArray(col.modules) ? col.modules : [mod];
       return {
         alone: mods.length === 1,
+        // The last module of an all-natural column absorbs the slack so the column does
+        // not end in empty space - but never a module with a locked ratio: its height is
+        // the ratio times the width, and letting it flex made ANY edge drag in the column
+        // resize it instead of the palette fitting its content.
         stretchLast: mods.length > 1
           && mods.every((m) => this._isNatural(m))
-          && mods[mods.length - 1] === mod,
+          && mods[mods.length - 1] === mod
+          && !this._ratioOf(mod),
       };
     }
 
