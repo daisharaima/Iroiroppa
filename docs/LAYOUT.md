@@ -128,6 +128,14 @@ it): every module is stacked top to bottom in that single column.
   palette whose modules all fit their own size is exactly as tall as its content —
   the window grows to, and shrinks onto, its **tallest column**.
 
+  **A stored `auto` height yields to a newly declared ratio.** When a module that sized to
+  its content switches to locked-ratio sizing (declares `defaultRatio` and drops
+  `autoHeight`), a board that already holds its `auto` record converges on the declared
+  default: an explicit mode otherwise wins, so without this the module would keep a
+  content height and never grow a resize handle. A module that still declares
+  `autoHeight` keeps its `auto` choice — the rule is scoped to a module that changed its
+  own model, like the legacy `fill` → `ratio` convergence in `normaliseHeight`.
+
 A module's **orientation** (horizontal | vertical) is a per-instance setting for
 Color Slices, Slider and CSP Color; nothing flips on the box's shape.
 

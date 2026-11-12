@@ -118,7 +118,15 @@ function ratioFromDrag(height, width, minHeight = 24) {
       if (px && px > 0) return { mode: 'px', px };
       return { mode: 'auto' };
     }
-    if (raw && raw.mode === 'auto') return { mode: 'auto' };
+    if (raw && raw.mode === 'auto') {
+      // A module that used to size to its own content and now declares a locked ratio has
+      // changed its model, so the stored board converges the way a legacy `fill` does. A
+      // module that still declares `autoHeight` keeps its choice: an explicit mode wins.
+      if (def && def.defaultRatio && !def.autoHeight) {
+        return { mode: 'ratio', ratio: clampRatio(def.defaultRatio) };
+      }
+      return { mode: 'auto' };
+    }
     // Nothing stored: the module's own default (a locked ratio where it declares
     // one, its content size when `autoHeight`, otherwise a fluid share).
     if (def && def.defaultRatio) return { mode: 'ratio', ratio: clampRatio(def.defaultRatio) };

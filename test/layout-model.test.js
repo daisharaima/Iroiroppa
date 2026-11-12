@@ -120,6 +120,23 @@ test('an explicit height wins over an autoHeight default', () => {
   assert.deepEqual(heights, ['px', 'auto', 'fill']);
 });
 
+// A module that sizes to its content has no ratio, and the board only builds a resize
+// handle for a ratio - so a module switching to locked-ratio sizing must carry its stored
+// board across, or its bottom edge stays dead for good.
+test('a stored auto height yields to a ratio the module now declares', () => {
+  const registry = {
+    legacy: { autoHeight: true },
+    converted: { autoHeight: false, defaultRatio: 0.5 },
+  };
+  const doc = Model.normalise({ palettes: [{ columns: [{ modules: [
+    { moduleId: 'legacy', height: { mode: 'auto' } },
+    { moduleId: 'converted', height: { mode: 'auto' } },
+  ] }] }] }, { registry });
+  const [kept, converged] = doc.palettes[0].columns[0].modules;
+  assert.equal(kept.height.mode, 'auto', 'a module that still declares autoHeight keeps its choice');
+  assert.deepEqual(converged.height, { mode: 'ratio', ratio: 0.5 });
+});
+
 test('a snapTo that does not exist clears the snap', () => {
   const doc = Model.normalise({ palettes: [{ id: 'p1', snap: 'left', snapTo: 'gone', columns: [] }] }, OPT);
   assert.equal(doc.palettes[0].snap, null);
