@@ -96,6 +96,14 @@
 
     // Per-call scratch, so a raster loop allocates nothing.
     const doc = [0, 0, 0];
+    const docIn = [0, 0, 0];
+
+    /** Display floats -> document floats, `docIn` when the document *is* sRGB. */
+    function toDocument(r, g, b) {
+      if (toDoc) return toDoc(r, g, b);
+      docIn[0] = r; docIn[1] = g; docIn[2] = b;
+      return docIn;
+    }
 
     /** Document floats -> the grid, in place on `doc`'s shape. */
     function quantizeDoc(d0, d1, d2, out) {
@@ -174,7 +182,7 @@
         c[2] = Math.round(clamp01(b) * steps[2]) / steps[2];
         return c;
       }
-      const d = toDoc(r, g, b);
+      const d = toDocument(r, g, b);
       return displayAt(indexOf(d[0], d[1], d[2]), c);
     }
 
@@ -188,7 +196,7 @@
       const rgb = oklabToRgb(lab.L, lab.a, lab.b);
       // Exactly the document value `applySrgb` derives for this pixel, so the pick and
       // the painted pixel are the same band by construction.
-      const d = sameSpace ? [rgb.r, rgb.g, rgb.b] : toDoc(rgb.r, rgb.g, rgb.b);
+      const d = toDocument(rgb.r, rgb.g, rgb.b);
       const q = quantizeDoc(d[0], d[1], d[2], doc);
       if (docToLab) return docToLab(q[0], q[1], q[2]);
       const back = fromDoc ? fromDoc(q[0], q[1], q[2]) : q;

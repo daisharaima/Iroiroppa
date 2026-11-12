@@ -964,9 +964,94 @@ function renderModules() {
     }
   }
   if (!selectedModule || !moduleIds.includes(selectedModule)) selectedModule = moduleIds[0] || null;
+  renderLensSection();
   renderModuleDetail();
   applySettingsMinWidth();
   requestAnimationFrame(fitWindow);
+}
+
+/**
+ * The Lenses section of the Modules tab: every selector instance that currently wears a
+ * lens, and a way to clear them all.
+ *
+ * A lens changes what a whole map means, so one left on in a palette you have scrolled past
+ * is the "my picker is broken" trap. The card's tinted button finds it on the card; this is
+ * the one place that finds it anywhere (the lens requirement, D12).
+ */
+async function renderLensSection() {
+  if (!el.moduleList) return;
+  const Lens = window.IroLens;
+  const previous = document.getElementById('lens-section');
+  if (previous) previous.remove();
+  if (!Lens) return;
+  const man = window.IroModuleManifest;
+  const lensed = [];
+  for (const id of moduleIds) {
+    const def = man && man.get ? man.get(id) : null;
+    if (!def || !def.lens) continue;
+    for (const inst of instancesOf(id)) {
+      let stored = {};
+      try { stored = (await window.csp.getModuleSettings(inst.instanceId, id)) || {}; } catch { stored = {}; }
+      const spec = Lens.parseSpec(stored.lens);
+      if (!spec.active) continue;
+      lensed.push({ instanceId: inst.instanceId, moduleId: id, name: moduleName(id), bits: spec.bits });
+    }
+  }
+  const section = document.createElement('div');
+  section.id = 'lens-section';
+  section.className = 'lens-section';
+  const head = document.createElement('div');
+  head.className = 'module-group-title';
+  head.textContent = window.Iro.t('settings.lenses.title');
+  section.append(head);
+  if (!lensed.length) {
+    const none = document.createElement('p');
+    none.className = 'lens-section-empty';
+    none.textContent = window.Iro.t('settings.lenses.none');
+    section.append(none);
+    el.moduleList.append(section);
+    return;
+  }
+  for (const lens of lensed) {
+    const row = document.createElement('div');
+    row.className = 'lens-section-row';
+    const label = document.createElement('span');
+    label.className = 'lens-section-name';
+    label.textContent = `${lens.name} · Quantize ${lens.bits.join('/')}`;
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'btn tiny';
+    clear.textContent = window.Iro.t('settings.lenses.clear');
+    clear.addEventListener('click', async () => {
+      clear.disabled = true;
+      await setInstanceLens(lens.instanceId, lens.moduleId, null);
+      await renderLensSection();
+      requestAnimationFrame(fitWindow);
+    });
+    row.append(label, clear);
+    section.append(row);
+  }
+  const all = document.createElement('button');
+  all.type = 'button';
+  all.className = 'btn tiny lens-section-all';
+  all.textContent = window.Iro.t('settings.lenses.clearAll');
+  all.addEventListener('click', async () => {
+    all.disabled = true;
+    for (const lens of lensed) await setInstanceLens(lens.instanceId, lens.moduleId, null);
+    await renderLensSection();
+    requestAnimationFrame(fitWindow);
+  });
+  section.append(all);
+  el.moduleList.append(section);
+}
+
+/** Store (or clear) one instance's lens. The palette picks it up through the same channel. */
+async function setInstanceLens(instanceId, moduleId, lens) {
+  let stored = {};
+  try { stored = (await window.csp.getModuleSettings(instanceId, moduleId)) || {}; } catch { stored = {}; }
+  stored.lens = lens;
+  moduleSettingsCache.delete(instanceId);
+  try { await window.csp.saveModuleSettings(instanceId, stored, 1, moduleId); } catch { /* shown on reopen */ }
 }
 
 function selectModule(id) {

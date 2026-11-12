@@ -37,6 +37,14 @@
       this._selection = [];
       this._selAnchor = null;
       this.csp = csp;
+      // A lens edited in the Lens window arrives here, addressed to the instance that owns
+      // it: the board persists it, which notifies the module and repaints its maps.
+      if (csp && typeof csp.onLensApply === 'function') {
+        csp.onLensApply((msg) => {
+          if (!msg || !msg.instanceId) return;
+          if (this.host && this.host.applyLens) this.host.applyLens(msg.instanceId, msg.lens);
+        });
+      }
       this.defaultLayout = defaultLayout || { version: 1, columns: [] };
       // A float board lives in its own window and persists its own columns.
       this.float = Boolean(float);
@@ -77,7 +85,12 @@
       // loading, and those messages must not be missed.
       if (this._subscribe && this.csp.onLayoutChanged) this.csp.onLayoutChanged((layout) => this.applyLayout(layout));
       if (this.csp.onModuleChanged) {
-        this.csp.onModuleChanged(() => {
+        this.csp.onModuleChanged((spec) => {
+          // A lens is per instance and lives in that instance's file, so a change made in
+          // another window (the Lens window or Settings' Lenses row) has to be re-read:
+          // the mounted record's copy is what paints the map.
+          const changed = spec && spec.id;
+          if (changed && this.host && this.host.reloadLens) this.host.reloadLens(changed);
           // Coalesce the burst of changes from a settings slider.
           if (this._modTimer) clearTimeout(this._modTimer);
           this._modTimer = setTimeout(() => {
@@ -1008,24 +1021,47 @@
       const card = record.el;
       this._applyModuleWeight(card, mod, this._moduleWeightOpts(col, mod));
       // Open the popout beside the card (right, else left), in screen coordinates.
-      openSettings = () => {
+      const cardAnchor = () => {
         const rect = card.getBoundingClientRect();
+        return {
+          left: Math.round(window.screenX + rect.left),
+          right: Math.round(window.screenX + rect.right),
+          top: Math.round(window.screenY + rect.top),
+        };
+      };
+      openSettings = () => {
         this.csp.openModuleSettings({
           moduleId: mod.moduleId,
           instanceId: mod.instanceId,
-          anchor: {
-            left: Math.round(window.screenX + rect.left),
-            right: Math.round(window.screenX + rect.right),
-            top: Math.round(window.screenY + rect.top),
-          },
+          anchor: cardAnchor(),
         });
       };
+      // The lens button (left of the collapse arrow) opens the Lens window for this
+      // instance. A lens is not a module: it has no board slot, and its state is part of
+      // the instance's own settings.
+      const lensBtn = card.querySelector('.module-lens');
+      if (lensBtn && typeof this.csp.openLens === 'function') {
+        lensBtn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const settings = this.host ? this.host.settingsFor(mod.instanceId) : {};
+          this.csp.openLens({
+            moduleId: mod.moduleId,
+            instanceId: mod.instanceId,
+            name: this.host && this.host.recordFor(mod.instanceId)
+              ? (this.host.recordFor(mod.instanceId).def.name || mod.moduleId)
+              : mod.moduleId,
+            anchor: cardAnchor(),
+            lens: settings.lens || null,
+          });
+        });
+      }
       // Dragging the title bar moves the module; a click on it (or the 3-dot
       // button) opens the settings.
       const head = card.querySelector('.module-head');
       if (head) {
         head.addEventListener('pointerdown', (ev) => {
           if (ev.target.closest('.module-settings')
+            || ev.target.closest('.module-lens')
             || ev.target.closest('.module-dock')
             || ev.target.closest('.module-collapse')) return;
           if (this.locked) return;

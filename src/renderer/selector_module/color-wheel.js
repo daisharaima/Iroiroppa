@@ -200,6 +200,7 @@
 
   reg.modules['color-wheel'] = {
     id: 'color-wheel',
+    lens: true,
     name: 'Color Wheel',
     version: 2,
     defaults: {
@@ -380,7 +381,7 @@
         // overlap at their joint: compositing two separately drawn anti-aliased edges
         // leaves a white hairline, which read as a gap between the rings.
         const radius = geo.outer - (geo.outerW + 1.5) / 2;
-        paintBand(c2d, geo, radius, geo.outerW, (deg) => outerColour(model, deg));
+        paintBand(c2d, geo, radius, geo.outerW, (deg) => lensed(outerColour(model, deg)));
         if (ringCache.size > 12) ringCache.clear();
         ringCache.set(key, off);
         return off;
@@ -404,7 +405,7 @@
         if (geo.innerW <= 0 || geo.inner <= 0) return off;
         const radius = geo.inner + (geo.innerW + 1.5) / 2;
         const light = model.id === 'helmgenlch' ? thirdPaint : lch.L;
-        paintBand(c2d, geo, radius, geo.innerW, (deg) => innerColour(model, deg, light));
+        paintBand(c2d, geo, radius, geo.innerW, (deg) => lensed(innerColour(model, deg, light)));
         if (ringCache.size > 12) ringCache.clear();
         ringCache.set(key, off);
         lastInnerRing = off;
@@ -413,6 +414,32 @@
 
       // --- inner shape -------------------------------------------------------
       const innerCache = new Map();
+
+      // The lens over this wheel (a per-channel band grid, src/shared/lens.js). It covers
+      // the inner shape *and* the hue ring: a quantised inner shape inside an unquantised
+      // rainbow would say two different things about what the wheel can pick.
+      const LensAccess = window.IroLensAccess;
+      let lensKey = null;
+      let lensNow = null;
+      const lensScratch = [0, 0, 0];
+      const syncLens = () => {
+        if (!LensAccess) return;
+        const settings = ctx.settings.get();
+        const next = LensAccess.key(store, settings);
+        if (next === lensKey) return;
+        lensKey = next;
+        lensNow = LensAccess.build(store, settings);
+        innerCache.clear();
+        ringCache.clear();
+      };
+      syncLens();
+
+      /** A band colour for a display colour: the ring and the inner shape both go through it. */
+      const lensed = (c) => {
+        if (!lensNow) return c;
+        const q = lensNow.applySrgb(c.r, c.g, c.b, lensScratch);
+        return { r: q[0], g: q[1], b: q[2] };
+      };
       let lastInner = null;
       let innerBuilt = 0;
       let innerHoldUntil = 0;
@@ -473,7 +500,7 @@
         const [,, fi] = Models.planesFor(model)[0];
         const fixedKey = Number.isFinite(axes[fi]) ? axes[fi].toFixed(4) : 'x';
         const s = Math.max(1, Math.round(scale));
-        const key = `inner:${store.plotKeyTag()}:${model.id}:${shape}:${hue.toFixed(1)}:${fixedKey}:${s}:${w}x${h}:${box.x.toFixed(1)},${box.y.toFixed(1)},${box.w.toFixed(1)},${box.h.toFixed(1)}:${cuspKey}`;
+        const key = `inner:${store.plotKeyTag()}:${lensKey}:${model.id}:${shape}:${hue.toFixed(1)}:${fixedKey}:${s}:${w}x${h}:${box.x.toFixed(1)},${box.y.toFixed(1)},${box.w.toFixed(1)},${box.h.toFixed(1)}:${cuspKey}`;
         const hit = innerCache.get(key);
         if (hit && hit.width === w / s && hit.height === h / s) return hit;
         // While a gesture is in flight the build is paced by its own measured cost, so
@@ -511,10 +538,16 @@
             }
             const a = G.pickAxes(model, 0, un, vn, axes, store);
             const lab = model.toLab(a);
-            // Models with their own domain predicate keep it; everyone else uses
-            // the shared fast chain (one conversion, LUT gamma, no fitToSrgb for
-            // the common in-sRGB pixel) — the same predicate as the pick.
-            if (typeof model.inGamut === 'function') {
+            // A lens decides the pixel: the band is a real document colour, so it paints
+            // at full strength — no hole, no pale stand-in, no out-of-display dimming.
+            if (lensNow) {
+              const c = Color.oklabToRgb(lab.L, lab.a, lab.b);
+              const q = lensNow.applySrgb(c.r, c.g, c.b, lensScratch);
+              px[0] = clamp255(q[0] * 255);
+              px[1] = clamp255(q[1] * 255);
+              px[2] = clamp255(q[2] * 255);
+              px[3] = 255;
+            } else if (typeof model.inGamut === 'function') {
               if (!model.inGamut(a)) continue;
               const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
               const mark = store.markOutOfDisplay && !Color.inGamut(lch.L, lch.C, lch.H);
@@ -648,7 +681,10 @@
           if (Math.abs(probe[1]) < 1e-6) probe[1] = model.axes[1].max * 1e-3;
           const pLab = model.toLab(probe);
           const hueOKLCH = Color.oklabToOklch(pLab.L, pLab.a, pLab.b).H;
-          store.setLab(model.toLab(held), { notify: 'live', hue: hueOKLCH });
+          const recorded = lensNow
+            ? lensNow.applyLab(model.toLab(held), Color.rgbToOklab, Color.oklabToRgb)
+            : model.toLab(held);
+          store.setLab(recorded, { notify: 'live', hue: hueOKLCH });
           return;
         }
         const proj = innerProj(model, axes[hIdx]);
@@ -683,7 +719,9 @@
           if (!G.lightnessReached(model, held, lockLight)) return;
           a = held;
         }
-        store.setLab(model.toLab(a), { notify: 'live', snap: true });
+        store.setLab(lensNow
+          ? lensNow.applyLab(model.toLab(a), Color.rgbToOklab, Color.oklabToRgb)
+          : model.toLab(a), { notify: 'live', snap: true });
       };
 
       const attach = () => {
@@ -865,6 +903,7 @@
       return {
         onResize() { schedule(); },
         onSettings(settings) {
+          syncLens();
           // A partial payload must not reset a value it does not carry: the def's
           // defaults are applied at mount, not on every settings push.
           if (settings.model !== undefined) {

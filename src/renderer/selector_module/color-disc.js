@@ -99,6 +99,7 @@
 
   reg.modules['color-disc'] = {
     id: 'color-disc',
+    lens: true,
     name: 'Color Disc',
     version: 1,
     // Content-sized: a circle plus one slider row, so a column share only leaves an
@@ -243,13 +244,30 @@
 
       // --- raster ---------------------------------------------------------------
       const discCache = new Map();
+
+      // The lens over this disc (a per-channel band grid, src/shared/lens.js). Rebuilt
+      // only when the instance's lens settings or the profile change; a change drops
+      // every cached map, because every pixel depends on it.
+      const LensAccess = window.IroLensAccess;
+      let lensKey = null;
+      let lensNow = null;
+      const syncLens = () => {
+        if (!LensAccess) return;
+        const settings = ctx.settings.get();
+        const next = LensAccess.key(store, settings);
+        if (next === lensKey) return;
+        lensKey = next;
+        lensNow = LensAccess.build(store, settings);
+        discCache.clear();
+      };
+      syncLens();
       let lastDiscOff = null;
       let builtKey = '';
       let holdUntil = 0;
       const buildDisc = (w, h, model, axes, scale) => {
         const lIdx = lightAxis(model);
         const nativeLight = Models.usesNativeLight(model);
-        const key = `d:${store.plotKeyTag()}:${model.id}:${axes[lIdx].toFixed(4)}:${scale.toFixed(4)}:${w}x${h}:${store.markOutOfDisplay ? 1 : 0}:${showOutOfGamut ? 1 : 0}`;
+        const key = `d:${store.plotKeyTag()}:${lensKey}:${model.id}:${axes[lIdx].toFixed(4)}:${scale.toFixed(4)}:${w}x${h}:${store.markOutOfDisplay ? 1 : 0}:${showOutOfGamut ? 1 : 0}`;
         const hit = discCache.get(key);
         if (hit && hit.width === w && hit.height === h) return hit;
         const off = document.createElement('canvas');
@@ -285,7 +303,7 @@
             // stand-in — or blank when showOutOfGamut is off. One helper keeps this
             // identical to the Slices/Wheel paint rule; the old per-pixel sRGB fade
             // painted a wide-gamut document's disc almost entirely pale.
-            Pixel.pixelFromLab(lab, px, inDocument, store.markOutOfDisplay ? 140 : 255, showOutOfGamut);
+            Pixel.pixelFromLab(lab, px, inDocument, store.markOutOfDisplay ? 140 : 255, showOutOfGamut, lensNow);
             const i = (y * w + x) * 4;
             data[i] = px[0];
             data[i + 1] = px[1];
@@ -474,10 +492,16 @@
       };
 
       const applyPoint = (next, notify) => {
+        const lab = next.model.toLab(next.axes);
+        // A lensed pick records the band the map painted there, not the unlensed colour
+        // under the pointer (the pick half is not optional).
+        const recorded = lensNow
+          ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb)
+          : lab;
         // `snap` is the store's single gamut-snap path (`reduceChroma`, never raises
         // chroma): every recorded disc value lands inside the document. The pointer is
         // drawn from the stored axes, so it stays on the drawn boundary.
-        store.setLab(next.model.toLab(next.axes), { notify, snap: true });
+        store.setLab(recorded, { notify, snap: true });
       };
 
       let dragging = false;
@@ -577,6 +601,7 @@
       return {
         onResize() { schedule(); },
         onSettings(settings) {
+          syncLens();
           if (settings.model !== undefined) {
             const next = discModel(settings.model, AVAILABLE);
             if (next !== modelId) {

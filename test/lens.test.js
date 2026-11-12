@@ -121,6 +121,43 @@ test('parseSpec tolerates anything on disk', () => {
     { active: 'quantize', bits: [4, 4, 4] });
 });
 
+test('what the map paints is what the pick records (the raster/pick gate)', () => {
+  // The two entry points the selectors use: `applySrgb` paints a pixel, `applyLab` records
+  // a pick. Feeding a colour through both must land on the same band, or the map lies.
+  const toDoc = (r, g, b) => [r * 0.8, g * 0.8, b * 0.8];
+  const fromDoc = (r, g, b) => [r / 0.8, g / 0.8, b / 0.8];
+  const rgbToLab = (r, g, b) => ({ L: r, a: g, b });
+  const oklabToRgb = (L, a, b) => ({ r: L, g: a, b });
+  for (const bits of [[1, 1, 1], [3, 3, 3], [2, 5, 4]]) {
+    const lens = Lens.create({ bits, toDoc, fromDoc });
+    let seed = 12345;
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    for (let n = 0; n < 300; n += 1) {
+      const r = rnd(), g = rnd(), b = rnd();
+      const painted = lens.applySrgb(r, g, b);
+      const recorded = lens.applyLab({ L: r, a: g, b }, rgbToLab, oklabToRgb);
+      assert.ok(near(painted[0], recorded.L, 1e-6), `r ${bits} ${painted[0]} vs ${recorded.L}`);
+      assert.ok(near(painted[1], recorded.a, 1e-6), `g ${bits}`);
+      assert.ok(near(painted[2], recorded.b, 1e-6), `b ${bits}`);
+    }
+  }
+});
+
+test('a lensed pick is on the grid, not merely near it', () => {
+  const lens = Lens.create({ bits: [3, 3, 3] });
+  let seed = 7;
+  const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  for (let n = 0; n < 300; n += 1) {
+    const r = next(), g = next(), b = next();
+    const out = lens.applySrgb(r, g, b);
+    for (const c of out) {
+      const steps = Math.round(c * 7) / 7;
+      assert.ok(near(c, steps, 1e-12), `${c} is not a 3-bit step`);
+      assert.ok(c >= 0 && c <= 1, `${c} outside the document`);
+    }
+  }
+});
+
 test('the table stays bounded: past 2^18 bands it converts per pixel', () => {
   const toDoc = (r, g, b) => [r, g, b];
   const fromDoc = (r, g, b) => [r, g, b];

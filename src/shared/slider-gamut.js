@@ -66,6 +66,10 @@
     const tmp = axes.slice();
     const N = o.samples || 64;
     const showOut = o.markOut !== false;
+    // A lens (`(colour) => colour`) replaces the row's colours, and its bands must have
+    // hard edges: a CSS gradient interpolates between stops, so two neighbouring samples
+    // in different bands would otherwise blend back into the continuum the lens removed.
+    const lens = typeof o.lens === 'function' ? o.lens : null;
     const samples = [];
     for (let k = 0; k <= N; k += 1) {
       const t = k / N;
@@ -74,18 +78,42 @@
       const lab = model.toLab(tmp);
       const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
       const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
+      const shown = lens ? lens({ r: f.r, g: f.g, b: f.b }) : f;
       const inside = typeof model.inGamut === 'function'
         ? model.inGamut(tmp)
         : store.inGamut(lch.L, lch.C, lch.H);
       samples.push({
         t,
         inside: showOut ? inside : true,
-        color: `rgb(${clamp(f.r * 255, 0, 255)},${clamp(f.g * 255, 0, 255)},${clamp(f.b * 255, 0, 255)})`,
+        color: `rgb(${clamp(shown.r * 255, 0, 255)},${clamp(shown.g * 255, 0, 255)},${clamp(shown.b * 255, 0, 255)})`,
       });
     }
     const stops = showOut ? trackStops(samples, 'var(--blank)') : fullStops(samples);
+    const banded = lens ? hardStops(stops, samples) : stops;
     const dir = o.direction || '90deg';
-    return `linear-gradient(${dir}, ${stops.map((s) => `${s.color} ${(s.pct * 100).toFixed(2)}%`).join(',')})`;
+    return `linear-gradient(${dir}, ${banded.map((s) => `${s.color} ${(s.pct * 100).toFixed(2)}%`).join(',')})`;
+  }
+
+  /**
+   * Duplicate a stop wherever the colour changes, so the change is a step rather than a
+   * ramp. Used by a lens: the bands are the point, and a gradient would smooth them.
+   */
+  function hardStops(stops, samples) {
+    if (!Array.isArray(stops) || !stops.length) return stops;
+    const inside = (samples || []).map((s) => s.inside);
+    const out = [];
+    for (let i = 0; i < stops.length; i += 1) {
+      const s = stops[i];
+      const prev = out[out.length - 1];
+      if (prev && inside.length && s.pct === prev.pct) { out.push(s); continue; }
+      if (prev && prev.color !== s.color) {
+        // The previous colour holds until this sample's position, then the new one takes
+        // over at exactly that position.
+        out.push({ pct: s.pct, color: prev.color });
+      }
+      out.push(s);
+    }
+    return out;
   }
 
   /**
@@ -122,5 +150,5 @@
     return (samples || []).map((s) => ({ pct: s.t, color: s.color }));
   }
 
-  return { trackStops, fullStops, axisRange, inGamutAt, nearestInGamut, gradientFor };
+  return { trackStops, hardStops, fullStops, axisRange, inGamutAt, nearestInGamut, gradientFor };
 });

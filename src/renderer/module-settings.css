@@ -47,3 +47,41 @@ body.module-settings-window #titlebar {
 .ms-icon-actions { flex-wrap: nowrap; }
 .ms-icon-sep { flex: 0 0 auto; width: 1px; height: 18px; margin: 0 4px; background: var(--line); }
 .ms-icon-actions .icon-btn { flex: 0 0 auto; }
+
+/* --- the Lens window ---------------------------------------------------------
+   A second popout kind beside a module's settings (docs/MODULES.md, "Lenses").
+   It lists the lenses that apply to one selector instance. */
+
+.lens-body { display: flex; flex-direction: column; gap: 6px; padding: 6px 8px 8px; }
+.lens-list { display: flex; flex-direction: column; gap: 2px; }
+.lens-row {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; padding: 5px 6px;
+  border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: var(--text); cursor: pointer;
+  font: inherit; text-align: left;
+}
+.lens-row:hover { background: var(--hover); }
+.lens-row.selected { background: var(--accent-weak); border-color: var(--accent); }
+.lens-dot {
+  flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%;
+  border: 1px solid var(--text-faint);
+}
+.lens-dot.on { background: var(--accent); border-color: var(--accent); }
+.lens-name { flex: 1 1 auto; font-weight: 600; }
+.lens-desc { flex: 1 1 100%; color: var(--text-faint); font-size: calc(var(--font-size) - 2px); }
+.lens-page { display: flex; flex-direction: column; gap: 4px; padding: 2px 2px 0; }
+.lens-presets { display: flex; gap: 3px; }
+.lens-preset {
+  flex: 1 1 0; min-width: 0; height: 22px; padding: 0;
+  border: 1px solid rgba(127,127,127,0.35); border-radius: 4px;
+  background: transparent; color: var(--text); cursor: pointer; font: inherit;
+}
+.lens-preset:hover { background: var(--hover); }
+.lens-preset.selected { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); }
+.lens-stepper { display: flex; align-items: center; gap: 6px; }
+.lens-channel { width: 12px; font-weight: 700; color: var(--text-faint); }
+.lens-range { flex: 1 1 auto; min-width: 0; }
+.lens-bits { flex: 0 0 auto; width: 44px; text-align: right; white-space: nowrap; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.lens-status { margin: 2px 0 0; color: var(--text-faint); font-size: calc(var(--font-size) - 2px); }
+.lens-note { margin: 2px 0 0; color: var(--text-faint); font-size: calc(var(--font-size) - 3px); line-height: 1.35; }

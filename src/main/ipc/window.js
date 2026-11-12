@@ -241,6 +241,28 @@ function register(ctx, h) {
     if (ctx.repairTopmost) ctx.repairTopmost(ctx.moduleSettingsWin);
   });
 
+  // --- the Lens window -------------------------------------------------------
+  ipcMain.handle('lens:open', (_e, spec) => ctx.openLensWindow(spec));
+  ipcMain.on('lens:close', () => ctx.closeLensWindow());
+  ipcMain.on('lens:resize', (_e, { height } = {}) => {
+    if (!ctx.lensWin || ctx.lensWin.isDestroyed()) return;
+    const z = ctx.lensWin.webContents.getZoomFactor() || 1;
+    const display = screen.getDisplayMatching(ctx.lensWin.getBounds());
+    const maxH = Math.max(160, display.workArea.height - 40);
+    const [w] = ctx.lensWin.getContentSize();
+    const h = Math.max(80, Math.min(maxH, Math.round((Number(height) || 0) * z)));
+    ctx.lensWin.setContentSize(w, h);
+    if (ctx.repairTopmost) ctx.repairTopmost(ctx.lensWin);
+  });
+  // The lens window edits a selector instance's lens. The instance lives in a palette or
+  // float renderer, so main relays; that renderer persists it through its own settings
+  // store (one writer for modules/<id>.json), which is what repaints the maps.
+  ipcMain.on('lens:set', (_e, { instanceId, lens } = {}) => {
+    if (!instanceId) return;
+    const payload = { instanceId, lens: lens || null };
+    for (const win of BrowserWindow.getAllWindows()) sendTo(win, 'lens:apply', payload);
+  });
+
 }
 
 module.exports = { register };

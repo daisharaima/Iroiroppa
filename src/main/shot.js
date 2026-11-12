@@ -231,6 +231,44 @@ function runShot(ctx) {
         };
         const moduleAdd = argValue('--module-add');
         if (moduleAdd) dumpWorkspace('module add:', ctx.applyLayoutIntent({ type: 'module.enable', moduleId: String(moduleAdd).trim() }));
+        // `--lens <moduleId|instanceId>[=<bits>]` puts a Quantize lens on a mounted
+        // selector, so a `--shot` can show the bands. It writes the instance's own
+        // settings file, which is where a lens lives (docs/MODULES.md, "Lenses").
+        const lensSpec = argValue('--lens');
+        if (lensSpec !== undefined) {
+          const [targetRaw, bitsRaw] = String(lensSpec).split('=');
+          const target = targetRaw.trim();
+          const placed = findPlaced(target)
+            || (ctx.currentWorkspace().palettes || [])
+              .flatMap((p) => p.columns || [])
+              .flatMap((c) => c.modules || [])
+              .find((m) => m.moduleId === target);
+          if (!placed) {
+            dumpWorkspace('lens:', { ok: false, error: 'no such instance', target });
+          } else {
+            const bits = (bitsRaw || '3,3,3').split(',').map((n) => Number(n.trim()));
+            const stored = ctx.moduleStore.readModuleSettings(placed.instanceId, placed.moduleId) || {};
+            const next = { ...stored, lens: { active: 'quantize', quantize: { bits } } };
+            const saved = ctx.writeModuleSettings(placed.instanceId, next, undefined, placed.moduleId);
+            const win = ctx.popup;
+            const payload = { instanceId: placed.instanceId, lens: next.lens };
+            // The board mounts asynchronously after the page loads, so a message sent now
+            // can arrive before anything is listening. Send it once the renderer has had
+            // time to mount (a shot waits for its own `--shot-wait` afterwards).
+            const announce = () => {
+              if (win && !win.isDestroyed()) {
+                sendTo(win, 'module:changed', { id: placed.instanceId });
+                sendTo(win, 'lens:apply', payload);
+              }
+              for (const float of ctx.floatWins ? ctx.floatWins.values() : []) {
+                sendTo(float, 'module:changed', { id: placed.instanceId });
+                sendTo(float, 'lens:apply', payload);
+              }
+            };
+            setTimeout(announce, 700);
+            dumpWorkspace('lens:', { ok: Boolean(saved), instanceId: placed.instanceId, bits });
+          }
+        }
         const moduleDup = argValue('--module-duplicate');
         if (moduleDup) {
           const src = String(moduleDup).trim();
@@ -258,6 +296,48 @@ function runShot(ctx) {
             instanceId: instanceId.trim(),
             collapsed: mode !== '0',
           }));
+        }
+        if (process.argv.includes('--lens-probe')) {
+          const js = `JSON.stringify({
+            buttons: document.querySelectorAll('.module-lens').length,
+            active: [...document.querySelectorAll('.module-lens')].map((n) => n.dataset.active || null),
+            labels: [...document.querySelectorAll('.module-lens-label')].map((n) => n.textContent),
+          })`;
+          const win = ctx.popup;
+          if (win && !win.isDestroyed()) {
+            await new Promise((r) => setTimeout(r, 1600));
+            const out = await win.webContents.executeJavaScript(js).catch((e) => `err ${e.message}`);
+            console.log('lens-probe:', out);
+          }
+        }
+        // `--open-lens <moduleId|instanceId>` opens the Lens window for that selector and
+        // `--lens-shot <png>` captures it, the same pair the settings popout uses.
+        const openLens = argValue('--open-lens');
+        if (openLens !== undefined) {
+          const target = String(openLens).split('=')[0].trim();
+          const placed = findPlaced(target)
+            || (ctx.currentWorkspace().palettes || [])
+              .flatMap((p) => p.columns || [])
+              .flatMap((c) => c.modules || [])
+              .find((m) => m.moduleId === target);
+          if (!placed) {
+            console.log('lens window: no such instance', target);
+          } else {
+            const stored = ctx.moduleStore.readModuleSettings(placed.instanceId, placed.moduleId) || {};
+            ctx.openLensWindow({
+              moduleId: placed.moduleId,
+              instanceId: placed.instanceId,
+              name: placed.moduleId,
+              lens: stored.lens || null,
+            });
+            await new Promise((r) => setTimeout(r, 700));
+            const shot = argValue('--lens-shot');
+            if (shot && ctx.lensWin && !ctx.lensWin.isDestroyed()) {
+              const img = await ctx.lensWin.webContents.capturePage();
+              fs.writeFileSync(String(shot).trim(), img.toPNG());
+              console.log('lens window shot written to', String(shot).trim(), JSON.stringify(ctx.lensWin.getBounds()));
+            }
+          }
         }
         const summonAccel = argValue('--summon-hotkey');
         if (summonAccel !== undefined) {

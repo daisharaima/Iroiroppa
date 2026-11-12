@@ -272,6 +272,8 @@
 
   reg.modules['color-slices'] = {
     id: 'color-slices',
+    // Wears a lens: the header offers the Lens window for this instance.
+    lens: true,
     name: 'Color Slices',
     version: 5,
     defaults: {
@@ -315,6 +317,29 @@
       // Plot caches depend on the gamut *and* the profile identity, so a profile
       // switch cannot leave a stale silhouette behind (the key tag covers it).
       const plotCache = new Map();
+
+      // The lens over this pane (a per-channel band grid, src/shared/lens.js). It is
+      // rebuilt only when this instance's lens settings or the profile change — and a
+      // change clears every cached map, because every plane's pixels depend on it.
+      const LensAccess = window.IroLensAccess;
+      let lensKey = null;
+      let lensNow = null;
+      const syncLens = () => {
+        if (!LensAccess) return;
+        const settings = ctx.settings.get();
+        const next = LensAccess.key(store, settings);
+        if (next === lensKey) return;
+        lensKey = next;
+        lensNow = LensAccess.build(store, settings);
+        plotCache.clear();
+      };
+      syncLens();
+
+      // A lensed pick: the map paints the band, so the recorded colour is that band too
+      // (the pick half is not optional — docs/INVARIANTS.md).
+      const lensedLCH = (lch) => (lensNow
+        ? lensNow.applyLab(Color.oklchToOklab(lch.L, lch.C, lch.H), Color.rgbToOklab, Color.oklabToRgb)
+        : lch);
       // The last-built map per panel. During a drag the maps of the *other*
       // panels are held (their fixed axes are changing); the dragged panel's map
       // is stable because its fixed axis is pinned.
@@ -578,7 +603,7 @@
         // The plane's per-column constants (the silhouette intervals, the hue
         // coefficients) are part of the frame's cost, so the pacing budget includes them.
         const prepStart = performance.now();
-        const prep = Plane.prepare(spec);
+        const prep = Plane.prepare({ ...spec, lens: lensNow });
         const prepMs = performance.now() - prepStart;
 
         // The synchronous pass is the CACHE-ONLY path. A caller that wants the plane
@@ -880,6 +905,7 @@
           Raster.renderPlane({
             model, plane, fixed, ranges, width: w, height: h, out: img.data, luma,
             workingGamut: gamutTest || workingGamutTest(),
+            lens: lensNow,
             // A dense model's map is a *shape*: a square with no bites. Its out-of-document
             // pixels are painted with the sRGB stand-in at full opacity — opaque, not a
             // pale dim band (the user's report), so the square is whole.
@@ -932,7 +958,7 @@
           const dbg = (window.__planeDbg = window.__planeDbg || { sync: 0, worker: 0, cache: 0, gamut: 0 });
           if (gamutTest) dbg.gamut += 1;
           if (want(p, off)) {
-            const mayUseWorker = PlaneWorker && PlaneWorker.available() && !gamutTest;
+            const mayUseWorker = PlaneWorker && PlaneWorker.available() && !gamutTest && !lensNow;
             if (mayUseWorker) {
               // Build off the main thread and keep the previous image on screen until
               // the replacement lands: a map must never be cleared before it exists.
@@ -1096,18 +1122,18 @@
             const cmax = store.cmax();
             if (plane === 0) {
               const L = lockLight !== null ? clamp01(lockLight) : u;
-              store.setLCH({ L, C: (1 - v) * cmax, H: fixed[2] }, { notify: 'live', snap: true });
+              store.setLCH(lensedLCH({ L, C: (1 - v) * cmax, H: fixed[2] }), { notify: 'live', snap: true });
             } else if (plane === 1) {
               const C = (1 - v) * cmax;
-              store.setLCH({ L: fixed[0], C, H: C < 1e-6 ? fixed[2] : u * 360 }, { notify: 'live', snap: true });
+              store.setLCH(lensedLCH({ L: fixed[0], C, H: C < 1e-6 ? fixed[2] : u * 360 }), { notify: 'live', snap: true });
             } else {
               const C = fixed[1];
               const H = C < 1e-6 ? fixed[2] : u * 360;
               if (lockLight !== null) {
                 const L = clamp01(lockLight);
-                store.setLCH({ L, C, H: clampHToGamut(L, C, H) }, { notify: 'live', snap: true });
+                store.setLCH(lensedLCH({ L, C, H: clampHToGamut(L, C, H) }), { notify: 'live', snap: true });
               } else {
-                store.setLCH({ L: clampLToGamut(1 - v, C, H), C, H }, { notify: 'live' });
+                store.setLCH(lensedLCH({ L: clampLToGamut(1 - v, C, H), C, H }), { notify: 'live' });
               }
             }
             return;
@@ -1121,7 +1147,9 @@
             if (!G.lightnessReached(model, held, lockLight)) return;
             axes = held;
           }
-          store.setLab(model.toLab(axes), { notify: 'live', snap: true });
+          store.setLab(lensNow
+            ? lensNow.applyLab(model.toLab(axes), Color.rgbToOklab, Color.oklabToRgb)
+            : model.toLab(axes), { notify: 'live', snap: true });
         };
 
         canvas.addEventListener('pointerdown', (ev) => {
@@ -1212,6 +1240,7 @@
           renderPlots(true);
         },
         onSettings(settings) {
+          syncLens();
           const nextModel = Models.has(settings.model) ? settings.model : Models.DEFAULT_ID;
           if (nextModel !== modelId) {
             modelId = nextModel;

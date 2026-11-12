@@ -312,6 +312,32 @@ html, body {
 }
 .module-settings:hover { background: var(--hover); color: var(--accent); }
 .module-settings svg { width: 13px; height: 13px; fill: currentColor; }
+/* The lens button, left of the collapse arrow. A lens changes what every pixel of the
+   map means, so an active one must be visible at a glance: tinted, with a dot and a
+   short label (`Quantize · 3/3/3`). */
+.module-lens {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 18px; padding: 0 2px;
+  border: none; border-radius: 4px;
+  background: transparent; color: var(--text-faint); cursor: pointer;
+}
+.module-lens:hover { background: var(--hover); color: var(--accent); }
+.module-lens svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.module-lens[data-active="1"] {
+  color: var(--accent);
+  background: var(--accent-weak);
+}
+.module-lens[data-active="1"]::after {
+  content: "";
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--accent);
+}
+.module-lens-label {
+  font-size: calc(var(--font-size) - 2px); font-weight: 600; letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.module-lens-label:empty { display: none; }
 .module-body {
   order: 1;
   flex: 1 1 auto;

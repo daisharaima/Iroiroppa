@@ -72,18 +72,35 @@
   /** Scratch pixel for the single-colour path, so a fin does not allocate. */
   const SCRATCH = new Uint8ClampedArray(4);
 
+  /** Scratch for a lensed colour, so a band does not allocate per pixel. */
+  const LENSED = [0, 0, 0];
+
   /**
    * Write one OKLCH pixel as gamma sRGB bytes.
    * `o0..o2` are the finished `C * A` offsets, so nothing is multiplied twice.
    * Returns false when the display cannot show the colour (the caller treats that as
    * a hole); the fitted stand-in is written when `fit` is set.
    */
-  function encode(data, i, L, o0, o1, o2, C, H, fit, luma, idx, lumaValue) {
+  function encode(prep, data, i, L, o0, o1, o2, C, H, fit, luma, idx, lumaValue) {
     const l_ = L + o0, m_ = L + o1, s_ = L + o2;
     const l = l_ * l_ * l_, m = m_ * m_ * m_, s = s_ * s_ * s_;
     const r = gamma(R0 * l + R1 * m + R2 * s);
     const g = gamma(G0 * l + G1 * m + G2 * s);
     const b = gamma(B0 * l + B1 * m + B2 * s);
+
+    // A lens replaces the display decision below: its band is a real colour the document
+    // holds, so it is painted at full strength as clipped bytes — never a hole, never the
+    // fitted stand-in (docs/INVARIANTS.md, D11 in the lens requirement).
+    const lens = prep && prep.lens;
+    if (lens) {
+      const c = lens.applySrgb(r, g, b, LENSED);
+      data[i] = b255(c[0] * 255);
+      data[i + 1] = b255(c[1] * 255);
+      data[i + 2] = b255(c[2] * 255);
+      data[i + 3] = 255;
+      if (luma) luma[idx] = lumaValue;
+      return true;
+    }
     const scale = Math.max(Math.abs(r), Math.abs(g), Math.abs(b), 1e-6);
     const eps = GAMUT_REL_TOL * scale;
     const outside = r < -eps || r > 1 + eps || g < -eps || g > 1 + eps || b < -eps || b > 1 + eps;
@@ -132,6 +149,9 @@
       intervalsAt: spec.intervalsAt || null,
       inDocument: spec.inDocument || null,
       cols: null,
+      // The lens over this plane (a band grid), or null. A lens keeps the silhouette
+      // mask and replaces only the display decision (docs/COLOR.md).
+      lens: spec.lens || null,
       // `flat` is the fixed-hue coefficient triple (lc); `k0..k2` are per column (hc/hue).
       flat: null,
       k0: null, k1: null, k2: null,
@@ -203,7 +223,7 @@
           }
           if (!inside) { data[i + 3] = 0; continue; }
           const L = light[x];
-          encode(data, i, L, o0, o1, o2, C, hue, true, luma, y * w + x, L);
+          encode(prep, data, i, L, o0, o1, o2, C, hue, true, luma, y * w + x, L);
         }
       }
       return;
@@ -222,7 +242,7 @@
             if (C >= ivs[k][0] && C <= ivs[k][1]) { inside = true; break; }
           }
           if (!inside) { data[i + 3] = 0; continue; }
-          encode(data, i, L, C * k0[x], C * k1[x], C * k2[x], C, (x / wDen) * 360, true, luma, y * w + x, L);
+          encode(prep, data, i, L, C * k0[x], C * k1[x], C * k2[x], C, (x / wDen) * 360, true, luma, y * w + x, L);
         }
       }
       return;
@@ -245,7 +265,7 @@
           // A document gamut wider than the screen decides the mask; a colour it holds
           // but the screen cannot show is painted as the fitted stand-in, never a hole.
           if (inDocument(L, C, H)) {
-            encode(data, i, L, k0[x], k1[x], k2[x], C, H, true, luma, y * w + x, L);
+            encode(prep, data, i, L, k0[x], k1[x], k2[x], C, H, true, luma, y * w + x, L);
           } else {
             data[i + 3] = 0;
           }
@@ -253,7 +273,7 @@
         }
         // Plain sRGB: the mask *is* the screen test, and a pixel outside it is a hole
         // (the Slices show only what they can pick).
-        encode(data, i, L, k0[x], k1[x], k2[x], C, H, false, luma, y * w + x, L);
+        encode(prep, data, i, L, k0[x], k1[x], k2[x], C, H, false, luma, y * w + x, L);
       }
     }
   }
@@ -278,11 +298,11 @@
         if (kind === 'lc') {
           const L = clamp01(x / wDen);
           const A = prep.flat;
-          encode(SCRATCH, 0, L, C * A[0], C * A[1], C * A[2], C, fixed[2], true, null, 0, 0);
+          encode(prep, SCRATCH, 0, L, C * A[0], C * A[1], C * A[2], C, fixed[2], true, null, 0, 0);
           data[i] = SCRATCH[0]; data[i + 1] = SCRATCH[1]; data[i + 2] = SCRATCH[2];
           if (luma) luma[y * w + x] = L;
         } else {
-          encode(data, i, fixed[0], C * prep.k0[x], C * prep.k1[x], C * prep.k2[x],
+          encode(prep, data, i, fixed[0], C * prep.k0[x], C * prep.k1[x], C * prep.k2[x],
             C, (x / wDen) * 360, true, luma, y * w + x, fixed[0]);
         }
         data[i + 3] = 255;

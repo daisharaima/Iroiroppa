@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self' module:; style-src 'self' 'unsafe-inline'; img-src 'self' data: theme: module:; font-src 'self' data: theme: module:;" />
+  <title>Iroiroppa</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="settings.css" />
+  <link rel="stylesheet" href="module-settings.css" />
+</head>
+<body class="module-settings-window lens-window">
+  <div id="app">
+    <header id="titlebar">
+      <span id="lens-title" class="ms-title">Lens</span>
+      <button id="lens-close" class="icon-btn" type="button" aria-label="Close">
+        <svg viewBox="0 0 20 20"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9"/></svg>
+      </button>
+    </header>
+    <div id="lens-root" class="ms-body lens-body"></div>
+  </div>
+
+  <script src="../shared/i18n.js"></script>
+  <script src="../shared/lens.js"></script>
+  <script src="../shared/theme-tokens.js"></script>
+  <script src="kernel/themes.js"></script>
+  <script src="kernel/i18n.js"></script>
+  <script src="kernel/typing.js"></script>
+  <script src="kernel/tooltip.js"></script>
+  <script src="lens.js"></script>
+</body>
+</html>

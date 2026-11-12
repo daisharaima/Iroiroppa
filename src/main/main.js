@@ -905,6 +905,9 @@ let overlayState = { text: '', hint: false };
 // What each board drew (palette id -> { pad, boxes }), for the drop resolver.
 let boardMetrics = new Map();
 let moduleSettingsWin = null;
+// The Lens window: a second popout kind, so a module's settings and its lenses can be
+// open at once (docs/MODULES.md, "Lenses"). One at a time, keyed by instance.
+let lensWin = null;
 let whatsNewWin = null;
 let autoConnectTimer = null;
 let autoConnectResumeAt = 0;
@@ -1237,6 +1240,7 @@ function kindOfUrl(url) {
     'settings.html': 'settings',
     'overlay.html': 'overlay',
     'module-settings.html': 'module-settings',
+    'lens.html': 'lens',
   };
   return kinds[base] || 'window';
 }
@@ -1302,6 +1306,8 @@ const ctx = {
   set settingsWin(v) { settingsWin = v; },
   get moduleSettingsWin() { return moduleSettingsWin; },
   set moduleSettingsWin(v) { moduleSettingsWin = v; },
+  get lensWin() { return lensWin; },
+  set lensWin(v) { lensWin = v; },
   get whatsNewWin() { return whatsNewWin; },
   set whatsNewWin(v) { whatsNewWin = v; },
   get overlayWin() { return overlayWin; },

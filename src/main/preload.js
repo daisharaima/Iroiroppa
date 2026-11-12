@@ -179,6 +179,12 @@ contextBridge.exposeInMainWorld('csp', {
   openModuleSettings: (spec) => ipcRenderer.invoke('moduleSettings:open', spec),
   closeModuleSettings: () => ipcRenderer.send('moduleSettings:close'),
   resizeModuleSettings: (height) => ipcRenderer.send('moduleSettings:resize', { height }),
+  // The Lens window (a second popout kind: see docs/MODULES.md, "Lenses").
+  openLens: (spec) => ipcRenderer.invoke('lens:open', spec),
+  closeLens: () => ipcRenderer.send('lens:close'),
+  resizeLens: (height) => ipcRenderer.send('lens:resize', { height }),
+  setLens: (instanceId, lens) => ipcRenderer.send('lens:set', { instanceId, lens }),
+  onLensApply: (cb) => ipcRenderer.on('lens:apply', (_e, d) => cb(d)),
   requestModuleAction: (payload) => ipcRenderer.send('module:action', payload),
 
   // The module command bus (docs/MODULES.md, "Module commands").

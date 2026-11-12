@@ -118,6 +118,7 @@
 
   reg.modules['color-slider'] = {
     id: 'color-slider',
+    lens: true,
     name: 'Color Slider',
     version: 4,
     defaults: { model: 'oklch', showL: true, showC: true, showH: true, hideNumbers: false, orientation: 'horizontal', thickness: 70, showOutL: true, showOutC: true, showOutH: true },
@@ -221,17 +222,41 @@
       const inGamutAt = (m, axes, i, v) => Gamut.inGamutAt(m, axes, i, v, store);
       const nearestInGamut = (m, i, desired, axes) => Gamut.nearestInGamut(m, i, store, axes, desired);
 
+      // The lens over these bars (a per-channel band grid, src/shared/lens.js). A track is
+      // ~65 colour stops, not a pixel loop, so the lens is cheap here; its bands are drawn
+      // with duplicated stops so the change is a step, not a ramp.
+      const LensAccess = window.IroLensAccess;
+      const lensScratch = [0, 0, 0];
+      let lensKey = null;
+      let lensNow = null;
+      const syncLens = () => {
+        if (!LensAccess) return;
+        const settings = ctx.settings.get();
+        const next = LensAccess.key(store, settings);
+        if (next === lensKey) return;
+        lensKey = next;
+        lensNow = LensAccess.build(store, settings);
+        for (const cache of trackCache) { cache.key = null; cache.css = null; }
+      };
+      const lensColour = (c) => {
+        if (!lensNow) return c;
+        const q = lensNow.applySrgb(c.r, c.g, c.b, lensScratch);
+        return { r: q[0], g: q[1], b: q[2] };
+      };
+      syncLens();
+
       /** A row's track: coloured only where this axis is in gamut, blank elsewhere. */
       const rowGradient = (m, i, dir, axes) => Gamut.gradientFor(m, i, store, {
         axes,
         direction: dir,
         markOut: current['showOut' + AXIS_IDS[i]] !== false,
+        lens: lensNow ? lensColour : null,
       });
 
       /** Key ignoring the dragged axis: a track does not depend on its own value. */
       const trackKey = (m, i, axes, dir) => {
         const others = [0, 1, 2].map((k) => (k === i ? '-' : axes[k].toFixed(5))).join(',');
-        return `${m.id}:${i}:${dir}:${others}:${store.plotKeyTag()}:${current['showOut' + AXIS_IDS[i]] !== false}`;
+        return `${m.id}:${i}:${dir}:${others}:${store.plotKeyTag()}:${lensKey}:${current['showOut' + AXIS_IDS[i]] !== false}`;
       };
 
       /** The precision the readout shows; the nudge arrows are the only quantised input. */
@@ -291,7 +316,10 @@
         const m = model();
         const axes = Models.axesFor(m, store);
         axes[i] = value;
-        store.setLab(m.toLab(axes), { notify });
+        const lab = m.toLab(axes);
+        // With a lens on, the bar shows bands, so the value written is the band the bar
+        // painted at this position (the pick half is not optional).
+        store.setLab(lensNow ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb) : lab, { notify });
       };
 
       for (let i = 0; i < 3; i++) {
@@ -392,6 +420,7 @@
         },
         onSettings(settings) {
           current = { ...settings };
+          syncLens();
           const nextModel = Models.has(settings.model) ? settings.model : Models.DEFAULT_ID;
           if (nextModel !== modelId) {
             modelId = nextModel;

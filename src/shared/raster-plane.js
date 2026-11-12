@@ -119,7 +119,7 @@
    * @returns {Uint8ClampedArray}
    */
   function renderPlane(spec) {
-    const { model, plane, fixed, ranges, width, height, out = null, workingGamut = null, luma = null, fill = false, outAlpha = 255, fillAlpha = 255 } = spec;
+    const { model, plane, fixed, ranges, width, height, out = null, workingGamut = null, luma = null, fill = false, outAlpha = 255, fillAlpha = 255, lens = null } = spec;
     const data = out || new Uint8ClampedArray(width * height * 4);
     const [hi, vi] = Models.planesFor(model)[plane];
     const hr = ranges[hi];
@@ -172,6 +172,19 @@
         const r = gamma(lin.r);
         const g = gamma(lin.g);
         const bl = gamma(lin.b);
+
+        // A lens replaces the display decision below: its band is a real document
+        // colour, so it paints at full strength as clipped bytes — never a hole, never
+        // the fitted stand-in (docs/INVARIANTS.md, the lens rules).
+        if (lens) {
+          const c = lens.applySrgb(r, g, bl, LENSED);
+          data[i] = clamp255(c[0] * 255);
+          data[i + 1] = clamp255(c[1] * 255);
+          data[i + 2] = clamp255(c[2] * 255);
+          data[i + 3] = 255;
+          if (luma) luma[y * width + x] = nativeLight ? axes[lightIdx] : L;
+          continue;
+        }
         if (r < -GAMUT_REL_TOL || r > 1 + GAMUT_REL_TOL
           || g < -GAMUT_REL_TOL || g > 1 + GAMUT_REL_TOL
           || bl < -GAMUT_REL_TOL || bl > 1 + GAMUT_REL_TOL) {
@@ -210,6 +223,9 @@
 
   const clamp255 = (x) => (x <= 0 ? 0 : x >= 255 ? 255 : (x + 0.5) | 0);
 
+  /** Scratch for a lensed colour, so a band does not allocate per pixel. */
+  const LENSED = [0, 0, 0];
+
   // Opacity of a filled out-of-gamut pixel: the panel background shows through, so it
   // reads as a dimmed colour on any theme and the map keeps its shape.
   const OUT_ALPHA = 140;
@@ -232,11 +248,19 @@
    * Alpha is 0 when the colour is outside the working gamut; `workingGamut` is null
    * when the working gamut is sRGB itself (the common case, and the fast one).
    */
-  function pixelFromLab(lab, out, workingGamut = null, outAlpha = 255, fill = false) {
+  function pixelFromLab(lab, out, workingGamut = null, outAlpha = 255, fill = false, lens = null) {
     const lin = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
     const r = gamma(lin.r);
     const g = gamma(lin.g);
     const b = gamma(lin.b);
+    if (lens) {
+      const c = lens.applySrgb(r, g, b, LENSED);
+      out[0] = clamp255(c[0] * 255);
+      out[1] = clamp255(c[1] * 255);
+      out[2] = clamp255(c[2] * 255);
+      out[3] = 255;
+      return out;
+    }
     if (r < -WIN_TOL || r > 1 + WIN_TOL
       || g < -WIN_TOL || g > 1 + WIN_TOL
       || b < -WIN_TOL || b > 1 + WIN_TOL) {

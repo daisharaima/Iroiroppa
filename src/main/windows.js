@@ -166,7 +166,7 @@ function createWindows(ctx) {
       }
       // Our own tool windows join the same list: order now follows the user, not a
       // fixed "tools last" rule.
-      for (const tool of [ctx.moduleSettingsWin, ctx.settingsWin, ctx.whatsNewWin, ctx.overlayWin]) {
+      for (const tool of [ctx.moduleSettingsWin, ctx.lensWin, ctx.settingsWin, ctx.whatsNewWin, ctx.overlayWin]) {
         if (tool && !tool.isDestroyed() && tool.isVisible()) wins.push(tool);
       }
       // Order follows the user: every band window's *bit* is repaired without touching
@@ -196,7 +196,8 @@ function createWindows(ctx) {
           : (ctx.overlayTooltip ? ctx.overlayTooltip.ownerWinId : null);
         const settingsId = ctx.settingsWin && !ctx.settingsWin.isDestroyed() ? ctx.settingsWin.id : null;
         const popoutId = ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed() ? ctx.moduleSettingsWin.id : null;
-        if (ownerId && (ownerId === settingsId || ownerId === popoutId)) raiseOverlayIfOwned();
+        const lensId = ctx.lensWin && !ctx.lensWin.isDestroyed() ? ctx.lensWin.id : null;
+        if (ownerId && (ownerId === settingsId || ownerId === popoutId || ownerId === lensId)) raiseOverlayIfOwned();
       }
       overlayWasOwned = owned;
       if (!wins.length) stopBandWatch();
@@ -1183,6 +1184,7 @@ function applyUiScale() {
     win.setContentSize(Math.round(cssW * scale), Math.round(cssH * scale));
   }
   if (ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed()) applyZoom(ctx.moduleSettingsWin);
+  if (ctx.lensWin && !ctx.lensWin.isDestroyed()) applyZoom(ctx.lensWin);
   if (ctx.whatsNewWin && !ctx.whatsNewWin.isDestroyed()) applyZoom(ctx.whatsNewWin);
   // Grow each window's physical size with the zoom, keeping its CSS layout size
   // constant (so content is not clipped and the layout does not reflow).
@@ -1203,6 +1205,7 @@ function applyUiScale() {
     raiseTopmost(ctx.settingsWin);
   }
   if (ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed()) raiseTopmost(ctx.moduleSettingsWin);
+  if (ctx.lensWin && !ctx.lensWin.isDestroyed()) raiseTopmost(ctx.lensWin);
 }
 
 /** Keep the Settings window's OS background in step with the theme. */
@@ -1646,6 +1649,109 @@ function openModuleSettingsWindow(spec = {}) {
   return true;
 }
 
+// --- the Lens window ---------------------------------------------------------
+
+function closeLensWindow() {
+  if (ctx.lensWin && !ctx.lensWin.isDestroyed()) ctx.lensWin.close();
+  ctx.lensWin = null;
+}
+
+/**
+ * The lenses over one selector instance, in their own window.
+ *
+ * A second popout kind beside the module-settings one (a lens is not a module: it has no
+ * board slot and its state is part of the instance it latches onto). Independent windows,
+ * so Settings and Lens can be open together; both keep the same topmost band, zoom and
+ * deferred blur close.
+ */
+function openLensWindow(spec = {}) {
+  const { moduleId, instanceId, name, anchor, lens } = spec;
+  if (!moduleId || !instanceId) return false;
+  closeLensWindow();
+
+  const width = 244;
+  const height = 260;
+  const hasAnchor = anchor
+    && Number.isFinite(anchor.left) && Number.isFinite(anchor.right) && Number.isFinite(anchor.top);
+  const cursor = screen.getCursorScreenPoint();
+  const area = hasAnchor
+    ? screen.getDisplayMatching({ x: anchor.right, y: anchor.top, width: 1, height: 1 }).workArea
+    : screen.getDisplayNearestPoint(cursor).workArea;
+  const palette = ctx.popup && !ctx.popup.isDestroyed() ? ctx.popup.getBounds() : null;
+
+  let px;
+  if (hasAnchor) {
+    px = anchor.right + 6;
+    if (px + width > area.x + area.width - 4) px = anchor.left - width - 6;
+  } else {
+    px = palette ? palette.x + palette.width + 6 : area.x + 120;
+  }
+  let py = hasAnchor ? anchor.top : (palette ? palette.y + 40 : area.y + 120);
+  px = Math.max(area.x + 4, Math.min(Math.round(px), area.x + area.width - width - 4));
+  py = Math.max(area.y + 4, Math.min(Math.round(py), area.y + area.height - height));
+
+  const active = lens && typeof lens === 'object' && lens.active === 'quantize' ? 'quantize' : 'none';
+  const bits = lens && lens.quantize && Array.isArray(lens.quantize.bits)
+    ? lens.quantize.bits.join(',')
+    : '3,3,3';
+
+  ctx.lensWin = new BrowserWindow({
+    width,
+    height,
+    x: px,
+    y: py,
+    show: false,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    alwaysOnTop: true,
+    focusable: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      additionalArguments: ctx.windowArgs || [],
+      sandbox: false,
+    },
+  });
+  const win = ctx.lensWin;
+  win.setAlwaysOnTop(true, 'floating');
+  win.loadFile(path.join(__dirname, '..', 'renderer', 'lens.html'), {
+    query: { moduleId, instanceId, name: name || moduleId, active, bits },
+  });
+  win.webContents.once('did-finish-load', () => {
+    if (!win.isDestroyed()) {
+      applyZoom(win);
+      win.show();
+      raiseTopmost(win);
+      win.focus();
+    }
+  });
+  if (ctx.isDev || ctx.shotPath || process.argv.includes('--log')) {
+    win.webContents.on('console-message', (_e, _l, message) => {
+      console.log('[lens]', message ?? (_e && _e.message));
+    });
+  }
+  let blurTimer = null;
+  win.on('blur', () => {
+    if (blurTimer) clearTimeout(blurTimer);
+    blurTimer = setTimeout(() => {
+      blurTimer = null;
+      if (ctx.lensWin === win) closeLensWindow();
+    }, 150);
+  });
+  win.on('focus', () => {
+    if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
+  });
+  win.on('closed', () => { if (ctx.lensWin === win) ctx.lensWin = null; });
+  return true;
+}
+
 // --- auto connect ------------------------------------------------------------
 
 
@@ -1904,7 +2010,7 @@ function refreshTray() {
 }
 
   return {
-    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, createWhatsNewWindow, openWhatsNew, closeWhatsNewWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, toggleAllWindows, showPaletteWindow, hidePaletteWindow, togglePaletteWindow, paletteIds, paletteExists, paletteVisible, isPaletteSuppressed, pruneSuppressed, anyBandVisible, positionWindowAtCursor, positionShortcutWindow, markShortcutPlacement, isShortcutPlacement, clearShortcutPlacement, captureShortcutVisibility, showShortcutTarget, restoreShortcutVisibility, isShortcutActive, resetInputState, reassertBand, reassertTopmost: raiseTopmost, repairTopmost, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayConfirm, closeOverlayConfirm, showOverlayMenu, closeOverlayMenu, showTooltip, hideTooltip, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
+    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, createWhatsNewWindow, openWhatsNew, closeWhatsNewWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, toggleAllWindows, showPaletteWindow, hidePaletteWindow, togglePaletteWindow, paletteIds, paletteExists, paletteVisible, isPaletteSuppressed, pruneSuppressed, anyBandVisible, positionWindowAtCursor, positionShortcutWindow, markShortcutPlacement, isShortcutPlacement, clearShortcutPlacement, captureShortcutVisibility, showShortcutTarget, restoreShortcutVisibility, isShortcutActive, resetInputState, reassertBand, reassertTopmost: raiseTopmost, repairTopmost, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayConfirm, closeOverlayConfirm, showOverlayMenu, closeOverlayMenu, showTooltip, hideTooltip, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, closeLensWindow, openLensWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
   };
 }
 

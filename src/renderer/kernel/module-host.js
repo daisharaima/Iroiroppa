@@ -8,6 +8,8 @@
 (function () {
   const SETTINGS_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="4" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="16" cy="10" r="1.7"/></svg>';
   const MINIMIZE_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5"/></svg>';
+  // The lens button: a lens over a small band stack — "change what this map shows".
+  const LENS_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.4"/><path d="M13 13l3.4 3.4"/><path d="M6 9h6M6.8 6.7h4.4M6.8 11.3h4.4"/></svg>';
   const DOCK = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v8"/><path d="M6.5 8.5 10 12l3.5-3.5"/><path d="M4 15.5h12"/></svg>';
   // The eye that collapses a float; a lone module shows it in its header (it has
   // no window grip to carry one). The CSS swaps the two icons on body.float-collapsed.
@@ -83,6 +85,7 @@
       // the card's own. A module that declares `headless` (Session: one row, nothing else) mounts with
       // no head at all - the module's own row is the card - which is how it stays one line without
       // ending up with two headers.
+      let lensParts = null;
       let head = null;
       if (!options.headless) {
         head = document.createElement('header');
@@ -113,6 +116,23 @@
           minBtn.innerHTML = MINIMIZE_ICON;
           head.insertBefore(minBtn, settingsBtn);
         }
+        // The lens button, left of the collapse arrow: every lens-capable selector
+        // offers it, and it opens the Lens window for *this instance* (docs/MODULES.md,
+        // "Lenses"). The board wires the click, because it owns the card and the drag.
+        if (def && def.lens) {
+          const lensBtn = document.createElement('button');
+          lensBtn.type = 'button';
+          lensBtn.className = 'module-lens';
+          lensBtn.title = window.Iro.t('ui.module.lens');
+          lensBtn.setAttribute('aria-label', `${displayName} — ${window.Iro.t('ui.module.lens')}`);
+          lensBtn.innerHTML = LENS_ICON;
+          const label = document.createElement('span');
+          label.className = 'module-lens-label';
+          lensBtn.append(label);
+          const anchor = head.querySelector('.module-collapse');
+          if (anchor) head.insertBefore(lensBtn, anchor); else head.insertBefore(lensBtn, settingsBtn);
+          lensParts = { btn: lensBtn, label };
+        }
       }
 
       const body = document.createElement('div');
@@ -137,7 +157,12 @@
         return record;
       }
 
+      // Per-instance state: a selector's lenses live in its own settings, so the card
+      // shows them (tint + short label) and the Lens window edits them through here.
+      if (lensParts && settings.lens) this._paintLens(lensParts, settings.lens);
+
       const record = { id, el, def, settings, instanceId };
+      if (lensParts) record.lens = lensParts;
       this.mounted.push(record);
 
       const ctx = {
@@ -264,6 +289,55 @@
       const record = this.recordFor(instanceId);
       if (!record || !record.ctx || !partial) return;
       record.ctx.settings.patch(partial);
+    }
+
+    /**
+     * The lenses of one instance, as its card shows them: the button tinted with a dot and
+     * a short label (`Quantize · 3/3/3`). An inert lens (all 8 bits) reads as off, because
+     * it changes nothing (see the lens requirement, §2).
+     */
+    _paintLens(parts, lens) {
+      if (!parts || !parts.btn) return;
+      const active = Boolean(lens && lens.active === 'quantize');
+      const bits = (lens && lens.quantize && Array.isArray(lens.quantize.bits))
+        ? lens.quantize.bits.join('/')
+        : '';
+      const inert = active && bits && bits.split('/').every((b) => Number(b) === 8);
+      const on = active && !inert;
+      parts.btn.classList.toggle('on', on);
+      parts.btn.dataset.active = on ? '1' : '0';
+      parts.label.textContent = on ? `Quantize · ${bits}` : '';
+      parts.btn.title = on
+        ? `Lens — Quantize ${bits}`
+        : window.Iro.t('ui.module.lens');
+    }
+
+    /** A lens edited in the Lens window: persist it on the instance that owns it. */
+    applyLens(instanceId, lens) {
+      const record = this.recordFor(instanceId);
+      if (!record) return false;
+      if (record.lens) this._paintLens(record.lens, lens);
+      this.patchSettings(instanceId, { lens: lens || null });
+      return true;
+    }
+
+    /**
+     * Re-read one instance's lens from the store (a change made in another window) and
+     * apply it if it really changed. Cheap and idempotent: a `module:changed` burst that
+     * carries no lens edit does nothing.
+     */
+    async reloadLens(instanceId) {
+      const record = this.recordFor(instanceId);
+      if (!record || !record.def || !record.def.lens || !record.ctx) return false;
+      let stored = null;
+      try { stored = await this.csp.getModuleSettings(instanceId, record.id); } catch { stored = null; }
+      if (!stored) return false;
+      const next = stored.lens || null;
+      const cur = record.settings.lens || null;
+      if (JSON.stringify(next) === JSON.stringify(cur)) return false;
+      if (record.lens) this._paintLens(record.lens, next);
+      record.ctx.settings.patch({ lens: next });
+      return true;
     }
 
     /** Coalesced "my minimum size may have changed, re-read it" request. */
