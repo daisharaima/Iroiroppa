@@ -119,8 +119,12 @@ it): every module is stacked top to bottom in that single column.
   declares `defaultRatio` in the manifest (CSP Color, Color Slices, Slider,
   Color History); the **Module Size** slider in Settings → Modules edits it per
   instance (`module.setHeight`), and so does dragging the card's **bottom edge**
-  (`ratioFromDrag` in `layout-model.js`, capped at 2.5). A shared edge resizes the
-  ratio module above it (or the one below when the above is a fill); the last
+  (`ratioFromDrag` in `layout-model.js`, capped at 2.5). **A shared edge belongs to the
+  module above it**: dragging it changes that one module's ratio and nothing else, and the
+  palette grows or shrinks to fit. A module below a handle is never resized by it — it has
+  an edge of its own, and resizing the card underneath read as "one drag moved two
+  modules". Only a pair with no ratio at all (fluid `fill` modules, or a module that
+  resizes itself through its own geometry) keeps the old weight-trading edge. The last
   module in the column gets its own edge handle, placed inside the card so it wins
   over the OS window-resize border. A ratio drag also requests a parent-window fit
   (`_fitNaturalWindow`) after each move: an all-natural palette grows or shrinks so

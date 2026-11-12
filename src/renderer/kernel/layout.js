@@ -871,16 +871,21 @@
       for (let i = 0; i < cards.length - 1; i++) {
         const above = this.modules.get(cards[i].dataset.instance);
         const below = this.modules.get(cards[i + 1].dataset.instance);
-        // The shared edge resizes a ratio-sized module above it (its own bottom
-        // edge), a ratio-sized module below it (its own top edge), or trades
-        // weights between fill modules. No module to resize, no handle.
+        // A shared edge belongs to the module ABOVE it: dragging it is that module's
+        // bottom edge, and only that module changes (the palette then grows or shrinks to
+        // fit). A module below a handle never moves - it has its own bottom edge for that,
+        // and a split that resized the card underneath read as "resizing both".
+        // Only a pair with no ratio at all falls back to trading fill weights.
         const a = above && above.model;
         const b = below && below.model;
-        const resizable = Boolean(
-          (a && this._ratioOf(a)) || (b && this._ratioOf(b))
-          || (a && (a.weight != null || this._isUnitSized(a)))
-          || (b && (b.weight != null || this._isUnitSized(b))),
+        const mineAbove = Boolean(
+          (a && this._ratioOf(a))
+          || (a && (a.weight != null || this._isUnitSized(a))),
         );
+        const weightsOnly = Boolean(
+          (b && (b.weight != null || this._isUnitSized(b))),
+        );
+        const resizable = mineAbove || weightsOnly;
         if (above && below && resizable) colEl.insertBefore(this._makeSplit(above, below), cards[i + 1]);
       }
       // The last module's bottom edge is its own resize handle. Its hit area is
@@ -1331,9 +1336,8 @@
       split.addEventListener('pointerdown', (ev) => {
         if (ev.button !== 0 || this.locked) return;
         // A ratio-sized module's own bottom edge is the Module Size slider: drag
-        // it directly. Only a pair with no ratio falls back to trading weights.
-        const ratioEntry = this._ratioOf(aboveEntry.model) ? aboveEntry
-          : (this._ratioOf(belowEntry.model) ? belowEntry : null);
+        // it directly. The card below never takes the drag - see _syncSplits.
+        const ratioEntry = this._ratioOf(aboveEntry.model) ? aboveEntry : null;
         if (ratioEntry) {
           drag = this._ratioDragState(ratioEntry, ratioEntry === aboveEntry);
           try { split.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }

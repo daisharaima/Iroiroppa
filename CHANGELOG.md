@@ -9,6 +9,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **Dragging a card's bottom edge changes only that card.** A handle between two modules
+  used to resize whichever of them had a locked height — often the one *below*, so a drag
+  looked like it moved two cards at once, and the bottom edge of a one-line card resized
+  its neighbour instead of doing nothing. A handle now belongs to the card above it: that
+  card's height changes and the palette grows or shrinks to fit. Only fluid cards with no
+  locked height keep the old weight-sharing edge.
+
 - **A module that declares a locked height ratio can be resized even if its saved layout
   still says "content-sized".** The board only draws a drag handle for a module with a
   ratio, and an explicitly stored `auto` height used to win forever — so a module that
