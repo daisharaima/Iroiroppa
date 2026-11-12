@@ -168,21 +168,6 @@ internal static class Program
 
     private static readonly Dictionary<int, KeyBinding> _bindings = new Dictionary<int, KeyBinding>();
 
-    /// The app's own executable name, from `--own`. Empty means "do not check".
-    private static string _ownName = "";
-
-    /// Is the foreground window one the shortcut should serve (CSP or one of our windows)?
-    /// The app's own active flag is a hint, not a guarantee: it depends on a watcher that
-    /// can be down, and "unknown" used to mean "claim everywhere", which ate keystrokes in
-    /// unrelated apps.
-    private static bool ForegroundIsHost()
-    {
-        IntPtr fg = GetForegroundWindow();
-        if (fg == IntPtr.Zero) return false;
-        string name = ProcessNameOfWindow(fg);
-        if (IsCsp(name)) return true;
-        return _ownName.Length > 0 && string.Equals(name, _ownName, StringComparison.OrdinalIgnoreCase);
-    }
 
     // --- the CSP canvas test (ported from pointer.ps1) ----------------------
     private const uint GA_ROOT = 2;
@@ -750,7 +735,7 @@ internal static class Program
                     {
                         if (binding.Claimed) return binding.Observe ? CallNextHookEx(_keyHook, nCode, wParam, lParam) : (IntPtr)1;
                         if (binding.Active && !binding.Typing && !binding.Busy && !ModifierDown()
-                            && !NativeTyping() && ForegroundIsHost()
+                            && !NativeTyping()
                             && (!binding.Canvas || CanvasUnderCursor()))
                         {
                             binding.Claimed = true;
@@ -1156,12 +1141,6 @@ internal static class Program
 
         StartWriter();
 
-        // --own <exe name>: the foreground process that counts as "ours" (the app's own
-        // windows). The app also pushes an active flag per binding, but that flag depends on
-        // its foreground watcher being healthy; the hook must be able to decide for itself
-        // that a key belongs to nobody of ours and pass it straight through.
-        int ownIndex = Array.IndexOf(args, "--own");
-        if (ownIndex >= 0 && ownIndex + 1 < args.Length) _ownName = args[ownIndex + 1];
         int parentIndex = Array.IndexOf(args, "--parent");
         if (parentIndex >= 0 && parentIndex + 1 < args.Length)
         {

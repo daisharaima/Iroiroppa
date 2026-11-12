@@ -84,7 +84,7 @@ class NativeHost extends EventEmitter {
 
     let child;
     try {
-      child = this.spawnImpl(this.exePath, ['--parent', String(process.pid), '--own', path.basename(process.execPath)], {
+      child = this.spawnImpl(this.exePath, ['--parent', String(process.pid)], {
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       });
