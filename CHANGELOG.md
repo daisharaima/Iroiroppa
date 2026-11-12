@@ -9,6 +9,13 @@ this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A module that declares a locked height ratio can be resized even if its saved layout
+  still says "content-sized".** The board only draws a drag handle for a module with a
+  ratio, and an explicitly stored `auto` height used to win forever — so a module that
+  changed its own sizing model kept a dead bottom edge, with nothing the user could do
+  about it. A module that no longer declares `autoHeight` now adopts its declared ratio;
+  a module that still does keeps its choice.
+
 - **The three Color Slices maps now move together while one of them is dragged.** The
   two panels you are not dragging used to update in visible steps (one per frame,
   round-robin), and the Hue × Lightness slice stopped updating altogether: its build
