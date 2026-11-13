@@ -245,3 +245,36 @@ test('a reject ends the interaction and the next drag opens a fresh one', () => 
   const second = calls.filter((c) => c[0] === 'begin').pop()[1];
   assert.notEqual(second, first, 'a new interaction id after a reject');
 });
+
+// --- the lens's recorded value ------------------------------------------------
+
+test('a lensed pick writes the band but keeps the pointer colour', () => {
+  const writes = [];
+  const store = loadStore({ writeColor: (v) => writes.push(v) });
+  // A write only leaves the window while the host is connected.
+  store.connected = true;
+  store.liveSync = true;
+  // The cursor sits at L 0.60; the lens answers with a band at L 0.57.
+  store.setLCH({ L: 0.6, C: 0.1, H: 30 }, {
+    notify: 'commit',
+    recorded: Color.oklchToOklab(0.57, 0.1, 30),
+  });
+  // The store's own colour is still the cursor's: the pointer, the guide and the plane's
+  // fixed axes all read this, which is why a band must never be written here.
+  assert.ok(Math.abs(store.L - 0.6) < 1e-9, `L moved to ${store.L}`);
+  // What CSP receives, and what the swatch reads, is the band.
+  const written = writes[writes.length - 1];
+  const expected = Color.oklabToRgb(0.57, Color.oklchToOklab(0.57, 0.1, 30).a, Color.oklchToOklab(0.57, 0.1, 30).b);
+  assert.ok(Math.abs(written.r - Math.round(expected.r * 255)) <= 1, `${written.r} vs ${expected.r * 255}`);
+  assert.deepEqual(store.contentRgb(), written);
+});
+
+test('a plain set clears a previous lens override', () => {
+  const writes = [];
+  const store = loadStore({ writeColor: (v) => writes.push(v) });
+  store.setLCH({ L: 0.6, C: 0.1, H: 30 }, { notify: 'commit', recorded: Color.oklchToOklab(0.5, 0.05, 200) });
+  store.setLCH({ L: 0.6, C: 0.1, H: 30 }, { notify: 'commit' });
+  const stored = store.contentRgb();
+  const own = Color.oklabToRgb(store.L, store.a, store.b);
+  assert.ok(Math.abs(stored.r - Math.round(own.r * 255)) <= 1, 'a plain set must not keep the old band');
+});

@@ -246,7 +246,13 @@
     }
 
     /** The value to store in CSP for the current OKLCH (or a given one). */
+    /**
+     * The colour to send to CSP. Normally the stored colour; with a lens on the picker
+     * passes the band's colour as `recorded`, so the map's band is what gets written while
+     * `lab()` stays under the cursor (a lens must never move the picker's own axes).
+     */
     contentRgb(lch = null) {
+      if (!lch && this._recorded) return this._rgbOfLab(this._recorded);
       let f;
       if (this.proofOn()) {
         f = this.proof.writeSrgb(lch || this.lch());
@@ -258,6 +264,15 @@
         const c = Color.oklabToRgb(this.L, this.a, this.b);
         f = [c.r, c.g, c.b];
       }
+      return { r: clamp255(f[0] * 255), g: clamp255(f[1] * 255), b: clamp255(f[2] * 255) };
+    }
+
+    /** A Lab in the document's recorded values (the lens band's colour). */
+    _rgbOfLab(lab) {
+      const c = Color.oklabToRgb(lab.L, lab.a, lab.b);
+      let f = [c.r, c.g, c.b];
+      if (this.proofOn()) f = this.proof.recordedSrgb(f);
+      else if (this.proof) f = this.proof.recordedSrgb(f);
       return { r: clamp255(f[0] * 255), g: clamp255(f[1] * 255), b: clamp255(f[2] * 255) };
     }
 
@@ -345,8 +360,11 @@
     }
 
     /** Set the colour and optionally push it to CSP. */
-    setLCH(lch, { notify = 'none', snap = false } = {}) {
+    setLCH(lch, { notify = 'none', snap = false, recorded = null } = {}) {
       this._applyLCH(lch, { snap });
+      // `recorded` is the lens's answer: what the band holds, while the axes stay the
+      // cursor's. Cleared on every ordinary set, so a lens can never leak into a pick.
+      this._recorded = recorded ? { L: recorded.L, a: recorded.a, b: recorded.b } : null;
       let stored = null;
       if (notify !== 'none') {
         stored = this.contentRgb();

@@ -317,9 +317,12 @@
         const axes = Models.axesFor(m, store);
         axes[i] = value;
         const lab = m.toLab(axes);
-        // With a lens on, the bar shows bands, so the value written is the band the bar
-        // painted at this position (the pick half is not optional).
-        store.setLab(lensNow ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb) : lab, { notify });
+        // The bar shows bands; the slider's own value stays the cursor's, and only what is
+        // recorded is the band (a band in the store would move the thumb off the pointer).
+        store.setLab(lab, {
+          notify,
+          recorded: lensNow ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb) : null,
+        });
       };
 
       for (let i = 0; i < 3; i++) {

@@ -690,10 +690,13 @@
           if (Math.abs(probe[1]) < 1e-6) probe[1] = model.axes[1].max * 1e-3;
           const pLab = model.toLab(probe);
           const hueOKLCH = Color.oklabToOklch(pLab.L, pLab.a, pLab.b).H;
+          const heldLab = model.toLab(held);
           const recorded = lensNow
-            ? lensNow.applyLab(model.toLab(held), Color.rgbToOklab, Color.oklabToRgb)
-            : model.toLab(held);
-          store.setLab(recorded, { notify: 'live', hue: hueOKLCH });
+            ? lensNow.applyLab(heldLab, Color.rgbToOklab, Color.oklabToRgb)
+            : null;
+          // The ring turns the *cursor's* hue; the lens only decides what is recorded, or
+          // the hue would jump to each band's canonical hue while dragging.
+          store.setLab(heldLab, { notify: 'live', hue: hueOKLCH, recorded });
           return;
         }
         const proj = innerProj(model, axes[hIdx]);
@@ -729,9 +732,12 @@
           if (!G.lightnessReached(model, held, lockLight)) return;
           a = held;
         }
-        store.setLab(lensNow
-          ? lensNow.applyLab(model.toLab(a), Color.rgbToOklab, Color.oklabToRgb)
-          : model.toLab(a), { notify: 'live', snap: true });
+        const innerLab = model.toLab(a);
+        store.setLab(innerLab, {
+          notify: 'live',
+          snap: true,
+          recorded: lensNow ? lensNow.applyLab(innerLab, Color.rgbToOklab, Color.oklabToRgb) : null,
+        });
       };
 
       const attach = () => {
@@ -898,10 +904,8 @@
         const pt = G.pointOf(model, 0, clamped.axes, store);
         // Under a lens the stored colour is a band, whose canonical position is not under
         // the mouse: the pointer follows the cursor, the readout says what will be recorded.
-        const p = (lensNow && lastCursorPoint)
-          ? viewPoint(proj, box, lastCursorPoint.u, lastCursorPoint.v)
-          : viewPoint(proj, box, pt.u, pt.v);
-        Overlay.pointer(c2d, p.x, p.y, { clamped: lensNow ? false : clamped.clamped, scale: dpr });
+        const p = viewPoint(proj, box, pt.u, pt.v);
+        Overlay.pointer(c2d, p.x, p.y, { clamped: clamped.clamped, scale: dpr });
 
         const labels = model.axes;
         for (let i = 0; i < 3; i += 1) {

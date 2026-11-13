@@ -1621,6 +1621,7 @@ function openModuleSettingsWindow(spec = {}) {
     if (!win.isDestroyed()) {
       applyZoom(win);
       win.show();
+      win.__shownAt = Date.now();
       // The runtime's always-on-top request is dropped on this build, so the popout
       // would open under the palette: assert the band now, and again on every resize.
       raiseTopmost(win);
@@ -1639,6 +1640,10 @@ function openModuleSettingsWindow(spec = {}) {
     if (blurTimer) clearTimeout(blurTimer);
     blurTimer = setTimeout(() => {
       blurTimer = null;
+      // Opening races a transient blur: the band repair or the palette's own raise can
+      // take the focus for a frame, which used to close the popout before it was usable
+      // (the "popup sometimes does not open" report).
+      if (win.__shownAt && Date.now() - win.__shownAt < 600) return;
       if (ctx.moduleSettingsWin === win) closeModuleSettingsWindow();
     }, 150);
   });
@@ -1840,7 +1845,13 @@ function startFollowFocus() {
     }
     if (typeof ctx.setBareActiveShortcut === 'function') ctx.setBareActiveShortcut(ctx.isShortcutActive());
     if (!ctx.popup) return;
-    const action = focusState(name);
+    // Using a popout (module settings, the Lens window) is a deliberate interaction with
+    // our own UI, and those windows do not always own the foreground: hiding the palette
+    // under them is the "Iroiroppa disappears while I use the popup" report.
+    const popoutOpen = [ctx.moduleSettingsWin, ctx.lensWin].some(
+      (w) => w && !w.isDestroyed() && w.isVisible(),
+    );
+    const action = isCspProcess(name) ? 'show' : (popoutOpen ? 'keep' : focusState(name));
     traceFocus('change', JSON.stringify({ name, action }));
     if (action === 'show') {
       if (!ctx.popup.isVisible()) showPopupAuto();

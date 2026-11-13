@@ -312,12 +312,23 @@
         : window.Iro.t('ui.module.lens');
     }
 
-    /** A lens edited in the Lens window: persist it on the instance that owns it. */
+    /**
+     * A lens edited in the Lens window: persist it on the instance that owns it and tell
+     * the module, so its maps rebuild. Deliberately does not go through `patchSettings`:
+     * that one no-ops when a record has no ctx, which left the card's label cleared but
+     * the map still banded (the "turning the lens off does nothing" report).
+     */
     applyLens(instanceId, lens) {
       const record = this.recordFor(instanceId);
       if (!record) return false;
       if (record.lens) this._paintLens(record.lens, lens);
-      this.patchSettings(instanceId, { lens: lens || null });
+      record.settings.lens = lens || null;
+      try {
+        if (record.instance && record.instance.onSettings) record.instance.onSettings({ ...record.settings });
+      } catch (err) {
+        console.warn('[lens] onSettings failed', err && err.message);
+      }
+      this._scheduleSave(instanceId, record.settings, record.def && record.def.version, record.id);
       return true;
     }
 
@@ -336,7 +347,10 @@
       const cur = record.settings.lens || null;
       if (JSON.stringify(next) === JSON.stringify(cur)) return false;
       if (record.lens) this._paintLens(record.lens, next);
-      record.ctx.settings.patch({ lens: next });
+      record.settings.lens = next;
+      try {
+        if (record.instance && record.instance.onSettings) record.instance.onSettings({ ...record.settings });
+      } catch { /* the map keeps its last paint */ }
       return true;
     }
 

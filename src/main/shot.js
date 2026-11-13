@@ -298,10 +298,22 @@ function runShot(ctx) {
           }));
         }
         if (process.argv.includes('--lens-probe')) {
+          // `colours` counts distinct RGB values on the first Slices panel: a 3/3/3 lens
+          // leaves very few, a smooth map leaves hundreds. It is how a lens being turned
+          // off is checked without a human looking at the window.
           const js = `JSON.stringify({
             buttons: document.querySelectorAll('.module-lens').length,
             active: [...document.querySelectorAll('.module-lens')].map((n) => n.dataset.active || null),
             labels: [...document.querySelectorAll('.module-lens-label')].map((n) => n.textContent),
+            colours: [...document.querySelectorAll('.slice-panels canvas')].map((c) => {
+              const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+              const seen = new Set();
+              for (let i = 0; i < d.length; i += 4 * 7) {
+                if (d[i + 3] < 250) continue;
+                seen.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+              }
+              return seen.size;
+            }),
           })`;
           const win = ctx.popup;
           if (win && !win.isDestroyed()) {
@@ -331,6 +343,39 @@ function runShot(ctx) {
               lens: stored.lens || null,
             });
             await new Promise((r) => setTimeout(r, 700));
+            // `--lens-click <css>` presses a control in the Lens window, so the exact
+            // flow that turned a lens off (and left the map quantised) can be replayed.
+            const clickSel = argValue('--lens-click');
+            if (clickSel && ctx.lensWin && !ctx.lensWin.isDestroyed()) {
+              await new Promise((r) => setTimeout(r, 400));
+              const clicked = await ctx.lensWin.webContents.executeJavaScript(
+                `(() => { const n = document.querySelector(${JSON.stringify(String(clickSel))}); if (!n) return 'not-found'; n.click(); return 'clicked'; })()`,
+              ).catch((e) => `err ${e.message}`);
+              console.log('lens click:', clicked);
+              await new Promise((r) => setTimeout(r, 900));
+            }
+            const offAfter = argValue('--lens-off-after');
+            if (offAfter && Number(offAfter) > 0) {
+              await new Promise((r) => setTimeout(r, Number(offAfter)));
+              const clicked = await ctx.lensWin.webContents.executeJavaScript(
+                "(() => { const n = document.querySelector('.lens-row'); if (!n) return 'not-found'; n.click(); return 'clicked'; })()",
+              ).catch((e) => `err ${e.message}`);
+              console.log('lens off:', clicked);
+              await new Promise((r) => setTimeout(r, 900));
+              const colours = await ctx.popup.webContents.executeJavaScript(`(() => {
+                const counts = [...document.querySelectorAll('.slice-panels canvas')].map((c) => {
+                  const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+                  const seen = new Set();
+                  for (let i = 0; i < d.length; i += 4 * 7) {
+                    if (d[i + 3] < 250) continue;
+                    seen.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+                  }
+                  return seen.size;
+                });
+                return { colours: counts, labels: [...document.querySelectorAll('.module-lens-label')].map((n) => n.textContent) };
+              })()`).catch(() => null);
+              console.log('lens after off:', JSON.stringify(colours));
+            }
             const shot = argValue('--lens-shot');
             if (shot && ctx.lensWin && !ctx.lensWin.isDestroyed()) {
               const img = await ctx.lensWin.webContents.capturePage();

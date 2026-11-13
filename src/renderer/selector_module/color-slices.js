@@ -337,14 +337,15 @@
 
       // A lensed pick: the map paints the band, so the recorded colour is that band too
       // (the pick half is not optional — docs/INVARIANTS.md).
-      const lensedLCH = (lch) => {
-        if (!lensNow) return lch;
-        // `applyLab` answers with a Lab (the store's canonical form), and `setLCH` wants
-        // L/C/H: handing the Lab straight to `setLCH` read `a` as chroma and `b` as hue,
-        // which collapsed the plane and froze the pointer (the "slice disappears" report).
-        const lab = lensNow.applyLab(Color.oklchToOklab(lch.L, lch.C, lch.H), Color.rgbToOklab, Color.oklabToRgb);
-        return Color.oklabToOklch(lab.L, lab.a, lab.b);
-      };
+      /**
+       * What the lens records for a colour the pointer is on. The store keeps the pointer's
+       * own colour for geometry (pointer, guide, the plane's fixed axes) and only *sends*
+       * this one, so a band can never yank the picker's channels around (the shifting-hue
+       * and shifting-L reports).
+       */
+      const lensRecorded = (lab) => (lensNow
+        ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb)
+        : null);
       // The last-built map per panel. During a drag the maps of the *other*
       // panels are held (their fixed axes are changing); the dragged panel's map
       // is stable because its fixed axis is pinned.
@@ -778,10 +779,7 @@
         drawGuide(c2d, plane, w, h, model, axes, scale);
         const clamped = G.clampAxes(model, axes, store);
         const p = G.pointOf(model, plane, clamped.axes, store);
-        const raw = lensNow ? lastPointer[plane] : null;
-        const s = raw
-          ? point(plane, raw.u, 1 - raw.v)
-          : point(plane, p.u, 1 - p.v);
+        const s = point(plane, p.u, 1 - p.v);
         const x = s.u * (w - 1), y = s.v * (h - 1);
         if (crosshair) Overlay.crosshair(c2d, w, h, x, y, { scale });
         Overlay.pointer(c2d, x, y, { clamped: clamped.clamped, scale });
@@ -814,7 +812,7 @@
           if (!section.classList.contains('hidden') && canvas.clientWidth >= 2 && canvas.clientHeight >= 2) {
             const { w: W, h: H } = sizeCanvas(canvas, 2.5);
             const fixed = fixedFor(plane);
-            const key = `lc:${store.plotKeyTag()}:${fixed[2].toFixed(3)}:${W}x${H}`;
+            const key = `lc:${store.plotKeyTag()}:${lensKey}:${fixed[2].toFixed(3)}:${W}x${H}`;
             if (want(plane, lastOff[plane])) {
               const spec = {
                 kind: 'lc', width: W, height: H, cmax, fixed,
@@ -836,7 +834,7 @@
           if (!section.classList.contains('hidden') && canvas.clientWidth >= 2 && canvas.clientHeight >= 2) {
             const { w: W, h: H } = sizeCanvas(canvas, 2.5);
             const fixed = fixedFor(plane);
-            const key = `hc:${store.plotKeyTag()}:${fixed[0].toFixed(3)}:${W}x${H}`;
+            const key = `hc:${store.plotKeyTag()}:${lensKey}:${fixed[0].toFixed(3)}:${W}x${H}`;
             if (want(plane, lastOff[plane])) {
               const spec = {
                 kind: 'hc', width: W, height: H, cmax, fixed,
@@ -858,7 +856,7 @@
           if (!section.classList.contains('hidden') && canvas.clientWidth >= 2 && canvas.clientHeight >= 2) {
             const { w: W, h: H } = sizeCanvas(canvas, 2.5);
             const fixed = fixedFor(plane);
-            const key = `hue:${store.plotKeyTag()}:${fixed[1].toFixed(3)}:${W}x${H}`;
+            const key = `hue:${store.plotKeyTag()}:${lensKey}:${fixed[1].toFixed(3)}:${W}x${H}`;
             if (want(plane, lastOff[plane])) {
               const spec = {
                 kind: 'hue', width: W, height: H, cmax, fixed,
@@ -964,7 +962,7 @@
           // the live axes and are rebuilt (throttled) so they follow the drag.
           const fixed = (store.dragging && p === dragPanel && dragAxes) ? dragAxes : axes;
           const fi = planes[p][2];
-          const key = `g${p}:${store.plotKeyTag()}:${model.id}:${rw}x${rh}:${fixed[fi].toFixed(5)}`;
+          const key = `g${p}:${store.plotKeyTag()}:${lensKey}:${model.id}:${rw}x${rh}:${fixed[fi].toFixed(5)}`;
           let off = lastOff[p];
           const gamutTest = workingGamutTest();
           // Diagnostic counters (read by --perf-gaps): which path built this plane.
@@ -1134,20 +1132,26 @@
 
           if (model.id === Models.DEFAULT_ID) {
             const cmax = store.cmax();
+            const put = (lch, notify) => store.setLCH(lch, {
+              notify,
+              snap: true,
+              recorded: lensRecorded(Color.oklchToOklab(lch.L, lch.C, lch.H)),
+            });
             if (plane === 0) {
               const L = lockLight !== null ? clamp01(lockLight) : u;
-              store.setLCH(lensedLCH({ L, C: (1 - v) * cmax, H: fixed[2] }), { notify: 'live', snap: true });
+              put({ L, C: (1 - v) * cmax, H: fixed[2] }, 'live');
             } else if (plane === 1) {
               const C = (1 - v) * cmax;
-              store.setLCH(lensedLCH({ L: fixed[0], C, H: C < 1e-6 ? fixed[2] : u * 360 }), { notify: 'live', snap: true });
+              put({ L: fixed[0], C, H: C < 1e-6 ? fixed[2] : u * 360 }, 'live');
             } else {
               const C = fixed[1];
               const H = C < 1e-6 ? fixed[2] : u * 360;
               if (lockLight !== null) {
                 const L = clamp01(lockLight);
-                store.setLCH(lensedLCH({ L, C, H: clampHToGamut(L, C, H) }), { notify: 'live', snap: true });
+                put({ L, C, H: clampHToGamut(L, C, H) }, 'live');
               } else {
-                store.setLCH(lensedLCH({ L: clampLToGamut(1 - v, C, H), C, H }), { notify: 'live' });
+                store.setLCH({ L: clampLToGamut(1 - v, C, H), C, H },
+                  { notify: 'live', recorded: lensRecorded(Color.oklchToOklab(clampLToGamut(1 - v, C, H), C, H)) });
               }
             }
             return;
@@ -1161,9 +1165,8 @@
             if (!G.lightnessReached(model, held, lockLight)) return;
             axes = held;
           }
-          store.setLab(lensNow
-            ? lensNow.applyLab(model.toLab(axes), Color.rgbToOklab, Color.oklabToRgb)
-            : model.toLab(axes), { notify: 'live', snap: true });
+          const got = model.toLab(axes);
+          store.setLab(got, { notify: 'live', snap: true, recorded: lensRecorded(got) });
         };
 
         canvas.addEventListener('pointerdown', (ev) => {

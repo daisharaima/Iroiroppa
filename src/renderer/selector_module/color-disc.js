@@ -436,14 +436,10 @@
         // With a lens on, the stored colour is a *band* whose canonical position is not
         // under the mouse, so the pointer follows the last cursor position instead.
         const p = pointOf(model, axes, scale);
-        if (lensNow && lastCursor) {
-          Overlay.pointer(c2d, cx + lastCursor.x, cy + lastCursor.y, { clamped: false, scale: dpr });
-        } else {
-          const a = (p.hue * Math.PI) / 180;
-          Overlay.pointer(c2d, cx + Math.cos(a) * radius * p.r, cy + Math.sin(a) * radius * p.r, {
-            clamped: p.clamped, scale: dpr,
-          });
-        }
+        const a = (p.hue * Math.PI) / 180;
+        Overlay.pointer(c2d, cx + Math.cos(a) * radius * p.r, cy + Math.sin(a) * radius * p.r, {
+          clamped: p.clamped, scale: dpr,
+        });
 
         for (let i = 0; i < 3; i += 1) {
           outLabels[i].textContent = model.axes[i].key.toUpperCase();
@@ -503,15 +499,15 @@
 
       const applyPoint = (next, notify) => {
         const lab = next.model.toLab(next.axes);
-        // A lensed pick records the band the map painted there, not the unlensed colour
-        // under the pointer (the pick half is not optional).
-        const recorded = lensNow
-          ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb)
-          : lab;
         // `snap` is the store's single gamut-snap path (`reduceChroma`, never raises
         // chroma): every recorded disc value lands inside the document. The pointer is
-        // drawn from the stored axes, so it stays on the drawn boundary.
-        store.setLab(recorded, { notify, snap: true });
+        // drawn from the stored axes, so it stays on the drawn boundary. A lens is only
+        // the *recorded* value: putting the band in the store moved the pointer and the
+        // lightness row (the "L channel shifts" report).
+        const recorded = lensNow
+          ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb)
+          : null;
+        store.setLab(lab, { notify, snap: true, recorded });
       };
 
       let dragging = false;
