@@ -111,6 +111,19 @@ if (portableDir && !explicitUserDataDir) {
   else console.warn(`[portable] ${portableDir} is not writable; using the usual app-data folder`);
 }
 
+// One app, one data tree, one single-instance lock. A development run used to resolve
+// `userData` from the package `name` while the packaged build used `productName`, so the
+// two had separate locks and could run side by side - each with its own native host and
+// its own low-level keyboard hook. The older hook then swallowed every bound key while the
+// window the user was looking at received nothing, which read as "the shortcut stopped
+// working". A `--user-data-dir` (a shot or a scripted run) stays isolated on purpose.
+if (!app.isPackaged && !explicitUserDataDir && !portableDir) {
+  try {
+    const product = require('../package.json').build?.productName;
+    if (product) app.setPath('userData', path.join(app.getPath('appData'), product));
+  } catch { /* keep Electron's default if the manifest cannot be read */ }
+}
+
 // Stores that need only the app-data directory are built once, Electron-free.
 // The proof store reads `settings`, which is assigned once Electron is ready, so
 // it is given a lazy getter (nothing calls it before then).
