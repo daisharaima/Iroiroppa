@@ -252,15 +252,24 @@ function register(ctx, h) {
     const [w] = ctx.lensWin.getContentSize();
     const h = Math.max(80, Math.min(maxH, Math.round((Number(height) || 0) * z)));
     ctx.lensWin.setContentSize(w, h);
+    // A resize can blur the window for a frame; the blur close ignores one that follows
+    // a resize this closely.
+    ctx.lensWin.__lastResize = Date.now();
     if (ctx.repairTopmost) ctx.repairTopmost(ctx.lensWin);
   });
   // The lens window edits a selector instance's lens. The instance lives in a palette or
   // float renderer, so main relays; that renderer persists it through its own settings
   // store (one writer for modules/<id>.json), which is what repaints the maps.
-  ipcMain.on('lens:set', (_e, { instanceId, lens } = {}) => {
+  ipcMain.on('lens:set', (event, { instanceId, lens } = {}) => {
     if (!instanceId) return;
     const payload = { instanceId, lens: lens || null };
-    for (const win of BrowserWindow.getAllWindows()) sendTo(win, 'lens:apply', payload);
+    // Never echo back to the window that made the change: it already knows, and a
+    // re-render of the Lens window resized it under the pointer (which blurred it and
+    // closed it, and the palette then hid for want of a foreground window).
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (win.isDestroyed() || win.webContents === event.sender) continue;
+      sendTo(win, 'lens:apply', payload);
+    }
   });
 
 }

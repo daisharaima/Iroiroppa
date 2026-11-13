@@ -1742,6 +1742,9 @@ function openLensWindow(spec = {}) {
     if (blurTimer) clearTimeout(blurTimer);
     blurTimer = setTimeout(() => {
       blurTimer = null;
+      // A resize under the pointer can blur the window for a frame; closing then made
+      // the lens window vanish as soon as an option was picked.
+      if (win.__lastResize && Date.now() - win.__lastResize < 400) return;
       if (ctx.lensWin === win) closeLensWindow();
     }, 150);
   });

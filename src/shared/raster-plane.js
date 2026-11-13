@@ -173,10 +173,11 @@
         const g = gamma(lin.g);
         const bl = gamma(lin.b);
 
-        // A lens replaces the display decision below: its band is a real document
-        // colour, so it paints at full strength as clipped bytes — never a hole, never
-        // the fitted stand-in (docs/INVARIANTS.md, the lens rules).
-        if (lens) {
+        // A lens changes the *colour*, never the shape: a pixel outside the document
+        // gamut stays a hole (a map shows only what it can pick), and only a pixel the
+        // document holds is painted as its band. Painting the outside too turned a Disc
+        // into a perfect circle (the "shape changed" report).
+        if (lens && (!workingGamut || workingGamut(lab))) {
           const c = lens.applySrgb(r, g, bl, LENSED);
           data[i] = clamp255(c[0] * 255);
           data[i + 1] = clamp255(c[1] * 255);
@@ -253,7 +254,13 @@
     const r = gamma(lin.r);
     const g = gamma(lin.g);
     const b = gamma(lin.b);
+    // The same rule as the plane: a lens recolours, it does not add area.
     if (lens) {
+      if (workingGamut && !workingGamut(lab)) {
+        if (fill) paintFitted(out, 0, lab.L, lab.a, lab.b, OUT_ALPHA);
+        else out[3] = 0;
+        return out;
+      }
       const c = lens.applySrgb(r, g, b, LENSED);
       out[0] = clamp255(c[0] * 255);
       out[1] = clamp255(c[1] * 255);

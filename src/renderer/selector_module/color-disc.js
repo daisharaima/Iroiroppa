@@ -251,6 +251,9 @@
       const LensAccess = window.IroLensAccess;
       let lensKey = null;
       let lensNow = null;
+      // The raw cursor position (canvas px from the centre), so a lensed pointer follows
+      // the mouse instead of the band's canonical position.
+      let lastCursor = null;
       const syncLens = () => {
         if (!LensAccess) return;
         const settings = ctx.settings.get();
@@ -430,11 +433,17 @@
             : lastDiscOff.__target), dpr);
         // The ring shows the *picked* colour, not the cursor: with a locked lightness the
         // stored colour is solved onto the iso-lightness line, so the ring belongs there.
+        // With a lens on, the stored colour is a *band* whose canonical position is not
+        // under the mouse, so the pointer follows the last cursor position instead.
         const p = pointOf(model, axes, scale);
-        const a = (p.hue * Math.PI) / 180;
-        Overlay.pointer(c2d, cx + Math.cos(a) * radius * p.r, cy + Math.sin(a) * radius * p.r, {
-          clamped: p.clamped, scale: dpr,
-        });
+        if (lensNow && lastCursor) {
+          Overlay.pointer(c2d, cx + lastCursor.x, cy + lastCursor.y, { clamped: false, scale: dpr });
+        } else {
+          const a = (p.hue * Math.PI) / 180;
+          Overlay.pointer(c2d, cx + Math.cos(a) * radius * p.r, cy + Math.sin(a) * radius * p.r, {
+            clamped: p.clamped, scale: dpr,
+          });
+        }
 
         for (let i = 0; i < 3; i += 1) {
           outLabels[i].textContent = model.axes[i].key.toUpperCase();
@@ -461,6 +470,7 @@
         const y = at.y * h;
         const nx = (x - cx) / radius;
         const ny = (y - cy) / radius;
+        lastCursor = { x: nx * radius, y: ny * radius };
         const raw = Math.hypot(nx, ny);
         // A locked drag projects the pointer onto the *drawn* guide: that line is the
         // raster's own iso-lightness contour, so its nearest point is exactly the colour

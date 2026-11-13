@@ -337,9 +337,14 @@
 
       // A lensed pick: the map paints the band, so the recorded colour is that band too
       // (the pick half is not optional — docs/INVARIANTS.md).
-      const lensedLCH = (lch) => (lensNow
-        ? lensNow.applyLab(Color.oklchToOklab(lch.L, lch.C, lch.H), Color.rgbToOklab, Color.oklabToRgb)
-        : lch);
+      const lensedLCH = (lch) => {
+        if (!lensNow) return lch;
+        // `applyLab` answers with a Lab (the store's canonical form), and `setLCH` wants
+        // L/C/H: handing the Lab straight to `setLCH` read `a` as chroma and `b` as hue,
+        // which collapsed the plane and froze the pointer (the "slice disappears" report).
+        const lab = lensNow.applyLab(Color.oklchToOklab(lch.L, lch.C, lch.H), Color.rgbToOklab, Color.oklabToRgb);
+        return Color.oklabToOklch(lab.L, lab.a, lab.b);
+      };
       // The last-built map per panel. During a drag the maps of the *other*
       // panels are held (their fixed axes are changing); the dragged panel's map
       // is stable because its fixed axis is pinned.
@@ -358,6 +363,11 @@
       let dragPanel = -1;
       let lockLight = null;
       const inputCleanups = [];
+
+      // Where the mouse last was, per panel. With a lens on, the *recorded* colour is the
+      // band under the pointer, but the pointer itself must stay under the mouse: drawing
+      // it from the stored colour snapped it to the band's canonical position.
+      const lastPointer = [null, null, null];
 
       const panels = document.createElement('div');
       panels.className = 'slice-panels';
@@ -768,7 +778,10 @@
         drawGuide(c2d, plane, w, h, model, axes, scale);
         const clamped = G.clampAxes(model, axes, store);
         const p = G.pointOf(model, plane, clamped.axes, store);
-        const s = point(plane, p.u, 1 - p.v);
+        const raw = lensNow ? lastPointer[plane] : null;
+        const s = raw
+          ? point(plane, raw.u, 1 - raw.v)
+          : point(plane, p.u, 1 - p.v);
         const x = s.u * (w - 1), y = s.v * (h - 1);
         if (crosshair) Overlay.crosshair(c2d, w, h, x, y, { scale });
         Overlay.pointer(c2d, x, y, { clamped: clamped.clamped, scale });
@@ -1117,6 +1130,7 @@
             : null;
           const u = snap ? snap.u : p.u;
           const v = snap ? snap.v : p.v;
+          lastPointer[plane] = { u, v };
 
           if (model.id === Models.DEFAULT_ID) {
             const cmax = store.cmax();

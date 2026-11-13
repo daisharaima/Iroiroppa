@@ -421,6 +421,9 @@
       const LensAccess = window.IroLensAccess;
       let lensKey = null;
       let lensNow = null;
+      // The cursor in the inner shape's own coordinates, so a lensed pointer stays put
+      // under the mouse instead of snapping to its band.
+      let lastCursorPoint = null;
       const lensScratch = [0, 0, 0];
       const syncLens = () => {
         if (!LensAccess) return;
@@ -541,6 +544,12 @@
             // A lens decides the pixel: the band is a real document colour, so it paints
             // at full strength — no hole, no pale stand-in, no out-of-display dimming.
             if (lensNow) {
+              // Recolour only inside the shape the wheel already draws: the lens must not
+              // add area, and a wider document gamut keeps its own outline.
+              const inShape = typeof model.inGamut === 'function'
+                ? model.inGamut(a)
+                : (!workingGamut || workingGamut(lab));
+              if (!inShape) continue;
               const c = Color.oklabToRgb(lab.L, lab.a, lab.b);
               const q = lensNow.applySrgb(c.r, c.g, c.b, lensScratch);
               px[0] = clamp255(q[0] * 255);
@@ -713,6 +722,7 @@
         // The hue is the one the drag started with — this branch only writes the two
         // free axes (slice-geometry#pickAxes keeps the rest), so an inner drag can never
         // turn the hue, however far the cursor wanders.
+        lastCursorPoint = { u: un, v: vn };
         let a = G.pickAxes(model, 0, un, vn, axes, store);
         if (lockLight !== null) {
           const held = G.applyLightness(model, 0, a, lockLight, store);
@@ -886,8 +896,12 @@
 
         const clamped = G.clampAxes(model, axes, store);
         const pt = G.pointOf(model, 0, clamped.axes, store);
-        const p = viewPoint(proj, box, pt.u, pt.v);
-        Overlay.pointer(c2d, p.x, p.y, { clamped: clamped.clamped, scale: dpr });
+        // Under a lens the stored colour is a band, whose canonical position is not under
+        // the mouse: the pointer follows the cursor, the readout says what will be recorded.
+        const p = (lensNow && lastCursorPoint)
+          ? viewPoint(proj, box, lastCursorPoint.u, lastCursorPoint.v)
+          : viewPoint(proj, box, pt.u, pt.v);
+        Overlay.pointer(c2d, p.x, p.y, { clamped: lensNow ? false : clamped.clamped, scale: dpr });
 
         const labels = model.axes;
         for (let i = 0; i < 3; i += 1) {

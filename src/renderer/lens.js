@@ -35,6 +35,7 @@
   };
   state.bits = Lens.normaliseBits(state.bits);
 
+  let lastHeight = 0;
   function fitWindow() {
     const app = document.getElementById('app');
     if (!app) return;
@@ -43,6 +44,10 @@
     if (body) body.style.overflow = 'visible';
     const content = Math.ceil(Math.max(app.offsetHeight, app.scrollHeight, document.body.scrollHeight));
     if (body) body.style.overflow = prev;
+    // Only when it really changed: an unnecessary setContentSize on every keystroke of a
+    // stepper blurred the window and closed it.
+    if (content === lastHeight) return;
+    lastHeight = content;
     csp.resizeLens(content);
   }
 
