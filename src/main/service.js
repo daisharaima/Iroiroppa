@@ -21,7 +21,9 @@ const QuickAccess = require('./companion/quick-access');
 const Color = require('../shared/color');
 
 const SCAN_TIMEOUT_MS = 90000;
-const SCAN_INTERVAL_MS = 600;
+// 250 ms: a companion that connects on sight of the QR pairs in well under a second,
+// so the scan cadence — not the capture — is what a user feels as "instant".
+const SCAN_INTERVAL_MS = 250;
 const WRITE_INTERVAL_MS = 60;
 const SUPPRESS_PUSH_MS = 500;
 // Adaptive polling: fast right after any change (so dragging CSP's eyedropper
@@ -321,11 +323,21 @@ class CompanionService extends EventEmitter {
       await client.connect();
       if (this.client !== client) return false;
       await client.authenticate({ reconnect: true });
-    } catch {
+    } catch (err) {
       client.close();
       if (this.client === client) {
         this.client = null;
-        this._setState('idle', 'Saved pairing is no longer valid. Connect to Clip Studio Paint again.');
+        // CSP rotates its Companion password on every successful authentication, so any
+        // other controller (or an earlier session) can invalidate a saved password while
+        // the QR on screen is still the only source of the new one. A mismatch therefore
+        // means "rescan", not "give up".
+        if (/PasswordMismatch|authentication rejected/i.test(String(err && err.message))) {
+          this.session.clear();
+          this._setState('scanning', 'Saved password was rejected; looking for a new QR code...');
+          this.pair().catch(() => {});
+        } else {
+          this._setState('idle', 'Saved pairing is no longer valid. Connect to Clip Studio Paint again.');
+        }
       }
       return false;
     }
