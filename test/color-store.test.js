@@ -278,3 +278,30 @@ test('a plain set clears a previous lens override', () => {
   const own = Color.oklabToRgb(store.L, store.a, store.b);
   assert.ok(Math.abs(stored.r - Math.round(own.r * 255)) <= 1, 'a plain set must not keep the old band');
 });
+
+test('a drag that ends with "commit what we have" keeps the lens band', () => {
+  const writes = [];
+  const store = loadStore({ writeColor: (v) => writes.push(v) });
+  store.connected = true;
+  store.liveSync = true;
+  const band = Color.oklchToOklab(0.5, 0.05, 200);
+  store.setLCH({ L: 0.62, C: 0.1, H: 30 }, { notify: 'live', recorded: band });
+  const duringDrag = writes[writes.length - 1];
+  store.recommit();
+  const atRelease = writes[writes.length - 1];
+  // Pen-up must not switch CSP back to the cursor's colour: that was the visible jump.
+  assert.deepEqual(atRelease, duringDrag, 'the band changed at pen-up');
+  assert.ok(Math.abs(store.L - 0.62) < 1e-9, 'the store kept the cursor colour');
+});
+
+test('recommit after a plain pick sends that pick unchanged', () => {
+  const writes = [];
+  const store = loadStore({ writeColor: (v) => writes.push(v) });
+  store.connected = true;
+  store.liveSync = true;
+  store.setLCH({ L: 0.62, C: 0.1, H: 30 }, { notify: 'live' });
+  store.recommit();
+  const own = Color.oklabToRgb(store.L, store.a, store.b);
+  const written = writes[writes.length - 1];
+  assert.ok(Math.abs(written.r - Math.round(own.r * 255)) <= 1);
+});

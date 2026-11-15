@@ -398,6 +398,16 @@
       this._applyLCH({ L, C, H }, { snap: true });
     }
 
+    /**
+     * Re-send the current colour as a settled commit, keeping the lens's band. The pickers
+     * end a drag with "commit the colour we already have"; if that cleared the recorded
+     * value, CSP got the cursor's hue on pen-up and the band was lost (the "it resends the
+     * actual hue when I lift the pen" report).
+     */
+    recommit() {
+      this.setLCH(this.lch(), { notify: 'commit', recorded: this._recorded });
+    }
+
     /** Push the current colour to CSP now (used after applyRecordedRgb). */
     push(immediate) {
       this.lastStored = this.contentRgb();

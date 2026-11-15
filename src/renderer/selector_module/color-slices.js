@@ -1196,7 +1196,7 @@
           startAxes = null;
           lockLight = null;
           if (Input) Input.releaseAll();
-          store.setLCH(store.lch(), { notify: 'commit' });
+          store.recommit();
           renderPlots(true);
         };
         canvas.addEventListener('pointerup', end);

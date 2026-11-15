@@ -539,7 +539,7 @@
         lockLight = null;
         store.dragging = false;
         if (Input) Input.releaseAll();
-        store.setLCH(store.lch(), { notify: 'commit' });
+        store.recommit();
       };
       canvas.addEventListener('pointerup', end);
       canvas.addEventListener('pointercancel', end);
@@ -568,7 +568,7 @@
       });
       const releaseRange = () => {
         store.dragging = false;
-        store.setLCH(store.lch(), { notify: 'commit' });
+        store.recommit();
       };
       rng.addEventListener('change', releaseRange);
       rng.addEventListener('pointerup', releaseRange);
@@ -584,7 +584,10 @@
         if (!Number.isFinite(parsed)) { syncRange(model, axesNow()); return; }
         const axes = axesNow();
         axes[li] = clamp(parsed / (d.scale || 1), r.min, r.max);
-        store.setLab(model.toLab(axes), { notify: 'commit' });
+        store.setLab(model.toLab(axes), {
+          notify: 'commit',
+          recorded: lensNow ? lensNow.applyLab(model.toLab(axes), Color.rgbToOklab, Color.oklabToRgb) : null,
+        });
       };
       box.addEventListener('change', commitBox);
       box.addEventListener('keydown', (e) => { if (e.key === 'Enter') box.blur(); });
@@ -596,7 +599,10 @@
         const step = 1 / ((d.scale || 1) * (d.fmt ? 10 ** d.fmt : 1));
         const axes = axesNow();
         axes[li] = clamp(axes[li] + dir * step, r.min, r.max);
-        store.setLab(model.toLab(axes), { notify: 'commit' });
+        store.setLab(model.toLab(axes), {
+          notify: 'commit',
+          recorded: lensNow ? lensNow.applyLab(model.toLab(axes), Color.rgbToOklab, Color.oklabToRgb) : null,
+        });
       };
       up.addEventListener('click', () => nudge(1));
       down.addEventListener('click', () => nudge(-1));

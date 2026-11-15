@@ -773,7 +773,7 @@
           lockLight = null;
           store.dragging = false;
           if (Input) Input.releaseAll();
-          store.setLCH(store.lch(), { notify: 'commit' });
+          store.recommit();
           schedule();
         };
         canvas.addEventListener('pointerup', end);

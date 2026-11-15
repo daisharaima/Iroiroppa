@@ -369,7 +369,7 @@
           if (draggingRow === i) draggingRow = -1;
           lockLight = null;
           store.dragging = false;
-          store.setLab(store.lab(), { notify: 'commit' });
+          store.recommit();
         };
         rows[i].rng.addEventListener('change', release);
         rows[i].rng.addEventListener('pointerup', release);

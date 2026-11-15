@@ -1560,6 +1560,7 @@ function closeModuleSettingsWindow() {
  * limited by the palette's size. It closes when it loses focus.
  */
 function openModuleSettingsWindow(spec = {}) {
+  const openedAt = Date.now();
   const { moduleId, instanceId, anchor } = spec;
   if (!moduleId) return false;
   closeModuleSettingsWindow();
@@ -1619,6 +1620,9 @@ function openModuleSettingsWindow(spec = {}) {
   });
   win.webContents.once('did-finish-load', () => {
     if (!win.isDestroyed()) {
+      // Kept behind --log: the number is the honest answer to "the popup feels slow"
+      // (measured 485 ms, almost all of it loading the settings page's script graph).
+      if (process.argv.includes('--log')) console.log('[popout] ready in', Date.now() - openedAt, 'ms');
       applyZoom(win);
       win.show();
       win.__shownAt = Date.now();
