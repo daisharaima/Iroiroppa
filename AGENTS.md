@@ -364,7 +364,11 @@ Framing, keys, the idle gate and the polling rules live in docs/PROTOCOL.md.
   what the document's channels are. A band's display colour is a table lookup (512 entries at
   3 bits) and degrades to one conversion per pixel past 2^18 bands. The Wheel's ring and the
   Slider's bars are gradient hosts: their bands need **duplicated stops**, or CSS interpolates
-  the continuum back in.
+  the continuum back in. **The Wheel's hue is exempt**: its ring is a hue control, so the
+  recorded colour keeps the pointer's exact hue and the lens decides only lightness and
+  chroma (expressed in OKLCH, so it holds for every model), and the ring is drawn as the
+  plain hue ramp rather than banded — a banded ring would promise a hue the drag does not
+  give.
 
 - **A plane is built once.** `buildPlot` takes an optional `onDone`: the synchronous pass
   is the *cache-only* path, and a caller that wants the plane built across frames must not

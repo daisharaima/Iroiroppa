@@ -678,5 +678,11 @@ per-channel bit grid over the document's channels (`docs/MODULES.md` → "Lenses
   purpose. It is also the only place that knows a LUT/CMYK profile in this app is a soft
   proof over an sRGB document, so the grid is always three channels (see
   `.scratch/color-lens/DECISIONS.md`, B1, for the reasoning).
+- **The Wheel's hue is exempt from the lens.** The ring is a hue control: sending a band's
+  hue made Clip Studio's own wheel jump on every drag step and then jump back at pen-up.
+  The recorded colour keeps the pointer's hue and takes the band's lightness and chroma,
+  composed in OKLCH so it is model-independent, and the ring is painted as the plain hue
+  ramp (the inner shape carries the bands). Do not "restore consistency" by banding the
+  ring again without changing the pick rule with it.
 - **The warped plane must not reach the worker.** `plane-worker` has no lens, so a lensed
   plane builds on the main thread; the flag is checked where the worker is chosen.

@@ -381,7 +381,7 @@
         // overlap at their joint: compositing two separately drawn anti-aliased edges
         // leaves a white hairline, which read as a gap between the rings.
         const radius = geo.outer - (geo.outerW + 1.5) / 2;
-        paintBand(c2d, geo, radius, geo.outerW, (deg) => lensed(outerColour(model, deg)));
+        paintBand(c2d, geo, radius, geo.outerW, (deg) => outerColour(model, deg));
         if (ringCache.size > 12) ringCache.clear();
         ringCache.set(key, off);
         return off;
@@ -405,7 +405,7 @@
         if (geo.innerW <= 0 || geo.inner <= 0) return off;
         const radius = geo.inner + (geo.innerW + 1.5) / 2;
         const light = model.id === 'helmgenlch' ? thirdPaint : lch.L;
-        paintBand(c2d, geo, radius, geo.innerW, (deg) => lensed(innerColour(model, deg, light)));
+        paintBand(c2d, geo, radius, geo.innerW, (deg) => innerColour(model, deg, light));
         if (ringCache.size > 12) ringCache.clear();
         ringCache.set(key, off);
         lastInnerRing = off;
@@ -437,12 +437,25 @@
       };
       syncLens();
 
-      /** A band colour for a display colour: the ring and the inner shape both go through it. */
-      const lensed = (c) => {
-        if (!lensNow) return c;
-        const q = lensNow.applySrgb(c.r, c.g, c.b, lensScratch);
-        return { r: q[0], g: q[1], b: q[2] };
+      /**
+       * The Wheel's recorded colour: the lens decides **lightness and chroma**, the hue stays
+       * the one under the pointer. The ring is a hue control, so quantising it made CSP's own
+       * wheel jump to the band's hue on every drag step (and back to the real hue at pen-up).
+       * Expressing the result in OKLCH keeps the rule model-independent — it works for OKLCH,
+       * OKHSV/OKHSL, CIELAB and the Helmlab spaces alike, because "keep the hue" is a property
+       * of the result, not of the model's axes.
+       */
+      const recordedKeepingHue = (lab) => {
+        if (!lensNow) return null;
+        const band = lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb);
+        const cursor = Color.oklabToOklch(lab.L, lab.a, lab.b);
+        const quantised = Color.oklabToOklch(band.L, band.a, band.b);
+        // At (near) zero chroma the hue means nothing, so the band's own hue is as good and
+        // avoids rotating a grey to the anchor the store happens to hold.
+        const H = quantised.C < 1e-4 ? quantised.H : cursor.H;
+        return Color.oklchToOklab(quantised.L, quantised.C, H);
       };
+
       let lastInner = null;
       let innerBuilt = 0;
       let innerHoldUntil = 0;
@@ -691,9 +704,7 @@
           const pLab = model.toLab(probe);
           const hueOKLCH = Color.oklabToOklch(pLab.L, pLab.a, pLab.b).H;
           const heldLab = model.toLab(held);
-          const recorded = lensNow
-            ? lensNow.applyLab(heldLab, Color.rgbToOklab, Color.oklabToRgb)
-            : null;
+          const recorded = recordedKeepingHue(heldLab);
           // The ring turns the *cursor's* hue; the lens only decides what is recorded, or
           // the hue would jump to each band's canonical hue while dragging.
           store.setLab(heldLab, { notify: 'live', hue: hueOKLCH, recorded });
@@ -736,7 +747,7 @@
         store.setLab(innerLab, {
           notify: 'live',
           snap: true,
-          recorded: lensNow ? lensNow.applyLab(innerLab, Color.rgbToOklab, Color.oklabToRgb) : null,
+          recorded: recordedKeepingHue(innerLab),
         });
       };
 
