@@ -9,6 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app, ipcMain, dialog, shell } = require('electron');
 const { ALLOWED_URLS } = require('../../shared/credits');
+const { sendToWebContents } = require('../broadcast');
 
 /** The app documents the About tab can read (and open) by fixed name. */
 const ABOUT_FILES = {
@@ -77,8 +78,8 @@ function register(ctx, trusted = () => false) {
     if (!ctx.peerHub) return;
     ctx.peerHub.openWindow(e.sender.id, meta || {});
     if (typeof ctx.broadcastPeers === 'function') ctx.broadcastPeers();
-    e.sender.send('peer:event', { type: 'state', data: { current: ctx.peerHub.state() } });
-    e.sender.send('peer:peers', ctx.peerHub.peers().map((p) => ({
+    sendToWebContents(e.sender, 'peer:event', { type: 'state', data: { current: ctx.peerHub.state() } });
+    sendToWebContents(e.sender, 'peer:peers', ctx.peerHub.peers().map((p) => ({
       peerId: p.peerId, wcId: p.wcId, kind: p.kind, title: p.title,
     })));
   });
