@@ -18,6 +18,18 @@ const { outFile } = require('../scripts/build-host.js');
 
 const available = fs.existsSync(outFile);
 
+// The host reports its own start-up in the ready payload (irohost.cs:1151). That is the
+// number to bound: the wall clock also contains CreateProcess, the .NET loader and any
+// antivirus scan, which costs seconds on a cold machine and none of it is ours to fix
+// (docs/adr/0004-native-helper-host.md — "the host starts in ~1 ms").
+const HOST_START_LIMIT_MS = 200; // measured 2-29 ms, the high end under the full suite; a regression detector, not a budget
+const WALL_HANG_LIMIT_MS = 30000; // measured cold 10,221 ms; a hang guard, not a target
+const READY_WAIT_MS = 35000; // must outlast the guard so the guard can report numbers
+
+/** Print one timing line whether or not this Node honours `t.diagnostic` (added in 18.17). */
+const report = (t, message) => (
+  typeof t.diagnostic === 'function' ? t.diagnostic(message) : console.log(message));
+
 /** Start the host and collect its stdout lines. */
 function startHost(args = []) {
   const child = spawn(outFile, ['--parent', String(process.pid), ...args], {
@@ -56,13 +68,18 @@ function startHost(args = []) {
   return { child, lines, send, waitFor, stop };
 }
 
-test('the host answers the protocol end to end', { skip: !available && 'irohost.exe not built' }, async () => {
+test('the host answers the protocol end to end', { skip: !available && 'irohost.exe not built' }, async (t) => {
   const started = Date.now();
   const host = startHost();
   try {
-    const ready = await host.waitFor((line) => line.ready !== undefined);
-    const readyMs = Date.now() - started;
-    assert.ok(readyMs < 500, `ready after ${readyMs} ms`);
+    // A slow cold launch still emits `ready`; a stuck host emits nothing and this rejects.
+    const ready = await host.waitFor((line) => line.ready !== undefined, READY_WAIT_MS);
+    const wallMs = Date.now() - started;
+    report(t, `host start ${ready.ready} ms (wall ${wallMs} ms)`);
+    assert.ok(ready.ready < HOST_START_LIMIT_MS,
+      `host start ${ready.ready} ms (wall ${wallMs} ms)`);
+    assert.ok(wallMs < WALL_HANG_LIMIT_MS,
+      `ready after ${wallMs} ms (host ${ready.ready} ms)`);
     assert.equal(ready.version, '1.0.0');
 
     host.send('ping');
