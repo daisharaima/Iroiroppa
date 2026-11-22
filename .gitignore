@@ -17,3 +17,4 @@ _private/
 
 # compiled native helper (scripts/build-host.js)
 src/main/native/bin/
+.check/
