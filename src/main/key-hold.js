@@ -1,23 +1,10 @@
 'use strict';
 
-// A hold-to-show binding runs in its own PowerShell process (keys.ps1), because
-// Electron's globalShortcut has no key-up event. This wrapper spawns, parses the
-// one-line JSON events, and exposes a small EventEmitter:
-//
-//   ready  — RegisterHotKey took, the chord is now owned (and swallowed)
-//   down   — the chord went down
-//   up     — the key or a modifier was released
-//   taken  — another app owns the chord
-//   gone   — the helper exited (a stuck hold must be released by the caller)
-//
-// `spawn` is injectable so the stream can be tested without Windows or PowerShell.
-
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { spawn: defaultSpawn } = require('node:child_process');
 const Match = require('../shared/shortcut-match');
 
-// PowerShell cannot read inside app.asar; electron-builder unpacks src/main/*.ps1.
 function scriptPath() {
   const dir = __dirname.includes('app.asar')
     ? __dirname.replace('app.asar', 'app.asar.unpacked')
@@ -107,7 +94,7 @@ class KeyHoldWatcher extends EventEmitter {
     this.proc = null;
     this.buffer = '';
     if (proc) {
-      try { proc.kill(); } catch { /* already gone */ }
+      try { proc.kill(); } catch {  }
     }
   }
 }
@@ -136,7 +123,7 @@ function checkHoldAccel(accel, { spawn = defaultSpawn, script, timeoutMs = 4000 
       if (done) return;
       done = true;
       clearTimeout(timer);
-      try { proc.kill(); } catch { /* already exited */ }
+      try { proc.kill(); } catch {  }
       resolve(result);
     };
     const timer = setTimeout(() => finish({ ok: false, error: 'unavailable' }), timeoutMs);

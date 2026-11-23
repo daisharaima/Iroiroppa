@@ -33,7 +33,7 @@ test('closing the last window disconnects the session', () => {
   hub.on('peer-disconnected', (d) => events.push(d.peer.kind));
   hub.on('state', (d) => events.push(d.current));
   assert.equal(hub.closeWindow(11), true);
-  assert.equal(hub.closeWindow(11), false); // already gone
+  assert.equal(hub.closeWindow(11), false);
   assert.equal(hub.isPaired(), false);
   assert.equal(hub.state(), 'disconnected');
   assert.deepEqual(events, ['window', 'disconnected']);
@@ -70,7 +70,7 @@ test('closing a window closes its port when it has one', () => {
   hub.openWindow(11);
   assert.equal(hub.closeWindow(11), true);
   assert.equal(closed, 1);
-  // A port that has no close() must not throw.
+
   const bare = createPeerHub({ allocatePort: () => ({}) });
   bare.openWindow(1);
   assert.equal(bare.closeWindow(1), true);

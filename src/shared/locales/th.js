@@ -1,6 +1,4 @@
-/*
- * ไทย — Thai UI catalog. Missing keys fall back to English.
- */
+
 (function (root) {
   'use strict';
   const messages = {

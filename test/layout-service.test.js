@@ -67,8 +67,6 @@ const columns = (weight) => [{
   modules: [{ instanceId: 'i1', moduleId: 'color-slices', weight }],
 }];
 
-// --- loading ---------------------------------------------------------------
-
 test('a first run starts from the default workspace and knows it was not stored', () => {
   const { service } = make(fakeStore(null));
   assert.equal(service.hasStoredDoc(), false);
@@ -94,8 +92,6 @@ test('a stored document is what the service serves', () => {
   assert.equal(service.hasStoredDoc(), true);
   assert.deepEqual(service.v1().columns[0].modules[0].weight, 4);
 });
-
-// --- writing ---------------------------------------------------------------
 
 test('a write bumps the revision and reaches the disk once, debounced', () => {
   const { service, scheduler, store } = make(fakeStore(null));
@@ -129,8 +125,6 @@ test('dispose flushes a pending save (the quit path)', () => {
   service.dispose();
   assert.equal(store.writes.length, 1);
 });
-
-// --- intents ---------------------------------------------------------------
 
 test('an intent applies through the reducer and bumps the revision', () => {
   const { service } = make(fakeStore(null));
@@ -168,14 +162,12 @@ test('subscribers hear every change with its revision', () => {
   assert.equal(heard.length, 2, 'the unsubscribe took effect');
 });
 
-// --- the float layer's pattern --------------------------------------------
-
 test('the float layer reading the document and writing it back keeps a px height', () => {
   const { service } = make(fakeStore(null));
   service.load();
   const instanceId = service.current().palettes[0].columns[0].modules[0].instanceId;
   service.apply({ type: 'module.setHeight', instanceId, height: { mode: 'px', px: 180 } });
-  service.writeV1(service.v1()); // exactly what floats.js does on a geometry change
+  service.writeV1(service.v1());
   assert.deepEqual(service.current().palettes[0].columns[0].modules[0].height, { mode: 'px', px: 180 });
 });
 
@@ -186,8 +178,6 @@ test('findFloat reads the live document', () => {
   assert.equal(service.findFloat('f1').x, 5);
   assert.equal(service.findFloat('nope'), null);
 });
-
-// --- end to end through the real store ------------------------------------
 
 test('a v1 file on disk becomes a v2 workspace the service serves and writes', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'iroiroppa-service-'));
@@ -215,8 +205,6 @@ test('a v1 file on disk becomes a v2 workspace the service serves and writes', (
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
-
-// --- per-palette columns (plan: palette equality, P2) -----------------------
 
 test('setColumns changes only the named palette', () => {
   const { service } = make(fakeStore(null));

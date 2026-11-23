@@ -1,4 +1,4 @@
-// Nederlands.
+
 (function (root) {
   'use strict';
 

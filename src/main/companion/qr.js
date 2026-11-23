@@ -1,12 +1,5 @@
 'use strict';
 
-// Decoding of the Companion Mode QR payload.
-//
-// The QR the desktop shows under "Connect to smartphone" encodes a URL such as
-//   https://companion.clip-studio.com/rc/en-us?s=<hex>
-// The `s` value is the connection config XOR-obfuscated with REMOTE_KEY:
-//   <ip[,ip...]>\t<port>\t<password>\t<generation>
-
 const { obfuscateRemoteParam } = require('./crypto');
 
 const SHARE_HOST = 'companion.clip-studio.com';
@@ -36,10 +29,10 @@ function decodeConfig(input) {
     sParam = url.searchParams.get('s') || '';
     if (!sParam) throw new QrDecodeError('QR URL has no "s" parameter');
   } else if (raw.includes('?s=')) {
-    // Some scanners hand back only the query fragment.
+
     sParam = raw.slice(raw.indexOf('?s=') + 3);
   } else {
-    sParam = raw; // assume the user pasted the raw hex
+    sParam = raw;
   }
 
   if (!/^[0-9a-fA-F]+$/.test(sParam) || sParam.length % 2 !== 0) {

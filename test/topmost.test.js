@@ -1,9 +1,5 @@
 'use strict';
 
-// The native window band (src/main/topmost.js): a window handle read the same way
-// on every pointer size, one long-lived helper that applies `hwnd|noActivate|topmost`
-// lines, and a throttled one-shot fallback when the helper cannot run.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
@@ -78,7 +74,7 @@ test('the one-shot fallback passes the handle and the flags', async () => {
   const calls = [];
   const spawnFn = (file, args) => {
     calls.push({ file, args });
-    // The helper cannot start (no stdin), so the client must fall back.
+
     const proc = new EventEmitter();
     proc.stdin = null;
     proc.kill = () => {};

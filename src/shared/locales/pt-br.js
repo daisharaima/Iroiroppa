@@ -1,4 +1,4 @@
-// Português (Brasil).
+
 (function (root) {
   'use strict';
 

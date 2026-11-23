@@ -7,12 +7,9 @@ const {
   app, BrowserWindow, Tray, Menu, screen, nativeImage, powerMonitor, protocol, ipcMain,
 } = require('electron');
 
-// `theme://` serves a theme's own assets (fonts, images) out of
-// <themesDir>/<themeId>/. The scheme must be declared privileged before the app is
-// ready so the renderer may load fonts from it under the CSP.
 protocol.registerSchemesAsPrivileged([
   { scheme: 'theme', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
-  // `module://` serves a user module's own script and assets (docs/USER-MODULES.md).
+
   { scheme: 'module', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
 ]);
 
@@ -68,16 +65,14 @@ const { createMainI18n } = require('./i18n');
 const { portableDataDir, portableRoot, usableDataDir } = require('./portable');
 const { downloadTo, assertWritableDir, portableHelperScript } = require('./update-install');
 
-// The live capability set; built once Electron is ready.
 let capabilities = null;
-// The canonical state model and the session/peer layer (docs/STATE.md).
+
 let stateHub = null;
 let peerHub = null;
-// E1: the local-first interaction bookkeeping (colour only). `--local-first` turns
-// the renderer side on; with the flag off nothing here is reachable.
+
 const interactions = createInteractionHub();
 const localFirst = process.argv.includes('--local-first');
-// One log line per protocol event, so a live run can be checked from stdout.
+
 const traceInteraction = process.argv.includes('--trace-interaction');
 
 /** One line per native-helper exchange, for verifying the host against the app. */
@@ -85,60 +80,43 @@ const traceNative = process.argv.includes('--trace-native');
 
 /** --perf-gaps: record frame gaps during a gesture (docs/PERF.md). */
 const perfGaps = perfEnabled();
-// The utility-process compute host (docs/STATE.md, §6); opt-in.
+
 let computeHost = null;
 
 /** The session's native helper (src/main/native-host.js); null when it is disabled. */
 let nativeHost = null;
-// The window-capture channel's source enumerator.
+
 let captureService = null;
-// The native key sender.
+
 let sender = null;
 let contactReadSeq = 0;
-// The main-process translator.
+
 let mainI18n = null;
 
-// A portable build keeps its whole state tree beside its .exe instead of in
-// %APPDATA% (src/main/portable.js), so a copied folder carries the saved pairing
-// and layout with it. This must run before the first `getPath` (the stores below
-// resolve it lazily, but the single-instance lock does not) and before `ready`.
 const portableDir = portableDataDir();
-// Chromium's own `--user-data-dir` (the screenshot recipe, a scripted run) is an
-// explicit choice and wins over the portable default.
+
 const explicitUserDataDir = process.argv.some((a) => a === '--user-data-dir' || a.startsWith('--user-data-dir='));
 if (portableDir && !explicitUserDataDir) {
   if (usableDataDir(portableDir)) app.setPath('userData', portableDir);
   else console.warn(`[portable] ${portableDir} is not writable; using the usual app-data folder`);
 }
 
-// One app, one data tree, one single-instance lock. A development run used to resolve
-// `userData` from the package `name` while the packaged build used `productName`, so the
-// two had separate locks and could run side by side - each with its own native host and
-// its own low-level keyboard hook. The older hook then swallowed every bound key while the
-// window the user was looking at received nothing, which read as "the shortcut stopped
-// working". A `--user-data-dir` (a shot or a scripted run) stays isolated on purpose.
 if (!app.isPackaged && !explicitUserDataDir && !portableDir) {
   try {
     const product = require('../package.json').build?.productName;
     if (product) app.setPath('userData', path.join(app.getPath('appData'), product));
-  } catch { /* keep Electron's default if the manifest cannot be read */ }
+  } catch {  }
 }
 
-// Stores that need only the app-data directory are built once, Electron-free.
-// The proof store reads `settings`, which is assigned once Electron is ready, so
-// it is given a lazy getter (nothing calls it before then).
 const moduleStore = createModuleStore(() => app.getPath('userData'));
 const themeStore = createThemeStore(() => app.getPath('userData'));
 const workspaceStore = createWorkspaceStore(() => app.getPath('userData'));
-// `--user-module <dir>` points the user-module root at a fixture dir (docs/DEV.md),
-// so a scripted run can load a module that is not installed under %APPDATA%.
+
 const userModuleArg = (() => {
   const i = process.argv.indexOf('--user-module');
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : '';
 })();
 
-// `--capture-fake <name>` lists one synthetic capture source, so a `--shot` can
-// render the capture module without a desktop (docs/DEV.md).
 const captureFakeArg = (() => {
   const i = process.argv.indexOf('--capture-fake');
   return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : '';
@@ -148,23 +126,15 @@ const userModuleStore = userModuleArg
   : createUserModuleStore(() => app.getPath('userData'));
 const proofStore = createProofStore({ settings: { get: () => settings.get() } });
 
-// The workspace document. Main owns it and the service is the only thing that
-// writes layout.json — atomically, debounced, from one place — so two writers can
-// no longer read-modify-write the same file and lose each other's change. See
-// docs/LAYOUT.md.
 const registry = ModuleManifest.registry();
 const layout = createLayoutService({
   store: createLayoutStore(() => app.getPath('userData'), { registry }),
   registry,
 });
-// The v1 view the board and the float layer still speak (transitional). Unlike the
-// old store, a read is never null: the service starts from the default workspace,
-// and `hasStoredLayout` tells a first run apart so the board can use its own
-// default layout.
+
 const readLayoutDoc = () => layout.v1();
 const writeLayoutDoc = (doc) => layout.writeV1(doc).ok;
-// Per-palette columns (plan: palette equality) — the board's own read/write, addressed
-// by the window's palette id rather than by "the primary".
+
 const paletteColumns = (paletteId) => layout.paletteColumns(paletteId);
 const setPaletteColumns = (paletteId, columns) => layout.setColumns(paletteId, columns);
 const findFloatDoc = (id) => layout.findFloat(id);
@@ -184,7 +154,7 @@ const dispatchLayout = (intent) => layout.apply(intent);
  */
 function seedOneTimeWorkspace() {
   try {
-    if (!hasStoredLayout()) return; // a first run gets them from DEFAULT_IDS
+    if (!hasStoredLayout()) return;
     const doc = layout.current();
     if (!doc || (doc.seeded || []).includes('one-palette')) return;
     const present = (moduleId) => (doc.palettes || []).some((p) => (p.columns || []).some(
@@ -195,7 +165,7 @@ function seedOneTimeWorkspace() {
     }
     applyLayoutIntent({ type: 'layout.markSeeded', key: 'one-palette' });
   } catch (err) {
-    // Seeding must never stop the app from starting.
+
     if (isDev) console.warn('[layout] one-palette seed skipped:', err && err.message);
   }
 }
@@ -211,8 +181,7 @@ const primaryPaletteId = () => {
  */
 const windowForPalette = (paletteId) => {
   if (!paletteId) return null;
-  // A float's window is looked up first: after the first palette is deleted or emptied, the
-  // palette that is now "first" is a float, and the stale `ctx.popup` must not win.
+
   const floatWin = ctx.floatWins.get(paletteId);
   if (floatWin && !floatWin.isDestroyed()) return floatWin;
   if (paletteId === primaryPaletteId() && ctx.popup && !ctx.popup.isDestroyed()) return ctx.popup;
@@ -228,11 +197,6 @@ const paletteWindows = () => {
 };
 /** One palette of the live document (for the window layer and the IPC). */
 const layoutPalette = (paletteId) => layout.palette(paletteId);
-
-// --- snap groups -------------------------------------------------------------
-// Membership is derived from the document (`snap`/`snapTo`), never from a map that a
-// join would have to remember to update. A group moves as one and, when resized, its
-// shared edge behaves like a splitter (docs/LAYOUT.md, "Snapping").
 
 /** The palettes joined to `paletteId`'s edges (direct children in the graph). */
 const snapFollowers = (paletteId) => (layout.current().palettes || [])
@@ -358,7 +322,7 @@ const reflowSnapResize = (paletteId, prev, next) => {
   };
   apply(pair.anchorId, out.anchor, anchorRect);
   apply(pair.followerId, out.follower, followerRect);
-  // Deeper followers keep their size and are simply flushed onto their own anchor.
+
   flushDeeperFollowers(pair.anchorId, pair.followerId);
   flushDeeperFollowers(pair.followerId);
 };
@@ -371,13 +335,9 @@ const reflowSnapResize = (paletteId, prev, next) => {
  */
 const broadcastLayout = () => {
   const doc = layout.v1();
-  // Mirror the *v2* document into the canonical model (docs/STATE.md, plan P5). Each window
-  // picks its own palette out of it; the domain is no longer the v1 `columns`/`floats`
-  // split, which is what made palette 0 special.
+
   if (stateHub) stateHub.set('layout', ctx.currentWorkspace());
-  // Each window also needs its own palette's *state* (name, snap, followers): that is what
-  // decides the titlebar's Unsnap icon and keeps a rename in Settings in step. It is not
-  // columns, so it travels beside them.
+
   const paletteState = (id) => {
     const p = layout.palette(id);
     if (!p) return null;
@@ -435,14 +395,12 @@ const fitPane = (paletteId, change) => {
       .reduce((sum, b) => sum + (Number(b.width) || 0) + SEAM, 0);
     dw = -(measured || (Number(change.px) || 0));
   } else if (change.kind === 'module-added' || change.kind === 'module-removed') {
-    // The board fits its own content now: it grows onto the added module (and shrinks
-    // when one leaves), so main must not resize the window behind its back — that would
-    // also make the board misread a programmatic resize as a user edge drag.
+
     return;
   } else if (change.kind === 'content' && change.size) {
     dw = Math.max(0, (Number(change.size.width) || 0) - nowW);
   } else {
-    return; // nothing to do (there is no rule for 'grow'; it never had one)
+    return;
   }
   const minW = Number.isFinite(report.minWidth) ? report.minWidth : 120;
   const minH = Number.isFinite(report.minHeight) ? report.minHeight : 120;
@@ -460,10 +418,7 @@ const applyLayoutIntent = (intent) => {
   const result = dispatchLayout(intent);
   if (result && result.ok && !result.noop) {
     applyLayoutEffects(result.effects);
-    // The primary is `palettes[0]`, and a drop that empties it makes another palette primary.
-    // The shell window has to be told, or it keeps drawing the emptied palette's columns and
-    // sits there as an empty window (which is exactly what a user sees as "an empty palette
-    // appeared"). Rare, so the simplest correct thing: it takes the palette over and reloads.
+
     syncShellPalette();
     broadcastLayout();
     if (typeof ctx.pruneShortcutTargets === 'function') ctx.pruneShortcutTargets();
@@ -479,12 +434,11 @@ const syncShellPalette = () => {
   if (!id || id === shellPaletteId) return;
   const first = shellPaletteId === null;
   shellPaletteId = id;
-  if (first) return; // the boot bind; nothing to rebind
+  if (first) return;
   if (!ctx.popup || ctx.popup.isDestroyed()) return;
-  if (ctx.takePrimary) ctx.takePrimary(id); // close it if it had a window of its own
+  if (ctx.takePrimary) ctx.takePrimary(id);
   ctx.popup.reload();
-  // The document should describe what is actually on screen: the shell keeps its own geometry,
-  // so the palette that just became primary adopts it.
+
   const b = ctx.popup.getBounds();
   const z = (ctx.popup.webContents && ctx.popup.webContents.getZoomFactor && ctx.popup.webContents.getZoomFactor()) || 1;
   dispatchLayout({
@@ -523,15 +477,12 @@ const applyLayoutEffects = (effects) => {
         ? palette.columns[0].modules[0].instanceId
         : null;
       const box = sole ? drawnBoxFor(sole) : null;
-      // The box is the *module's* drawn size; the window also needs its chrome now that
-      // a float always carries a header and the board's padding (a bare-card float used
-      // to have neither). A restored float takes its size from the document instead.
+
       ctx.openPane(effect.paletteId, box
         ? { width: box.width + 6, height: box.height + 26 }
         : null);
     } else if (effect.type === 'palette.setBounds') {
-      // A position the document decides moves the window too: an attach flushes a palette
-      // against its anchor (docs/LAYOUT.md, "Snap zones").
+
       const win = windowForPalette(effect.paletteId);
       if (win && !win.isDestroyed() && effect.pos) {
         const b = win.getBounds();
@@ -592,8 +543,7 @@ const paletteDragMembers = (paletteId) => {
 
 /** Which windows a drag has made invisible (they come back when it ends). */
 const paneList = ({ source } = {}) => {
-  // Which sides of a palette already hold one: a palette attached to another takes that side of
-  // the anchor and the opposite side of itself, so those zones are neither drawn nor usable
+
   const panes = [];
   const push = (palette, win) => {
     if (!palette || !win || win.isDestroyed() || !win.isVisible()) return;
@@ -612,11 +562,7 @@ const paneList = ({ source } = {}) => {
   };
   for (const [floatId, win] of [...ctx.floatWins].reverse()) push(layout.palette(floatId), win);
   push(layout.palette(primaryPaletteId()), ctx.popup);
-  // The window the drag started in is the *last* candidate, not the first: while it is
-  // merely near the pointer it would otherwise win the pane lookup and swallow the drop
-  // (that is why a module only ever docked when the destination was the palette). Last
-  // rather than removed, so a drop back onto itself is still resolved — and refused by
-  // the reducer — instead of becoming a new window in empty space.
+
   if (source) {
     const at = panes.findIndex((p) => p.paletteId === source);
     if (at >= 0) panes.push(panes.splice(at, 1)[0]);
@@ -667,7 +613,7 @@ function nearestJoin(me, others) {
   };
   for (const pane of others) {
     const b = pane.rect;
-    // Only edges that overlap on the other axis can join, so a palette parked diagonally is free.
+
     if (me.y < b.y + b.height && me.y + me.height > b.y) {
       consider('right', Math.abs(me.x - (b.x + b.width)), pane);
       consider('left', Math.abs(me.x + me.width - b.x), pane);
@@ -700,8 +646,7 @@ function settleWindowMove(payload, dx, dy) {
   }
   const source = payload.sourcePaletteId;
   if (!source) return { ok };
-  // A group moves as a group: every member already moved by the same offset, so an existing join
-  // still holds and nothing needs re-evaluating. Without this, dragging a group apart dissolved it.
+
   const current = (layout.current().palettes || []).find((p) => p.id === source);
   if (current && current.snap && current.snapTo && payload.members.length > 1) {
     return { ok, snapped: current.snap, snapTo: current.snapTo, kept: true };
@@ -734,10 +679,7 @@ const dragSession = createDragSession({
     return { x: p.x, y: p.y };
   },
   getPanes: (payload) => {
-    // A palette drag must not resolve against itself: the pointer sits over the window being
-    // dragged (it follows the pointer), so without this the dragged palette is the pane under the
-    // cursor and the indicator is drawn on top of it. The whole group is excluded — a release can
-    // never dock a palette into itself or into a sibling it is carrying.
+
     if (payload && payload.kind === 'palette') {
       const skip = new Set([payload.sourcePaletteId]);
       for (const m of payload.members || []) skip.add(m.paletteId);
@@ -746,9 +688,7 @@ const dragSession = createDragSession({
     return paneList({ source: payload && payload.sourcePaletteId });
   },
   show: (state) => {
-    // The resolver's line is in the pane's local CSS px; the overlay wants screen
-    // DIP, so convert with that pane's rect and zoom — and the chip's own position
-    // is already screen DIP, which showOverlay expects unscaled (zoom 1).
+
     const pane = state.paletteId ? paneList().find((p) => p.paletteId === state.paletteId) : null;
     const zoom = pane ? pane.zoom : 1;
     const line = state.line && pane
@@ -763,13 +703,12 @@ const dragSession = createDragSession({
   },
   hide: () => ctx.hideOverlay(),
   onEnd: () => {
-    // A dev log, so the next report about a drag has evidence in the app's own output.
+
     if (isDev) console.log('[drag] ended');
     dragJoinLine = null;
   },
   dispatch: (intent) => applyLayoutIntent(intent),
-  // A palette drag moves windows, not modules: main moves them with the pointer (so the move is
-  // visible) and settles them on release.
+
   moveWindows: (members, dx, dy) => {
     const placed = [];
     for (const m of members) {
@@ -783,29 +722,21 @@ const dragSession = createDragSession({
       const b = win.getBounds();
       win.setBounds({ x: pos.x, y: pos.y, width: b.width, height: b.height });
     }
-    // While a palette is in the air, show the join it would make: the same line, in the same
-    // place, as the one the release will commit — on any of the four edges, not just left/right.
-    // A group keeps the join it has, so there is nothing to preview for one.
+
     const me = placed[0];
     const others = paneList().filter((p) => !placed.some((q) => q.paletteId === p.paletteId));
     const join = members.length > 1 ? null : nearestJoin(me, others);
     dragJoinLine = join ? join.line : null;
   },
   settleWindows: (payload, dx, dy) => settleWindowMove(payload, dx, dy),
-  // A whole-palette dock is destructive: ask first, then commit or put the windows
-  // back. `restoreWindows` is also used when a palette drag is cancelled.
+
   deferPaletteMerge: true,
   restoreWindows: (members) => {
-    // `restoreMergePositions` is declared below (function hoisting) and persists
-    // the restored positions, not just the window rectangles.
+
     restoreMergePositions(members);
   },
 });
 
-// --- whole-palette merge confirmation ---------------------------------------
-// The drag session hands back the plan instead of committing it. One pending
-// merge at a time; the overlay card resolves it. A cancelled merge restores the
-// exact rectangles the drag started with, so the document's snap graph is untouched.
 let pendingMerge = null;
 
 function restoreMergePositions(members) {
@@ -814,8 +745,7 @@ function restoreMergePositions(members) {
     if (win && !win.isDestroyed()) {
       win.setBounds({ x: m.x, y: m.y, width: m.width, height: m.height });
     }
-    // Persist the restored position now: the window's own debounced report would
-    // otherwise leave the dropped position in layout.json if the app quit first.
+
     applyLayoutIntent({ type: 'palette.setBounds', paletteId: m.paletteId, pos: { x: m.x, y: m.y } });
   }
 }
@@ -893,8 +823,7 @@ const primaryPlacement = () => {
 const isDev = process.argv.includes('--dev');
 const shotIndex = process.argv.indexOf('--shot');
 const shotPath = shotIndex >= 0 ? process.argv[shotIndex + 1] : null;
-// Opt-in only: the input trace exists to diagnose a palette that paints but takes
-// no clicks (docs/DEV.md, `--trace-input`).
+
 const traceInput = traceEnabled() ? createInputTrace() : null;
 const argValue = (name) => {
   const i = process.argv.indexOf(name);
@@ -906,71 +835,67 @@ let settingsWin = null;
 let tray = null;
 let service = null;
 let settings = null;
-// The palette's size in CSS pixels; its physical size is this × the UI scale.
+
 let popupDesign = null;
 let fgWatcher = null;
 let fgHealthy = false;
-let focusGraceUntil = 0; // ignore blur caused by our own focusability toggling
-let hasPositioned = false; // keep the user's position across auto shows
-let quoted = false; // true while quitting, so windows don't block
+let focusGraceUntil = 0;
+let hasPositioned = false;
+let quoted = false;
 let overlayWin = null;
 let overlayState = { text: '', hint: false };
-// What each board drew (palette id -> { pad, boxes }), for the drop resolver.
+
 let boardMetrics = new Map();
 let moduleSettingsWin = null;
-// The Lens window: a second popout kind, so a module's settings and its lenses can be
-// open at once (docs/MODULES.md, "Lenses"). One at a time, keyed by instance.
+
 let lensWin = null;
 let whatsNewWin = null;
 let autoConnectTimer = null;
 let autoConnectResumeAt = 0;
-// Set once `service.start()` has settled: the saved-connection attempt owns the
-// service until then, and a scan started under it would tear that attempt down.
+
 let autoConnectArmed = false;
 let popupParked = false;
 let parkReleaseAt = 0;
 let parkDepth = 0;
 let parkOrigin = null;
-const floatWins = new Map(); // instanceId -> BrowserWindow
+const floatWins = new Map();
 let edgeHintTimer = null;
-let lastFollowAt = 0; // when the palette last moved a float with it
+let lastFollowAt = 0;
 
 const DEFAULT_SETTINGS = Object.freeze({
   liveSync: true,
-  historyGate: false, // record a colour only when a canvas contact uses it
-  // Claim a bare key only while the pointer is over CSP's canvas. Off by default:
-  // the guard below is a heuristic and CSP's own text fields report no Win32 caret.
+  historyGate: false,
+
   bareCanvasOnly: false,
   bareObserve: true,
-  markOutOfDisplay: false, // dim the colours the display cannot show (off: nearest colour)
+  markOutOfDisplay: false,
   autoHide: true,
   autoConnect: true,
-  checkUpdatesAutomatically: true, // check GitHub on startup and once a day
-  lastSeenVersion: '', // the version whose What's New dialog has been shown
-  // guide/lock follow the active model's native lightness (see slice-geometry)
-  viewFamily: 'all', // all | oklab | cielab | helmgen (future hct)
+  checkUpdatesAutomatically: true,
+  lastSeenVersion: '',
+
+  viewFamily: 'all',
   hideModuleNames: false,
   locked: false,
-  proofProfile: '', // first run resolves the machine's Adobe RGB (1998); see findAdobeRgbProfile()
+  proofProfile: '',
   proofProfiles: [],
   proofModel: 'working',
   proofMode: 'proof',
-  // Where Clip Studio Paint keeps its settings. Empty = the default location
-  // (Config.sqlite's custom path, else Documents\CELSYS); see csp-shortcuts.js.
+
   cspDataDir: '',
   uiScale: 1,
-  // Which Settings tab was last open, so the window reopens where the user left it.
+
   settingsTab: 'appearance',
   theme: 'default-light',
-  accents: {}, // per-theme accent overrides: { themeId: '#rrggbb' }
+  accents: {},
   launchAtLogin: false,
-  summonHotkey: '', // deprecated: migrated into shortcuts.app.toggle
+  summonHotkey: '',
   shortcuts: {
     app: { mode: 'toggle', toggle: '', hold: '', autoDismiss: false, position: 'keep' },
     palettes: {},
   },
-  commandBindings: {}, // "<instanceId>:<command>" -> accelerator (docs/DEV.md)
-  language: '', // '' = follow the system locale
+  commandBindings: {},
+  language: '',
 });
 
 /** The shipped UI locales (`src/shared/locales/<code>.js`). */
@@ -985,25 +910,10 @@ function listLocaleCodes() {
   }
 }
 
-// The Settings window's CSS layout width; its physical size scales with the zoom.
-
-// --- windows & focus ---------------------------------------------------------
-// The palette, Settings/drag-chip/popout windows, tray and focus watchers live
-// in src/main/windows.js (createWindows(ctx)).
-
-// --- floated modules ---------------------------------------------------------
-// The pane layer (the palette and every float) lives in src/main/panes.js
-// (createPanes(ctx)).
-
-// --- colour history ----------------------------------------------------------
-
-// Main owns the history so every board shares one list: a module floated into
-// its own window keeps the history it had in the palette.
-
 const colorHistory = [];
 let historyLoaded = false;
-let history = null; // its own JsonStore, created in initialize
-const HISTORY_MAX = 100; // keep in step with color-store.js
+let history = null;
+const HISTORY_MAX = 100;
 
 function historyList() {
   if (!historyLoaded) {
@@ -1049,10 +959,6 @@ function broadcastHistory() {
   for (const win of floatWins.values()) sendTo(win, 'history:changed', list);
 }
 
-// One settle timer for host picks, in main. A renderer's settle timer is
-// throttled to ~1 s while its window is hidden, which let an older pick from a
-// hidden palette/float land after a newer one (the "previous picked colour"
-// bug). Windows only mirror this list (docs/INVARIANTS.md).
 const historyRecorder = createHistoryRecorder({
   list: historyList,
   max: HISTORY_MAX,
@@ -1060,8 +966,6 @@ const historyRecorder = createHistoryRecorder({
   broadcast: broadcastHistory,
 });
 
-// The drawing-only gate is a global setting and is enforced here, where the one
-// history writer lives; no window keeps gate state of its own (docs/INVARIANTS.md).
 const historyGate = createHistoryGate({
   isOn: () => Boolean(settings && settings.get().historyGate === true),
   recorder: historyRecorder,
@@ -1069,31 +973,14 @@ const historyGate = createHistoryGate({
   resync: broadcastHistory,
 });
 
-// --- module settings popout / auto-connect / focus / tray -------------------
-// (those live in src/main/windows.js)
-
-// --- proof profile -----------------------------------------------------------
-// Profile discovery lives in the proof store (src/main/proof-profiles.js).
 const {
   describeProfileFile, loadProofProfile, findAdobeRgbProfile, findBundledProfile,
   getProof, listProofProfiles, clearCaches: clearProofCaches,
 } = proofStore;
 
-// --- themes ------------------------------------------------------------------
-// Theme files live in the theme store (src/main/theme-store.js).
 const { listThemes, normalizeTheme, themeBackground, themeAssetPath } = themeStore;
 
-// --- per-module settings -----------------------------------------------------
-// Per-module settings files live in the module store (src/main/module-store.js).
 const { listModuleIds, readModuleSettings, writeModuleSettings, copySettings } = moduleStore;
-
-// --- board layout ------------------------------------------------------------
-// layout.json is owned by the layout service (src/main/layout-service.js), which
-// holds the workspace document and is the only writer of the file (atomically and
-// debounced). `readLayoutDoc`/`writeLayoutDoc`/`findFloatDoc` are its v1 view,
-// destructured at the top of this file.
-
-// --- start with Windows ------------------------------------------------------
 
 /** Register or remove the app from the Windows login items. */
 function applyLaunchAtLogin(on) {
@@ -1101,7 +988,7 @@ function applyLaunchAtLogin(on) {
     if (app.isPackaged) {
       app.setLoginItemSettings({ openAtLogin: Boolean(on) });
     } else {
-      // In development, point the entry at Electron with the app path.
+
       app.setLoginItemSettings({
         openAtLogin: Boolean(on),
         path: process.execPath,
@@ -1112,8 +999,6 @@ function applyLaunchAtLogin(on) {
     console.warn('could not update the login item:', err.message);
   }
 }
-
-// --- update check ------------------------------------------------------------
 
 let updateInfo = { available: false };
 
@@ -1130,7 +1015,7 @@ async function refreshUpdateCheck() {
     updateInfo = {
       ...info,
       build: portable ? 'portable' : 'installer',
-      // The manual download for the running build; fall back to the release page.
+
       downloadUrl: (portable ? downloads.portable : downloads.setup) || info.url,
     };
   } else {
@@ -1140,8 +1025,6 @@ async function refreshUpdateCheck() {
   return updateInfo;
 }
 
-// Auto-check: once a few seconds after startup, then daily. Off means "never
-// touch the network for this until the user clicks Check for updates".
 const UPDATE_CHECK_INTERVAL = 24 * 60 * 60 * 1000;
 let updateTimer = null;
 let updateKick = null;
@@ -1212,8 +1095,6 @@ async function installUpdate() {
   }
 }
 
-// --- What's New --------------------------------------------------------------
-
 /** The checked-in release note for the running version, or null. */
 function getWhatsNew() {
   try { return whatsNew.read(app.getAppPath(), app.getVersion()); } catch { return null; }
@@ -1221,7 +1102,7 @@ function getWhatsNew() {
 
 /** Record that this version's note has been seen (idempotent). */
 function markWhatsNewSeen() {
-  try { settings.set({ lastSeenVersion: app.getVersion() }); } catch { /* settings may not be ready */ }
+  try { settings.set({ lastSeenVersion: app.getVersion() }); } catch {  }
 }
 
 /** Show the note on the first launch of a version (a fresh install included). */
@@ -1235,12 +1116,11 @@ function maybeShowWhatsNew() {
       return;
     }
     if (windows && typeof windows.openWhatsNew === 'function') windows.openWhatsNew();
-  } catch { /* never block startup on the dialog */ }
+  } catch {  }
 }
 
 function broadcast(channel, payload) {
-  // A window (or only its webContents) can be torn down between the scan and the
-  // send; broadcast.js never throws, so a state update is never aborted by one.
+
   broadcastTo(BrowserWindow.getAllWindows(), channel, payload);
 }
 
@@ -1270,12 +1150,11 @@ function broadcastPeers() {
   const peers = peerHub
     ? peerHub.peers().map((p) => ({ peerId: p.peerId, wcId: p.wcId, kind: p.kind, title: p.title }))
     : [];
-  // The peer port is the fast path when present; the broadcast is the safety net
-  // (docs/STATE.md, §12.4 — authoritative state is still produced by main).
+
   if (peerHub) {
     for (const p of peerHub.peers()) {
       if (p.port && typeof p.port.postMessage === 'function') {
-        try { p.port.postMessage({ type: 'peers', data: peers }); } catch { /* fall back to IPC */ }
+        try { p.port.postMessage({ type: 'peers', data: peers }); } catch {  }
       }
     }
   }
@@ -1286,13 +1165,6 @@ function broadcastPeers() {
 function applyStateIntent(name) {
   return { ok: false, error: `unknown intent "${name}"` };
 }
-
-// --- app context -------------------------------------------------------------
-
-// The mutable main-process state and the shared helpers, exposed to the modules
-// extracted from this file (ipc.js now; windows.js/shot.js later). The accessors
-// keep this file's own references untouched while letting a module read the live
-// window at call time (never a snapshot taken at startup).
 
 const ctx = {
   get capabilities() { return capabilities; },
@@ -1366,8 +1238,7 @@ const ctx = {
 
   floatWins, HISTORY_MAX, isDev, paneList,
   beginPaletteMerge, cancelPendingMerge, resolvePendingMerge,
-  // The instance controls (Settings → Modules): main mints the id for a duplicate before
-  // the module is mounted, and copies the settings file itself.
+
   moduleStore, mintInstanceId: (prefix) => layout.newId(prefix),
   paletteDragMembers,
   argValue, shotPath, runShot,
@@ -1394,7 +1265,7 @@ const ctx = {
   openWhatsNew: () => (windows ? windows.openWhatsNew() : false),
   listThemes, normalizeTheme, themeBackground,
   readModuleSettings,
-  // Bundled module ids plus the user modules, so the Settings → Modules tab lists both.
+
   listModuleIds: () => [...new Set([...listModuleIds(), ...userModuleStore.list().map((m) => m.id)])],
   writeModuleSettings,
   readLayoutDoc, writeLayoutDoc, findFloatDoc,
@@ -1405,14 +1276,14 @@ const ctx = {
   snapFollowers, followSnapGroup, reflowSnapResize,
   dragSession, broadcastLayout, applyLayoutIntent,
   currentWorkspace: () => layout.current(),
-  // Named saved workspaces (Settings → Layout): main owns the store.
+
   listNamedWorkspaces: () => workspaceStore.list(),
   getNamedWorkspace: (id) => workspaceStore.get(id),
   saveNamedWorkspace: (name, doc) => workspaceStore.save(name, doc),
   renameNamedWorkspace: (id, name) => workspaceStore.rename(id, name),
   deleteNamedWorkspace: (id) => workspaceStore.remove(id),
   workspaceStore,
-  // The same two, callable from main (the shot flags) as from the renderer's IPC.
+
   exportWorkspaceTo: async (target) => {
     try {
       fs.writeFileSync(target, JSON.stringify(layout.current(), null, 2));
@@ -1437,22 +1308,15 @@ const ctx = {
   applyLaunchAtLogin,
 };
 
-// The pane layer (panes.js) and the windows/focus/tray (windows.js) share the
-// live state above; their functions are published on ctx for ipc.js/shot.js, and
-// destructured here for this file's own call sites (boot).
 const floats = createPanes(ctx);
 Object.assign(ctx, floats);
 const {
   applyLocked, reopenFloats, showFloats, windowAtPoint, closeFloatWin,
 } = floats;
 
-// Declared before createWindows: the follow-focus watcher reports which implementation
-// serves it as it starts, and that reads ctx.helperHealth.
 const helperHealth = new HelperHealth();
 ctx.helperHealth = helperHealth;
 
-// --force-degraded-helpers: pretend a capability fell back, so the degraded UI can be
-// seen and screenshotted without breaking a real helper. Test seam only.
 if (process.argv.includes('--force-degraded-helpers')) {
   for (const name of ['band', 'foreground', 'pointer', 'keys']) helperHealth.set(name, 'ps');
 }
@@ -1465,8 +1329,6 @@ const {
   applyCommandHotkeys, unregisterCommandHotkeys,
 } = windows;
 
-// The native helper is created before the shortcut engine so a binding registered at
-// startup can route through it; the process itself starts once the app is ready.
 const wantNativeHost = process.argv.includes('--native-host')
   || (!process.argv.includes('--no-native-host'));
 /** Push the helper state at every window; cheap, and the palette shows it as a dot. */
@@ -1474,22 +1336,18 @@ const pushHelpers = () => {
   try {
     const payload = helperHealth.summary();
     for (const win of require('electron').BrowserWindow.getAllWindows()) {
-      try { win.webContents.send('helpers:state', payload); } catch { /* gone */ }
+      try { win.webContents.send('helpers:state', payload); } catch {  }
     }
-  } catch { /* not ready */ }
+  } catch {  }
 };
 ctx.pushHelpers = pushHelpers;
-// The renderer asks once it is listening, so the dot is correct at load and not only
-// after the next transition.
+
 require('electron').ipcMain.handle('helpers:get', () => helperHealth.summary());
 
-// One line per real transition: a capability that silently moved to PowerShell (or
-// stopped) is the thing that used to be invisible. Deliberately outside the host branch:
-// a run that starts in fallback mode must report that too.
 helperHealth.on('changed', (event) => {
   console.log(`[helpers] ${event.capability}: ${event.from} -> ${event.to} (${helperHealth.describe()})`);
   pushHelpers();
-  try { setHealth({ helpers: helperHealth.summary() }); } catch { /* before the hub exists */ }
+  try { setHealth({ helpers: helperHealth.summary() }); } catch {  }
 });
 
 if (wantNativeHost) {
@@ -1592,14 +1450,6 @@ Object.assign(ctx, {
   pruneShortcutTargets: () => shortcutActions.prune(),
 });
 
-// --- boot -------------------------------------------------------------------
-
-// A --shot run must never depend on whether the user's app is open. With the
-// single-instance lock, a shot launched while Iroiroppa is running would quit
-// immediately and the running instance would answer by showing its window — so the
-// capture would be the user's own palette, at the user's own size and position
-// (this is exactly how `npm run screenshot` once "worked" while producing the wrong
-// image). The shot runs its own throwaway instance instead.
 if (!shotPath && !app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -1608,8 +1458,6 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     app.setAppUserModelId('com.iroiroppa.app');
 
-    // Serve per-theme assets. The theme id is the host, the rest the path inside
-    // the theme folder; themeAssetPath() refuses anything that escapes it.
     protocol.handle('theme', (request) => {
       let url;
       try { url = new URL(request.url); } catch { return new Response('bad request', { status: 400 }); }
@@ -1634,9 +1482,6 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       }
     });
 
-    // Serve a user module's own files (docs/USER-MODULES.md): the module script
-    // and any assets it ships. `module://<id>/<rel>` resolves under that module's
-    // folder; assetPath() refuses anything that escapes it.
     protocol.handle('module', (request) => {
       let url;
       try { url = new URL(request.url); } catch { return new Response('bad request', { status: 400 }); }
@@ -1662,43 +1507,31 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       }
     });
 
-    // User modules must be in the layout registry before the workspace document is
-    // first read, so a stored layout that places one is not treated as unknown.
     for (const m of userModuleStore.list()) registry[m.id] = { ...m, user: true };
-    // The renderer needs the list before it builds the board (its manifest is
-    // otherwise bundled-only). It is passed as a window argument, not an IPC call,
-    // so a renderer can never block waiting on main (docs/USER-MODULES.md).
+
     ctx.userModulesArg = `--user-modules=${JSON.stringify(userModuleStore.list())}`;
-    // Which state path the renderer consumes (docs/STATE.md). The canonical model
-    // is the default now; `--legacy-state` (or `--state=legacy`) falls back.
+
     const legacyState = process.argv.includes('--legacy-state') || argValue('--state') === 'legacy';
     const stateMode = legacyState ? 'legacy' : 'model';
     ctx.windowArgs = ctx.userModulesArg ? [ctx.userModulesArg] : [];
-    // --perf-gaps reaches the page as a window argument, so the recorder knows before
-    // the first frame whether to sample.
+
     if (perfGaps) ctx.windowArgs.push('--perf-gaps=1');
     if (process.argv.includes('--force-interactive')) ctx.windowArgs.push('--force-interactive=1');
     ctx.windowArgs.push(`--state-mode=${stateMode}`);
-    // E1: the local-first interaction protocol (docs/STATE.md). Off by default; when
-    // on, the renderer drives a drag through interaction:begin/update/end instead of
-    // a bare color:write per pointermove.
+
     if (ctx.localFirst) ctx.windowArgs.push('--local-first=1');
     if (process.argv.includes('--hold-interaction')) ctx.windowArgs.push('--hold-interaction=1');
 
     const dir = app.getPath('userData');
-    // New installs default to the machine's Adobe RGB (1998) profile when it has
-    // one, else the synthetic ICC the repo ships, so proofing is never dead on
-    // arrival. A stored settings.json always wins, so existing installs keep the
-    // profile they last used.
+
     const defaults = { ...DEFAULT_SETTINGS };
     if (!defaults.proofProfile) defaults.proofProfile = findAdobeRgbProfile() || findBundledProfile();
     settings = createSettingsService({ file: path.join(dir, 'settings.json'), defaults, hooks: ctx });
-    // The observer switch did nothing until 2026-11-11 (it was never pushed to the hook),
-    // so a stored `false` is not a choice the user could have made. Turn it on once.
+
     if (settings.get().bareObserveMigrated !== true) {
       settings.commit({ bareObserve: true, bareObserveMigrated: true });
     }
-    // One-time shortcut migration: the old summon key becomes General show/hide.
+
     {
       const cur = settings.get();
       const normalized = ShortcutModel.normalise(cur.shortcuts);
@@ -1709,43 +1542,36 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       }
       if (changed) settings.set({ shortcuts: normalized });
     }
-    // The colour history is high-churn and lives in its own file, so a corrupt write
-    // cannot cost the preferences too . Migrate once, losslessly, and
-    // keep the old copy in settings.json for a downgrade.
+
     history = new JsonStore(path.join(dir, 'history.json'), { colorHistory: [] });
     if (!fs.existsSync(path.join(dir, 'history.json'))) {
       const saved = settings.get().colorHistory;
       if (Array.isArray(saved) && saved.length) {
-        try { fs.copyFileSync(path.join(dir, 'settings.json'), path.join(dir, 'settings.json.pre-history-split.bak')); } catch { /* no settings file yet */ }
+        try { fs.copyFileSync(path.join(dir, 'settings.json'), path.join(dir, 'settings.json.pre-history-split.bak')); } catch {  }
         history.set({ colorHistory: saved.map((c) => ({ r: c.r, g: c.g, b: c.b })) });
       }
     }
-    // Main-process strings (the tray menu, the file dialogs) are translated too.
+
     mainI18n = createMainI18n({ language: settings.get().language || '', systemLocale: app.getLocale() });
-    // Themes are files now; migrate a stored light/dark id to a theme id once.
+
     const legacyTheme = settings.get().theme;
     const migratedTheme = normalizeTheme(legacyTheme);
     if (migratedTheme !== legacyTheme) settings.set({ theme: migratedTheme });
-    // The old follow-CSP and hide-on-blur options merged into one auto-hide flag.
+
     try {
       const raw = JSON.parse(fs.readFileSync(path.join(dir, 'settings.json'), 'utf8'));
       if (raw && typeof raw.autoHide !== 'boolean' && typeof raw.followCsp === 'boolean') {
         settings.set({ autoHide: raw.followCsp });
       }
-    } catch { /* no settings file yet */ }
-    // The pairing secret is encrypted at rest with safeStorage (docs/STATE.md,
-    // `--no-secret-store` keeps it plaintext (e.g. for the probe).
+    } catch {  }
+
     const sessionFile = path.join(dir, 'session.json');
     const session = process.argv.includes('--no-secret-store')
       ? new JsonStore(sessionFile, {})
       : createSecretStore({ file: sessionFile, safeStorage: require('electron').safeStorage });
-    // Keep the login item in sync with the setting (the exe path can change
-    // between runs, and a stale entry should be removed).
+
     applyLaunchAtLogin(settings.get().launchAtLogin);
 
-    // The canonical state model and the session/peer layer (docs/STATE.md). Both
-    // are Electron-free cores given injected IO; main owns the authoritative state
-    // and every window mirrors it.
     stateHub = createStateHub({ emit: (channel, payload) => broadcast(channel, payload) });
     const peerBus = !process.argv.includes('--no-peer-bus');
     peerHub = createPeerHub({
@@ -1753,8 +1579,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
         const wc = require('electron').webContents.fromId(wcId);
         if (wc && !wc.isDestroyed()) wc.send(channel, payload);
       },
-      // A MessagePort pair per window when opted in (docs/STATE.md, §12.4). The
-      // port carries transient traffic; the IPC `send` above stays the fallback.
+
       allocatePort: peerBus ? (wcId) => {
         const { MessageChannelMain } = require('electron');
         const { port1, port2 } = new MessageChannelMain();
@@ -1765,7 +1590,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       } : () => null,
     });
     peerHub.connect();
-    // Observe the storage mode once the hub exists, so a health reader can see it.
+
     setHealth({ secrets: typeof session.isEncrypted === 'function' && session.isEncrypted() ? 'encrypted' : 'plaintext' });
     app.on('web-contents-created', (_e, wc) => {
       if (!peerHub) return;
@@ -1781,15 +1606,9 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       wc.on('destroyed', () => { if (peerHub && peerHub.closeWindow(wc.id)) broadcastPeers(); });
     });
 
-    // The idle-timer reset that keeps our reads live also keeps CSP's worktime
-    // tracker from pausing, so only send it while the palette is on screen and
-    // the machine is actually being used (see service._mayKeepHostAwake).
-    // The compute host runs heavy work off main (docs/STATE.md, §6). On by
-    // default; `--no-compute-host` keeps the decode in main (the `probe` path).
     if (!process.argv.includes('--no-compute-host')) {
       computeHost = createComputeHost({
-        // A utilityProcess cannot load a script from inside app.asar reliably; the
-        // worker is unpacked (package.json "asarUnpack") so resolve the real path.
+
         workerPath: path.join(__dirname, 'workers', 'capture-worker.js').replace('app.asar', 'app.asar.unpacked'),
         onEvent: (type, info) => {
           if (isDev && type === 'up') console.log('[compute] host up');
@@ -1801,8 +1620,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
 
     if (perfGaps) {
       const tracePerf = createPerfTrace();
-      // A result is only usable if the state it was taken in is recorded next to it:
-      // visibility, the foreground app, whether the store was mid-gesture, the model.
+
       ipcMain.on('perf:gaps', (_event, summary) => tracePerf({
         ...summary,
         state: {
@@ -1815,42 +1633,29 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       }));
     }
 
-    // One native helper for the session. It replaces the per-press PowerShell spawn and
-    // the long-lived topmost.ps1 watch; when the binary is missing or the process dies,
-    // topmost.js falls straight back to PowerShell, so this is never a hard dependency.
     if (nativeHost) {
       nativeHost.start();
       setBandHost(nativeHost);
       app.on('will-quit', () => nativeHost.stop());
     }
 
-    // --summon-after=<ms>: fire the same toggle the hotkey fires, so the warm-summon
-    // latency can be measured from the visibility trace without a human press.
     const summonAfter = (process.argv.find((a) => a.startsWith('--summon-after=')) || '').split('=')[1];
     if (summonAfter) {
-      // A comma list toggles at each delay: hide first, then show, so the second
-      // toggle is the warm summon the trace can time.
+
       for (const at of String(summonAfter).split(',').map(Number).filter((n) => n > 0)) {
         setTimeout(() => {
           try {
-            // Hide first, then time the show. This is the *show path* the hotkey ends in;
-            // the isShortcutActive gate above it is O(1) and excluded on purpose (it
-            // refuses while another app is in front, which a script cannot change).
+
             if (ctx.popup && ctx.popup.isVisible()) { windows.hidePopup(); return; }
             ctx.summonAt = Date.now();
             windows.showPopup();
-          } catch { /* window not ready */ }
+          } catch {  }
         }, at);
       }
     }
 
-    // Publish the starting point as well as the transitions: a run that begins in
-    // fallback mode never fires a 'changed' event, and the window would show nothing.
     setHealth({ helpers: helperHealth.summary() });
 
-    // Bounded retry: if anything is running on the PowerShell fallback while the host is
-    // healthy, try to move it back every 30 s. Without this a transient failure would
-    // keep the slow path for the rest of the session.
     setInterval(() => {
       if (!nativeHost || !nativeHost.available) return;
       const summary = helperHealth.summary();
@@ -1862,8 +1667,6 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       } catch (error) { console.error('[helpers] retry failed', error); }
     }, 30000).unref();
 
-    // The shortcut engine only re-registers on a settings *change*; a profile that
-    // already had a bare key never registered one until the user touched Settings.
     try { ctx.applyShortcuts(settings.get()); } catch (error) { console.error('[shortcut] startup apply failed', error); }
     }
     service = new CompanionService({
@@ -1878,7 +1681,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
         ? async (frame) => {
             try { return await computeHost.request('qr-decode', frame); }
             catch (err) {
-              // The worker is an optimisation; never let it break pairing.
+
               if (isDev) console.log('[compute] falling back to in-main decode:', err.message);
               return decodeQrFrame(frame);
             }
@@ -1887,15 +1690,11 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     });
     service.on('status', (s) => { broadcast('companion:status', s); if (stateHub) stateHub.set('connection', s); setHealth({ csp: s.state }); });
     service.on('color', (c) => {
-      // E1: while an interaction owns the colour, an incoming colour that is not
-      // the value it last sent is an external change (an eyedropper, an undo, a
-      // hotkey) — the interaction loses and its owner is told. Flag-only, so a
-      // normal run keeps the existing echo-suppression path untouched.
+
       if (localFirst) {
         const cur = interactions.get('color');
         if (cur && c && c.rgb) {
-          // Compare against the last few values, not just the newest: a host echo can
-          // lag by more than one update, and a lagging read must never reject a drag.
+
           const same = interactions.isRecent('color', c.rgb, (a, b) => Boolean(a && b && a.r === b.r && a.g === b.g && a.b === b.b));
           if (!same) {
             const gone = interactions.invalidate('color', 'invalidated');
@@ -1919,17 +1718,13 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       }
     });
     service.on('pick', (rgb) => historyGate.onPick(rgb));
-    // A left-button release over CSP is the precise end of a pick: take a fresh
-    // protocol read and record that colour at once. A left-button down on the CSP
-    // canvas is the drawing-only gate's contact; it takes the same fresh read.
-    // Skipped under --shot (a screenshot does not need a background hook).
+
     let altPickPending = false;
     if (!shotPath) {
       const pointerWatcher = new PointerWatcher();
-      // The host owns the low-level mouse hook when it is running; PowerShell stays the
-      // fallback for a missing binary or a dead process.
+
       if (nativeHost) pointerWatcher.attach(nativeHost, helperHealth);
-      // Published for the bounded retry above; the watcher owns its own fallback.
+
       ctx.retryPointerHost = () => pointerWatcher.retryHost && pointerWatcher.retryHost();
       const releaseHistory = createPointerHistory({
         readColor: () => service.readColor(),
@@ -1953,11 +1748,9 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       });
       pointerWatcher.on('down', (info) => {
         contactHistory(info);
-        // Plain Alt+left on the canvas: CSP's eyedropper has run, and the release
-        // is the moment the after-pick reveals happen.
+
         altPickPending = Boolean(info.alt && info.canvas && !info.ctrl && !info.shift);
-        // Any left down over CSP is an interaction: Toggle auto-dismiss uses it,
-        // and after-pick closes on a non-Alt stroke.
+
         ctx.interactionStartedShortcut(info);
       });
       if (!nativeHost && ctx.helperHealth) ctx.helperHealth.set('pointer', 'ps');
@@ -1972,8 +1765,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     });
     sender = createSender();
     app.on('will-quit', () => sender.stop());
-    // One adapter per channel; the companion adapter follows the service (above),
-    // and the rest mirror this into every window.
+
     capabilities = createMainCapabilities({
       service,
       broadcast: (channel, payload) => {
@@ -1983,19 +1775,16 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     });
 
     wireIpc(ctx);
-    // Read the workspace before any window opens, so the palette and the floats
-    // restore from one document.
+
     layout.load();
     seedOneTimeWorkspace();
-    // Settings files for instances that no longer exist are kept for a while (deleting a palette or
-    // an instance keeps them, so a mis-click is recoverable) and then swept — the ones inside the
-    // window are listed by the Trash section in Settings → Modules.
+
     {
       const keep = LayoutModel.liveInstanceIds(layout.current());
       const swept = moduleStore.purgeUnused(keep, Date.now(), TRASH_DAYS);
       if (swept.length && isDev) console.log('[trash] swept', swept.length, 'unused settings file(s)');
     }
-    // Remember which palette the shell starts on, so the first sync is not a rebind.
+
     syncShellPalette();
     createPopup();
     applyUiScale();
@@ -2006,8 +1795,6 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     applyCommandHotkeys(settings.get().commandBindings);
     buildTray();
 
-    // Look for a newer release once, off the Companion path. Skipped for shots so
-    // the recipe stays hermetic.
     if (!shotPath) refreshUpdateCheck().catch(() => {});
 
     const verbose = isDev || Boolean(shotPath) || process.argv.includes('--log') || process.argv.includes('--pair');
@@ -2017,12 +1804,11 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     }
 
     if (!shotPath) {
-      // The watcher tracks the foreground for auto-hide *and* the Companion
-      // worktime gate; Auto-hide off only makes its decisions `keep`.
+
       startFollowFocus();
-      if (settings.get().autoHide) showPopupAuto(); // appears without stealing focus; the watcher hides it if CSP is not active
+      if (settings.get().autoHide) showPopupAuto();
       else showPopup();
-      // One-time-per-version note. The dev flag forces it for a scripted look.
+
       if (process.argv.includes('--whats-new')) {
         if (windows) windows.openWhatsNew();
       } else {
@@ -2032,8 +1818,7 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
       showPopup();
     }
     await service.start().catch((err) => console.warn('start:', err.message));
-    // The saved attempt is over (connected, or failed and idle); auto-connect owns the
-    // service from here. Arm it and look once straight away.
+
     autoConnectArmed = true;
     scheduleAutoConnect({ immediate: true });
     scheduleAutoUpdateCheck();
@@ -2059,28 +1844,24 @@ if (!shotPath && !app.requestSingleInstanceLock()) {
     app.on('activate', () => showPopup());
   });
 
-  app.on('window-all-closed', () => { /* stay resident in the tray */ });
+  app.on('window-all-closed', () => {  });
   app.on('before-quit', () => {
     quoted = true;
-    // Close the socket now so CSP frees the single-controller slot promptly.
+
     if (service) service.disconnect().catch(() => {});
   });
   app.on('will-quit', () => {
     stopFollowFocus();
     shortcutActions.stop();
     unregisterCommandHotkeys();
-    // Close the native host (it owns the band repair and, later, the hooks), then the
-    // PowerShell band helper if this session fell back to it.
+
     if (nativeHost) nativeHost.stop();
     stopBand();
-    // The document is saved on a short debounce; make sure the last change lands.
+
     layout.dispose();
   });
 }
 
-// --- CSP accelerator ownership --------------------------------------------
-// A binding is a real global shortcut, so a chord CSP owns is swallowed before CSP
-// sees it. The list costs a SQLite read, and bindings change rarely, so cache it.
 let cspAccelCache = null;
 let cspAccelCacheAt = 0;
 

@@ -1,9 +1,5 @@
 'use strict';
 
-// The colour-interop wrapper is browser code, but it only reads `window.culori` /
-// `window.Color`, so Node can load it against the real culori and the real colour
-// maths. This proves the guard (absent culori is inert) and the conversions.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');

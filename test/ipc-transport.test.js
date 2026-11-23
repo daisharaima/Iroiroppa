@@ -47,11 +47,11 @@ test('a handshake timeout closes and schedules a reconnect', () => {
   const closes = [];
   transport.onClose((e) => closes.push(e.reason));
   transport.connect();
-  assert.ok(clock.pending().includes(5000)); // the handshake timer
-  clock.runNext(); // fire it
+  assert.ok(clock.pending().includes(5000));
+  clock.runNext();
   assert.equal(transport.isConnected(), false);
   assert.deepEqual(closes, ['handshake timeout']);
-  assert.ok(clock.pending().length >= 1); // a reconnect is scheduled (not manual)
+  assert.ok(clock.pending().length >= 1);
 });
 
 test('a silent peer is reaped after maxMissed keepalives', () => {
@@ -61,10 +61,10 @@ test('a silent peer is reaped after maxMissed keepalives', () => {
   transport.connect();
   transport.ack();
   sent.length = 0;
-  clock.runNext(); // keepalive 1 -> ping, missed 1
-  clock.runNext(); // keepalive 2 -> ping, missed 2
+  clock.runNext();
+  clock.runNext();
   assert.equal(sent.filter((s) => s.c === 'peer:ping').length, 2);
-  clock.runNext(); // keepalive 3 -> missed 3 > maxMissed -> reap
+  clock.runNext();
   assert.deepEqual(closes, ['unresponsive']);
   assert.equal(transport.isConnected(), false);
 });
@@ -73,7 +73,7 @@ test('a pong resets the missed count', () => {
   const { clock, transport } = harness({ keepaliveMs: 100, maxMissed: 2 });
   transport.connect();
   transport.ack();
-  clock.runNext(); // missed 1
+  clock.runNext();
   assert.equal(transport.stats().missed, 1);
   transport.pong();
   assert.equal(transport.stats().missed, 0);
@@ -83,23 +83,23 @@ test('a manual disconnect never reconnects', () => {
   const { clock, transport } = harness({ timeoutMs: 5000 });
   transport.connect();
   transport.disconnect();
-  assert.equal(clock.pending().length, 0); // timers cleared
-  assert.equal(transport.connect(), false); // manual guard
+  assert.equal(clock.pending().length, 0);
+  assert.equal(transport.connect(), false);
   assert.equal(transport.stats().manual, true);
   transport.reset();
-  assert.equal(transport.connect(), true); // allowed again after reset
+  assert.equal(transport.connect(), true);
 });
 
 test('send only works while connected, and receive routes messages', () => {
   const { sent, transport } = harness();
-  assert.equal(transport.send({ hi: 1 }), false); // not connected yet
+  assert.equal(transport.send({ hi: 1 }), false);
   transport.connect();
   transport.ack();
-  assert.equal(transport.send({ hi: 2 }), true); // connected now, so it sends
+  assert.equal(transport.send({ hi: 2 }), true);
   const messages = [];
   transport.onMessage((m) => messages.push(m));
   transport.receive({ type: 'sync', payload: 1 });
-  transport.receive({ type: 'welcome' }); // handled internally
+  transport.receive({ type: 'welcome' });
   assert.deepEqual(messages, [{ type: 'sync', payload: 1 }]);
   assert.deepEqual(sent.map((s) => s.c), ['peer:hello', 'peer:message']);
 });
@@ -107,11 +107,11 @@ test('send only works while connected, and receive routes messages', () => {
 test('the reconnect backoff doubles and is capped', () => {
   const { clock, transport } = harness({ timeoutMs: 10, backoff: { min: 100, max: 300 } });
   const delays = [];
-  transport.connect();          // handshake timer (10)
+  transport.connect();
   for (let i = 0; i < 4; i += 1) {
-    clock.runNext();            // fire the handshake timer -> drop + schedule reconnect
-    delays.push(clock.pending()[0]); // the reconnect delay
-    clock.runNext();            // fire the reconnect -> connect() again
+    clock.runNext();
+    delays.push(clock.pending()[0]);
+    clock.runNext();
   }
   assert.deepEqual(delays, [100, 200, 300, 300]);
 });

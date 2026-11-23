@@ -1,18 +1,5 @@
 'use strict';
 
-// Where the drag overlay lives.
-//
-// The overlay is one transparent, always-on-top window that carries the drag chip and
-// the drop indicator above every palette (docs/LAYOUT.md, V4). It must **not** cover a
-// whole display: Windows 11 turns Do Not Disturb on when it sees a full-screen app (the
-// "When using an app in full-screen mode" automatic rule), and a desktop-sized surface
-// was enough to trigger it on a palette drag. So the surface is the union of the
-// displays' *work areas* — never the taskbar — inset by a pixel so no monitor is covered
-// edge to edge.
-//
-// Pure: takes the display records Electron reports (`{ bounds, workArea }`), so the
-// geometry is unit-testable without a display.
-
 const CAP = 16384;
 
 /**
@@ -25,8 +12,7 @@ function overlayBounds(displays, opts = {}) {
   const list = Array.isArray(displays) ? displays.filter(Boolean) : [];
   const inset = Number.isFinite(opts.inset) ? Math.max(0, opts.inset) : 1;
   const cap = Number.isFinite(opts.cap) ? opts.cap : CAP;
-  // The work area is the display minus the taskbar. Fall back to `bounds` only for a
-  // display record that has no work area at all.
+
   const areas = list.map((d) => d.workArea || d.bounds).filter((a) => a
     && Number.isFinite(a.x) && Number.isFinite(a.y)
     && Number.isFinite(a.width) && Number.isFinite(a.height));

@@ -1,4 +1,4 @@
-// Norsk bokmål.
+
 (function (root) {
   'use strict';
 

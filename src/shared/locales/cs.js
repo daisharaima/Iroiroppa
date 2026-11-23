@@ -1,4 +1,4 @@
-// Čeština.
+
 (function (root) {
   'use strict';
 

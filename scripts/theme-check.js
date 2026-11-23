@@ -1,16 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-// Check theme files against the token manifest.
-//
-//   npm run theme:check                     # every bundled theme
-//   node scripts/theme-check.js <file.json> # one file (e.g. a user theme)
-//   ... --partial                           # a user theme may omit tokens
-//   ... --json                              # machine-readable
-//
-// Exit code 1 when any theme has an error (missing required token, bad colour,
-// unreadable file). Contrast findings are warnings.
-
 const fs = require('node:fs');
 const path = require('node:path');
 const { validateTheme, validateThemeCss } = require('../src/shared/theme-validate');
@@ -36,10 +26,9 @@ for (const file of targets) {
     continue;
   }
   const { errors, warnings } = validateTheme(theme, { partial });
-  // The optional sibling CSS is checked against the budget: forbidden or
-  // layout-changing properties fail a bundled theme and warn on a user theme.
+
   let css = '';
-  try { css = fs.readFileSync(file.replace(/\.json$/i, '.css'), 'utf8'); } catch { /* no CSS is fine */ }
+  try { css = fs.readFileSync(file.replace(/\.json$/i, '.css'), 'utf8'); } catch {  }
   if (css) {
     const lint = validateThemeCss(css, { strict: !partial });
     errors.push(...lint.errors);

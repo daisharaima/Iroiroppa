@@ -1,29 +1,4 @@
-/*
- * Where a dragged payload would land.
- *
- * The plan (docs/LAYOUT.md, V4) requires one resolver to drive both the drop
- * indicator and the commit, so the picture can never disagree with the outcome.
- * This is it: pure, no Electron, shared so main and a board can call the same
- * function.
- *
- * Units: the point and each pane's `rect`/`zoom` are in the window layer's units
- * (screen DIP). Everything inside a pane is CSS pixels, as in the document, so
- * this is the one place that converts — `local = (point - rect.origin) / zoom`.
- *
- * Geometry: a pane may carry `boxes` — what the board actually drew, in pane-local
- * CSS pixels:
- *
- *   boxes: { columns: [ { columnId, left, width, modules: [ { instanceId, top, height } ] } ] }
- *
- * That is preferred, because the model and the render can drift (which is why the
- * old code probed a float's live columns with `executeJavaScript`). `columns` (the
- * document's own shape) plus `measured` natural heights is the fallback for a pane
- * that has not reported yet, and it is computed with layout-geometry — the same
- * function the board draws with.
- *
- * Overlap: the caller orders `panes` most-recently-interacted first; that order
- * *is* the rule for which window is on top (see docs/LAYOUT.md).
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(require('./layout-geometry'));
@@ -33,15 +8,12 @@
 })(typeof self !== 'undefined' ? self : this, function (Geometry) {
   'use strict';
 
-  // Fallbacks only: a pane that reports its own `boxes`/`pad`/`divider`/`gap` wins.
-  // These mirror the board's CSS (src/renderer/style.css: the board padding, the
-  // divider and the module gap are all 2 px).
   const DEFAULTS = {
-    pad: 2,           // the board's inset inside the window, CSS px
-    divider: 2,       // the gap between columns, CSS px
-    gap: 2,           // the gap between modules, CSS px
-    edgeBand: 30,     // the band at a window's left/right edge that means "new column"
-    seamGrab: 7,      // how far either side of a column boundary counts as the seam
+    pad: 2,
+    divider: 2,
+    gap: 2,
+    edgeBand: 30,
+    seamGrab: 7,
     minColumn: 10,
   };
 
@@ -73,8 +45,7 @@
         })),
       };
     }
-    // Fallback: the document plus the module shapes, laid out by the very same
-    // geometry the board uses.
+
     const pad = Number.isFinite(pane.pad) ? pane.pad : o.pad;
     const geo = {
       pad,
@@ -150,7 +121,7 @@
     const { spans } = spansFor(pane, boardW, boardH, o);
 
     if (!spans.length) {
-      // An empty palette is a drop zone: its single column takes the module at the top.
+
       const columnId = pane.columns && pane.columns[0] ? pane.columns[0].id : null;
       return {
         kind: 'column',
@@ -161,10 +132,6 @@
       };
     }
 
-    // One column per palette: a drop anywhere in the pane lands in the column at the
-    // y-index under the pointer, and the indicator is the horizontal insertion line.
-    // There is no outer-edge/seam target any more — it asked for a second column the
-    // board then collapsed, which also left the palette's minimum size wrong.
     const span = spans.find((sp) => local.x >= sp.left && local.x <= sp.left + sp.width)
       || (local.x < spans[0].left ? spans[0] : spans[spans.length - 1]);
     const index = indexIn(span.modules, local.y);
@@ -177,9 +144,6 @@
     };
   }
 
-  // The indicator must span the *content*, not the chrome: every palette has a 24 px
-  // titlebar (style.css) and a bottom bar, and a vertical line that crosses them reads as
-  // if the whole window were the target.
   const HEADER = 24;
 
   /** The `layout.place` target for a resolved plan — one vocabulary, one reducer. */

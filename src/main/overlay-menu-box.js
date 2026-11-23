@@ -1,16 +1,5 @@
 'use strict';
 
-// Geometry for the overlay menu (the profile picker and the palette menu).
-//
-// The menu is its own always-on-top window: main sizes it to the menu, so the
-// only thing that has to be right is the box. Pure and injected, like
-// overlay-bounds.js, so the 1/10/200-row cases are testable without a display.
-//
-// A menu shows at most `maxRows` rows and scrolls the rest. The old code sized
-// for every item and let the column flexbox shrink the rows instead, which cut
-// every line of a long profile list in half (the report). Both halves are fixed
-// here: the height is a fixed row count, and the menu CSS refuses to shrink.
-
 const ROW_H = 24;
 const PADDING = 8;
 const BORDER = 2;
@@ -43,8 +32,6 @@ function menuBox(opts = {}) {
   const wantedWidth = Number.isFinite(opts.width) ? opts.width : longest * 7 + 26;
   const width = Math.round(clamp(wantedWidth, MIN_WIDTH, MAX_WIDTH));
 
-  // Action, heading and separator rows have their own heights; a separator or a
-  // heading is not a row and must not consume one of the ten visible-row slots.
   const heightOf = (item) => {
     if (item && item.kind === 'separator') return 9;
     if (item && item.kind === 'heading') return Math.round(rowHeight * 0.72);
@@ -52,8 +39,7 @@ function menuBox(opts = {}) {
     return rowHeight;
   };
   const normalRows = items.filter((item) => !item || (item.kind !== 'separator' && item.kind !== 'heading')).length;
-  // Headings are not rows either, but their height must count, or the cap hides them
-  // and the menu can never show every family.
+
   const extras = items.reduce((n, item) => n
     + (item && item.kind === 'heading' ? heightOf(item) : Math.max(0, heightOf(item) - rowHeight)), 0);
   const gap = GAP * Math.max(0, items.length - 1);

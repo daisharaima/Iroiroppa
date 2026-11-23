@@ -1,14 +1,4 @@
-/*
- * Slice geometry — the pure bridge between a 2D slice and the model axes.
- *
- * A slice has three axes: horizontal `u`, vertical `v` (both 0..1) and one
- * fixed axis. The raster and the pointer MUST use the same mapping, or a pick
- * lands beside the colour it is over; this module is that one mapping, plus the
- * small pieces the pickers share: the reachability predicate, the crosshair
- * clamp, the iso-lightness guide line and the Shift-lock override.
- *
- * Loads as CommonJS in Node and as a global `IroSliceGeometry` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(require('./color-models'), require('./color'));
@@ -178,7 +168,7 @@
       }
       return (a + b) / 2;
     }
-    // No endpoint bracket: sample, then bisect the bracket nearest the target.
+
     const N = 24;
     let best = lo;
     let bestD = Math.abs(flo - target);
@@ -287,8 +277,7 @@
       a[adjustAxis] = solved.value;
       const p = pointOf(model, plane, a, store);
       points.push({ u: p.u, v: p.v });
-      // A clamped endpoint is not a point on this lightness contour: do not
-      // draw it as a flat line along the panel edge.
+
       flags.push(solved.ok && inside(model, a, store));
     }
     return { points, flags };

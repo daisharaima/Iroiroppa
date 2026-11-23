@@ -1,23 +1,5 @@
 'use strict';
 
-// Owns the three ways a General/Palette target can be revealed:
-//
-//   toggle    — a key that latches the target shown/hidden;
-//   hold      — a momentary key (press/release), because globalShortcut has no
-//               key-up; `keys.ps1` supplies it;
-//   afterPick — Alt+left on the CSP canvas reveals the target, and the next
-//               drawing stroke (or an 8 s fallback) hides only the windows that
-//               pick opened.
-//
-// The state machine is here, not split between the window layer and the renderer,
-// so the conflict rules have one owner. Everything window-shaped is injected
-// through `ctx`, which keeps this testable without Electron.
-//
-// Priorities:
-//   explicit Toggle/Hold > After-pick;
-//   Hold restores a snapshot, it does not overwrite it;
-//   After-pick only hides windows it actually opened.
-
 const ShortcutModel = require('../shared/shortcut-model');
 const Match = require('../shared/shortcut-match');
 const { KeyHoldWatcher, checkHoldAccel } = require('./key-hold');
@@ -53,26 +35,22 @@ function createShortcutActions(ctx, deps = {}) {
   const checkHold = deps.checkHold || checkHoldAccel;
   const setTimer = deps.setTimeout || setTimeout;
   const clearTimer = deps.clearTimeout || clearTimeout;
-  let toggles = new Map(); // key -> accelerator
-  let holds = new Map(); // key -> KeyHoldWatcher
-  let activeHold = null; // { key, target, snapshot }
-  let afterPick = null; // { shown: Set<paletteId>, timer }
-  let dismiss = null; // { target } — Toggle mode's auto-dismiss after CSP interaction
-  let bareWatchers = new Map(); // key -> BareKeyWatcher
-  // Bare keys bound to module commands; separate from the reveal bindings so the
-  // two edit paths never unregister each other.
-  let commandBares = new Map(); // key -> BareKeyWatcher
+  let toggles = new Map();
+  let holds = new Map();
+  let activeHold = null;
+  let afterPick = null;
+  let dismiss = null;
+  let bareWatchers = new Map();
+
+  let commandBares = new Map();
   /** Claim bare keys only while the pointer is over CSP's canvas (Settings). */
-  // Read from settings inside `apply()`, never here: `ctx.settings` is still null while
-  // main constructs this object (the settings service is attached later).
+
   let bareCanvas = false;
   /** CSP would refuse a Quick Access command now (text edit, non-brush tool). */
   let bareBusy = false;
   /** Report bare keys without swallowing them. */
   let bareObserve = false;
-  // Start inactive: a bare key must not be claimed until we actually know the
-  // foreground. Claiming while "unknown" is what ate keystrokes in other apps when the
-  // foreground watcher was not up yet.
+
   let bareActive = false;
   let bareTyping = false;
   let failures = [];
@@ -99,8 +77,6 @@ function createShortcutActions(ctx, deps = {}) {
     if (!id || !mode || mode === 'keep') return;
     if (typeof ctx.positionShortcutWindow === 'function') ctx.positionShortcutWindow(id, mode);
   }
-
-  // --- after-pick -----------------------------------------------------------
 
   function clearAfterPickTimer() {
     if (afterPick && afterPick.timer) clearTimer(afterPick.timer);
@@ -162,7 +138,6 @@ function createShortcutActions(ctx, deps = {}) {
     }
     if (!targets.length) return false;
 
-    // A hold on a target owns it: after-pick must not claim the same windows.
     const held = activeHold ? new Set(targetPalettes(activeHold.target)) : new Set();
     const ids = [];
     const seen = new Set();
@@ -175,14 +150,14 @@ function createShortcutActions(ctx, deps = {}) {
     }
     const hidden = ids.filter((id) => !isVisible(id));
     if (!hidden.length) {
-      // A second pick while the reveal is still up merely extends its life.
+
       if (afterPick) scheduleAfterPick();
       return false;
     }
 
     const appTarget = targets.includes('app');
     if (appTarget) {
-      // General after-pick shows all palette windows, but keeps Settings out of it.
+
       if (typeof ctx.showShortcutTarget === 'function') {
         ctx.showShortcutTarget('app', { clearSuppression: false, includeSettings: false });
       }
@@ -194,7 +169,6 @@ function createShortcutActions(ctx, deps = {}) {
       }
     }
 
-    // Position only the windows that were actually hidden before this reveal.
     if (appTarget) {
       const primary = ctx.primaryPaletteId ? ctx.primaryPaletteId() : null;
       if (primary && hidden.includes(primary)) place(primary, shortcuts.app.position);
@@ -245,25 +219,23 @@ function createShortcutActions(ctx, deps = {}) {
     dismiss = null;
   }
 
-  // --- registration ---------------------------------------------------------
-
   function unregisterToggles() {
     for (const accel of toggles.values()) {
-      try { globalShortcut.unregister(accel); } catch { /* already gone */ }
+      try { globalShortcut.unregister(accel); } catch {  }
     }
     toggles = new Map();
   }
 
   function stopHolds() {
     for (const watcher of holds.values()) {
-      try { watcher.stop(); } catch { /* already gone */ }
+      try { watcher.stop(); } catch {  }
     }
     holds = new Map();
   }
 
   function stopBare() {
     for (const watcher of bareWatchers.values()) {
-      try { watcher.stop(); } catch { /* already gone */ }
+      try { watcher.stop(); } catch {  }
     }
     bareWatchers = new Map();
   }
@@ -271,20 +243,20 @@ function createShortcutActions(ctx, deps = {}) {
   function setBareActive(active) {
     bareActive = Boolean(active);
     for (const watcher of bareWatchers.values()) {
-      try { watcher.setActive(bareActive); } catch { /* gone */ }
+      try { watcher.setActive(bareActive); } catch {  }
     }
     for (const watcher of commandBares.values()) {
-      try { watcher.setActive(bareActive); } catch { /* gone */ }
+      try { watcher.setActive(bareActive); } catch {  }
     }
   }
 
   function setBareTyping(typing) {
     bareTyping = Boolean(typing);
     for (const watcher of bareWatchers.values()) {
-      try { watcher.setTyping(bareTyping); } catch { /* gone */ }
+      try { watcher.setTyping(bareTyping); } catch {  }
     }
     for (const watcher of commandBares.values()) {
-      try { watcher.setTyping(bareTyping); } catch { /* gone */ }
+      try { watcher.setTyping(bareTyping); } catch {  }
     }
   }
 
@@ -296,10 +268,10 @@ function createShortcutActions(ctx, deps = {}) {
   function setBareCanvas(value) {
     bareCanvas = Boolean(value);
     for (const watcher of bareWatchers.values()) {
-      try { watcher.setCanvas(bareCanvas); } catch { /* gone */ }
+      try { watcher.setCanvas(bareCanvas); } catch {  }
     }
     for (const watcher of commandBares.values()) {
-      try { watcher.setCanvas(bareCanvas); } catch { /* gone */ }
+      try { watcher.setCanvas(bareCanvas); } catch {  }
     }
   }
 
@@ -313,10 +285,10 @@ function createShortcutActions(ctx, deps = {}) {
   function setBareBusy(value) {
     bareBusy = Boolean(value);
     for (const watcher of bareWatchers.values()) {
-      try { watcher.setBusy(bareBusy); } catch { /* gone */ }
+      try { watcher.setBusy(bareBusy); } catch {  }
     }
     for (const watcher of commandBares.values()) {
-      try { watcher.setBusy(bareBusy); } catch { /* gone */ }
+      try { watcher.setBusy(bareBusy); } catch {  }
     }
   }
 
@@ -325,7 +297,7 @@ function createShortcutActions(ctx, deps = {}) {
     bareObserve = Boolean(value);
     const push = (watcher) => {
       if (typeof watcher.setObserve === 'function') {
-        try { watcher.setObserve(bareObserve); } catch { /* gone */ }
+        try { watcher.setObserve(bareObserve); } catch {  }
       }
     };
     for (const watcher of bareWatchers.values()) push(watcher);
@@ -347,7 +319,7 @@ function createShortcutActions(ctx, deps = {}) {
     else if (ctx.helperHealth && parsed.vk) ctx.helperHealth.set('keys', 'ps');
     watcher.on('down', () => {
       if (ctx.isShortcutActive && !ctx.isShortcutActive()) return;
-      try { run(); } catch { /* never let a command kill the hook */ }
+      try { run(); } catch {  }
     });
     watcher.on('failed', () => { commandBares.delete(key); });
     watcher.active = bareActive;
@@ -363,14 +335,14 @@ function createShortcutActions(ctx, deps = {}) {
   function clearCommandBare(key) {
     const watcher = commandBares.get(key);
     if (!watcher) return false;
-    try { watcher.stop(); } catch { /* already gone */ }
+    try { watcher.stop(); } catch {  }
     commandBares.delete(key);
     return true;
   }
 
   function stopCommandBares() {
     for (const watcher of commandBares.values()) {
-      try { watcher.stop(); } catch { /* already gone */ }
+      try { watcher.stop(); } catch {  }
     }
     commandBares = new Map();
   }
@@ -382,7 +354,7 @@ function createShortcutActions(ctx, deps = {}) {
     const snapshot = activeHold.snapshot;
     activeHold = null;
     if (restore) {
-      try { ctx.restoreShortcutVisibility(snapshot); } catch { /* windows may be gone */ }
+      try { ctx.restoreShortcutVisibility(snapshot); } catch {  }
     }
     return true;
   }
@@ -396,7 +368,7 @@ function createShortcutActions(ctx, deps = {}) {
     const pair = ShortcutModel.targetShortcuts(shortcutsNow(), target);
     if (!pair || pair.mode !== 'hold') return false;
     endHold();
-    // An explicit hold owns the target from now on: after-pick must not close it.
+
     claimTarget(target);
     const snapshot = ctx.captureShortcutVisibility(target);
     const ids = targetPalettes(target);
@@ -418,7 +390,7 @@ function createShortcutActions(ctx, deps = {}) {
   }
 
   function toggleTarget(target) {
-    // Timestamp the request so the visibility trace can report the warm-summon latency.
+
     if (ctx && ctx.popup) ctx.summonAt = Date.now();
     if (!ctx.isShortcutActive()) return false;
     const parsed = ShortcutModel.parseTarget(target);
@@ -428,7 +400,7 @@ function createShortcutActions(ctx, deps = {}) {
     claimTarget(target);
 
     if (parsed.kind === 'app') {
-      // A General action supersedes an active hold: the key the user pressed wins.
+
       if (activeHold) endHold(null, { restore: false });
       const any = typeof ctx.anyBandVisible === 'function' && ctx.anyBandVisible();
       if (any) {
@@ -486,8 +458,7 @@ function createShortcutActions(ctx, deps = {}) {
       if (accel.hook) {
         const key = entry.key;
         const watcher = new BareWatcher({ accel: entry.accel });
-        // One keyboard hook for every binding when the native host is running; the
-        // watcher then only filters by vk. PowerShell remains the fallback.
+
         if (process.argv.includes('--trace-native')) console.log('[shortcut]', entry.key, entry.accel, 'vk=' + accel.vk, 'host=' + Boolean(ctx.nativeHost));
         if (ctx.nativeHost && accel.vk) watcher.attach(ctx.nativeHost, accel.vk, ctx.helperHealth || null);
         else if (ctx.helperHealth && accel.vk) ctx.helperHealth.set('keys', 'ps');
@@ -558,8 +529,7 @@ function createShortcutActions(ctx, deps = {}) {
         value, next, currentSettings.commandBindings, targetKey(target, action),
       );
       if (conflict) return { ok: false, error: 'conflict', conflictWith: conflict.key };
-      // A bare key is not registered with the OS, so RegisterHotKey preflight
-      // does not apply; the keyboard-hook watcher is the registration.
+
       if (action === 'hold' && !Match.parseAccelerator(value).hook) {
         const check = await checkHold(value);
         if (!check.ok) return { ok: false, error: check.error || 'unavailable' };
@@ -604,7 +574,7 @@ function createShortcutActions(ctx, deps = {}) {
       if (!ShortcutModel.POSITIONS.includes(value)) return { ok: false, error: 'invalid-position' };
       pair.position = value;
     } else if (option === 'afterPick') {
-      // Compatibility for the old after-pick switch.
+
       if (value === true) pair.mode = 'afterPick';
       else if (pair.mode === 'afterPick') pair.mode = 'toggle';
     } else return { ok: false, error: 'invalid-option' };

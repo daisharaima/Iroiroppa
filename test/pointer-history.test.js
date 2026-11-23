@@ -1,9 +1,5 @@
 'use strict';
 
-// The pointer-up bridge: a release over CSP takes a fresh protocol read and
-// commits exactly that colour. It must not read when no pick is waiting, must
-// ignore a transparent colour, and must not stack reads on rapid ups.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { createPointerHistory, createContactHistory } = require('../src/main/pointer-history');
@@ -107,7 +103,7 @@ test('a lagging read that still shows the head falls back to the pending pick', 
   const commits = [];
   const onDown = createContactHistory({
     isOn: () => true,
-    readColor: async () => ({ rgb: rgb(1, 1, 1) }), // host lag: still the old head
+    readColor: async () => ({ rgb: rgb(1, 1, 1) }),
     commit: (c) => commits.push(c),
     pending: () => rgb(9, 9, 9),
     head: () => rgb(1, 1, 1),

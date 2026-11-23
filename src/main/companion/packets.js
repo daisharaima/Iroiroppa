@@ -1,15 +1,5 @@
 'use strict';
 
-// Wire framing for the CSP Companion Mode TCP protocol.
-//
-// Frame layout (0x1e = record separator, 0x00 = terminator):
-//
-//   <type> $tcp_remote_command_protocol_version=1.0 \x1e$
-//   command=<NAME> \x1e$ serial=<N> \x1e$ detail=<JSON> \x1e \x00
-//
-// Packet types: 0x01 = client command, 0x06 = success/ACK, 0x15 = error/NAK.
-// The 0x1e separators are stored as the two-byte sequence [0x1e, '$'].
-
 const { Buffer } = require('node:buffer');
 
 const TYPE = Object.freeze({
@@ -19,7 +9,7 @@ const TYPE = Object.freeze({
 });
 
 const PROTOCOL_VERSION = 'tcp_remote_command_protocol_version=1.0';
-const SEP = Buffer.from([0x1e, 0x24]); // 0x1e '$'
+const SEP = Buffer.from([0x1e, 0x24]);
 const TERM = 0x00;
 const DETAIL_SEP = 0x0b;
 
@@ -75,9 +65,8 @@ function parseFrame(buf) {
   if (buf[buf.length - 1] !== TERM) return null;
 
   const type = buf[0];
-  if (buf[1] !== 0x24 /* '$' */) return null;
+  if (buf[1] !== 0x24 ) return null;
 
-  // Strip leading "<type>$" and trailing "\x1e\x00".
   const body = buf.subarray(2, buf.length - 2);
 
   const parts = splitOn(body, SEP);
@@ -94,7 +83,6 @@ function parseFrame(buf) {
   const serial = Number.parseInt(serPart.slice(7), 10);
   if (!Number.isFinite(serial)) return null;
 
-  // detail may be "<json>" or "<json>\x0b<binary tail>".
   const detailBytes = parts[3].subarray(7);
   const sepIdx = detailBytes.indexOf(DETAIL_SEP);
   const jsonBytes = sepIdx === -1 ? detailBytes : detailBytes.subarray(0, sepIdx);
@@ -105,7 +93,7 @@ function parseFrame(buf) {
     try {
       detail = JSON.parse(jsonBytes.toString('utf8'));
     } catch {
-      detail = undefined; // present but unparseable — kept distinct from "absent"
+      detail = undefined;
     }
   }
 

@@ -1,17 +1,4 @@
-/*
- * The one list of selector modules.
- *
- * Main needs module metadata without loading module code (which only exists in
- * the renderer), the renderer needs to know what to mount, and the layout model
- * needs a registry so it can tell an unknown module from a known one. This is
- * that single list — so a module's id, its name and whether it is `autoHeight`
- * cannot drift between the three.
- *
- * `test/docs.test.js` checks every entry against the module files on disk (and
- * back), so adding a module without registering it here fails `npm test`.
- *
- * Loads as CommonJS in Node and as a global `IroModuleManifest` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroModuleManifest = factory();
@@ -38,19 +25,14 @@
     { id: 'color-history', name: 'Color History', autoHeight: false, instanceable: true, group: 'utility', defaultRatio: 0.36 },
     { id: 'color-slices', name: 'Color Slices', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 1.0 },
     { id: 'color-slider', name: 'Color Slider', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 0.36 },
-    // The numbers of the colour in hand: the footer's swatch, HEX and coordinates, as a module
-    // any palette can hold (docs/LAYOUT.md, "One palette").
+
     { id: 'color-stat', name: 'Color Stat', autoHeight: true, instanceable: true, group: 'utility' },
-    // The hue ring and its inner hue slice (flat or the cusp frame): a fast way
-    // to turn hue without hunting the slices' hue axis.
+
     { id: 'color-wheel', name: 'Color Wheel', autoHeight: false, instanceable: true, group: 'picker', defaultRatio: 0.9 },
     { id: 'csp-color', name: 'CSP Color', autoHeight: false, instanceable: false, group: 'core', defaultRatio: 0.12, capabilities: { companion: 'optional' } },
-    // CSP's own command shortcuts and tool keys, read from its SQLite files and
-    // invoked over the protocol or a native key send.
+
     { id: 'csp-shortcuts', name: 'Shortcut Library', autoHeight: false, instanceable: true, group: 'utility', defaultRatio: 0.9, capabilities: { companion: 'optional', sender: 'optional' } },
-    // The app's own control panel — the only singleton that is *worth* mounting in a palette,
-    // and the home of the connection state, the profile switcher and the Settings entry
-    // (docs/LAYOUT.md, "One palette").
+
     { id: 'session', name: 'Session', autoHeight: true, instanceable: false, group: 'core', capabilities: { companion: 'optional' } },
   ];
 
@@ -60,10 +42,7 @@
     'color-slider', 'color-history', 'color-stat',
   ];
 
-  // User modules (docs/USER-MODULES.md) are loaded by main from
-  // %APPDATA%\Iroiroppa\user-modules and registered here at boot, after the
-  // bundled list. They carry `user: true` so the loader resolves their script
-  // over `module://`. A bundled id always wins; a user module may not shadow one.
+
   const userModules = [];
   const all = () => MODULES.concat(userModules);
 

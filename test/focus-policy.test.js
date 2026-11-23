@@ -1,8 +1,5 @@
 'use strict';
 
-// Auto-hide follows the foreground process; there is no sticky manual-show pin.
-// See src/main/focus-policy.js.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -30,6 +27,6 @@ test('the text-edit grace keeps it up', () => {
 });
 
 test('a manually shown palette is not pinned: the next foreground change hides it', () => {
-  // The old `manualShow` flag is gone; this is the rule that replaces it.
+
   assert.equal(focusAction({ autoHide: true, isOwn: false, isCsp: false, grace: false }), 'hide');
 });

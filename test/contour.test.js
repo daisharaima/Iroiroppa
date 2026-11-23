@@ -1,9 +1,5 @@
 'use strict';
 
-// Iso-lines of a lightness field (src/shared/contour.js). The guide must be exactly
-// the set of pixels at one lightness, so these fixtures are fields whose contour is
-// known: a ramp (a straight line), a radius (a closed loop), and a hole (a break).
-
 const test = require('node:test');
 const assert = require('node:assert');
 const Contour = require('../src/shared/contour');
@@ -55,7 +51,7 @@ test('unpainted (NaN) cells break the line there', () => {
   const w = 9;
   const h = 7;
   const f = ramp(w, h);
-  // A two-row hole is a real gap in the painted shape: the line must stop at it.
+
   for (let x = 0; x < w; x++) { f[3 * w + x] = NaN; f[4 * w + x] = NaN; }
   const lines = Contour.isoLines(f, w, h, 3.5);
   assert.equal(lines.length, 2, 'two runs, one either side of the hole');
@@ -71,7 +67,7 @@ test('the units are whatever the field carries (CIELAB L* 0..100)', () => {
   const h = 5;
   const f = ramp(w, h);
   for (let i = 0; i < f.length; i++) f[i] *= 25;
-  // Same field, scaled: target 3.5 becomes 87.5 and the line stays at x = 3.5.
+
   const lines = Contour.isoLines(f, w, h, 87.5);
   assert.equal(lines.length, 1);
   for (const [x] of lines[0]) assert.ok(Math.abs(x - 3.5) < 1e-9);
@@ -94,7 +90,7 @@ test('a one-pixel unpainted speck does not break the guide in two', () => {
   const w = 9;
   const h = 6;
   const f = ramp(w, h);
-  f[3 * w + 4] = NaN; // unpainted next to the line: two pieces without joining
+  f[3 * w + 4] = NaN;
   assert.equal(Contour.isoLines(f, w, h, 3.5, { gap: 0 }).length, 2);
   const joined = Contour.isoLines(f, w, h, 3.5);
   assert.equal(joined.length, 1);
@@ -118,7 +114,7 @@ test('decimate keeps both ends and thins the middle', () => {
 });
 
 test('an unbounded projection picks the nearest branch, not the first one', () => {
-  // Two parallel branches: a locked drag must land on the one under the cursor.
+
   const lines = [[[-1, -1], [-1, 1]], [[1, -1], [1, 1]]];
   const right = Contour.nearestOnLines(lines, 0.9, 0.2, 8, 8);
   assert.ok(right, 'a hit at any distance');
@@ -132,10 +128,10 @@ test('nearestOnLines projects a pointer onto the guide within its radius', () =>
   assert.ok(hit, 'within the ellipse');
   assert.ok(Math.abs(hit.u - 5) < 1e-9 && Math.abs(hit.v - 5) < 1e-9, 'projects onto the diagonal');
   assert.equal(Contour.nearestOnLines(line, 40, 40, 2, 2), null, 'far away is no hit');
-  // Past the end, the nearest point is the endpoint itself (so a slice boundary is reachable).
+
   const end = Contour.nearestOnLines(line, 11, 10, 2, 2);
   assert.ok(end && Math.abs(end.u - 10) < 1e-9 && Math.abs(end.v - 10) < 1e-9);
-  // The threshold is an ellipse in normalized units, so a non-square panel behaves.
+
   assert.equal(Contour.nearestOnLines(line, 6, 4, 0.5, 0.5), null);
   assert.equal(Contour.nearestOnLines([], 0, 0, 1, 1), null);
   assert.equal(Contour.nearestOnLines(line, 6, 4, 0, 1), null);

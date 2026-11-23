@@ -1,9 +1,5 @@
 'use strict';
 
-// Ship-time guards for the two defaults that must not be personal: the CSP
-// folder starts on Auto (Documents\CELSYS at runtime) and the guide starts on
-// OKLab; no developer path belongs in source or the screenshot fixture.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

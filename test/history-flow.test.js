@@ -1,11 +1,5 @@
 'use strict';
 
-// End-to-end guard for the CSP pick path: the service's `pick` event feeds the
-// fallback settle, and a pointer up in CSP commits a fresh read with
-// `replaceHostHead`, so one gesture leaves one tile showing the last colour — and
-// an explicit Iroiroppa commit can never land before an older host colour
-// (docs/INVARIANTS.md).
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { CompanionService } = require('../src/main/service');
@@ -41,7 +35,7 @@ test('a drag ended by a pointer up leaves one tile with the last colour', () => 
   const { svc, rec, fire, list } = wire();
   svc._emitIfChanged({ active: 'main', main: { rgb: rgb(10, 20, 30) }, rgb: rgb(10, 20, 30), transparent: false });
   svc._emitIfChanged({ active: 'main', main: { rgb: rgb(40, 50, 60) }, rgb: rgb(40, 50, 60), transparent: false });
-  rec.commit(rgb(40, 50, 60), { replaceHostHead: true }); // the up's fresh read
+  rec.commit(rgb(40, 50, 60), { replaceHostHead: true });
   fire();
   assert.deepEqual(list, [rgb(40, 50, 60)]);
 });

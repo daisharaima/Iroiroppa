@@ -1,29 +1,25 @@
 'use strict';
 
-// The What's New window: the checked-in release note for the running version, shown
-// once (main records `lastSeenVersion` when this window closes).
-
 (async () => {
   const csp = window.csp;
   const $ = (id) => document.getElementById(id);
 
-  // Follow the palette's theme and language before the first paint.
   const themeRegistry = new window.Iro.ThemeRegistry();
   await themeRegistry.load().catch(() => {});
   let settings = {};
   try {
     const snap = await csp.snapshot();
     settings = (snap && snap.settings) || {};
-  } catch { /* defaults are fine */ }
-  try { themeRegistry.apply(settings.theme, settings.accents || {}); } catch { /* default theme */ }
+  } catch {  }
+  try { themeRegistry.apply(settings.theme, settings.accents || {}); } catch {  }
   const language = settings.language || navigator.language || 'en';
-  try { await window.Iro.i18n.use(language); } catch { /* English fallback */ }
+  try { await window.Iro.i18n.use(language); } catch {  }
 
   let note = null;
   try { note = await csp.getWhatsNew(); } catch { note = null; }
 
   const close = async () => {
-    try { await csp.markWhatsNewSeen(); } catch { /* the next launch may show it again */ }
+    try { await csp.markWhatsNewSeen(); } catch {  }
     window.close();
   };
   $('whats-new-close').addEventListener('click', close);

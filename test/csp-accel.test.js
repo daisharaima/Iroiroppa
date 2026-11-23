@@ -1,9 +1,5 @@
 'use strict';
 
-// CSP accelerator ownership: Iroiroppa's own keys are real global shortcuts, so a
-// chord or bare letter that Clip Studio Paint already uses must be refused rather
-// than swallowed (Ctrl+G would stop making layers, E would stop picking Soft 2).
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -38,8 +34,7 @@ test('a CSP command owns its chords', () => {
 });
 
 test('a CSP tool owns its bare letter', () => {
-  // The tool table is separate from the command table: this is the collision a
-  // bare recipe key would otherwise create.
+
   const owner = cspOwner('E', LIST);
   assert.deepEqual(owner, { label: 'Soft 2', kind: 'tool' });
   assert.deepEqual(cspOwner('e', LIST), { label: 'Soft 2', kind: 'tool' });

@@ -1,11 +1,4 @@
-/*
- * Cursor-relative placement for a revealed palette.
- *
- * Pure and shared: main positions a window, the tests check the geometry. The
- * directional modes place the window on that side of the pointer (so "top-left"
- * means above and left of it) with an 8 px gap between the nearest corner and the
- * cursor. "center" centers the window on the cursor; "keep" means do not move.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroShortcutPosition = factory();

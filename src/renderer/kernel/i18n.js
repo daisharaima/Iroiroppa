@@ -1,12 +1,8 @@
 'use strict';
 
-// Renderer i18n: loads one locale catalog with a
-// `<script>` tag (the renderer has no build step) and applies `data-i18n`
-// attributes. Chrome and modules read `window.Iro.t(key, vars)`.
-
 (function () {
   const Model = window.IroI18n;
-  const loaded = new Map(); // code -> messages (null = not shipped)
+  const loaded = new Map();
   let i18n = Model.createI18n({ messages: {} });
   let current = 'en';
 
@@ -29,17 +25,14 @@
   /** Apply translations to `[data-i18n*]` attributes under `root`. */
   function apply(root = document) {
     for (const el of root.querySelectorAll('[data-i18n]')) el.textContent = i18n.t(el.dataset.i18n);
-    // `data-i18n-lead` translates only an element's leading text node, so a label
-    // keeps a trailing hint (the `.info` tooltip) inline.
+
     for (const el of root.querySelectorAll('[data-i18n-lead]')) {
       const node = el.firstChild;
       if (node && node.nodeType === 3) node.nodeValue = i18n.t(el.dataset.i18nLead);
     }
     for (const el of root.querySelectorAll('[data-i18n-title]')) {
       const text = i18n.t(el.dataset.i18nTitle);
-      // Where the overlay tooltip helper is loaded, a tooltip is `data-tip` (a native
-      // `title` would be an OS window behind the always-on-top palettes). Elsewhere keep
-      // the native attribute.
+
       if (window.Iro && window.Iro.tooltip) el.setAttribute('data-tip', text);
       else el.title = text;
     }

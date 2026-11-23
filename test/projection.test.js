@@ -1,10 +1,5 @@
 'use strict';
 
-// The projection map contract (docs/MODULES.md, "Slice projections"): each map is
-// pure and invertible so a pick lands where it was drawn, the polar mask says
-// "no slice point here" instead of inventing one, and the cusp frame's apex moves
-// with the hue.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -17,17 +12,12 @@ test('pickInside keeps a drag inside the drawn triangle and never freezes', () =
   const inside = P.pickInside(tri, 0.5, 0.5);
   assert.ok(inside.inside, 'a point in the shape keeps its own coordinates');
 
-  // Far outside every edge: the nearest in-shape point, with both coordinates
-  // responding — not one axis clamped while the other slides.
   const out = P.pickInside(tri, 0.2, 0.95);
   assert.strictEqual(out.inside, false);
   assert.ok(out.u >= 0 && out.u <= 1 && out.v >= 0 && out.v <= 1);
   const corner = P.pickInside(tri, -1, 2);
   assert.ok(corner.u >= 0 && corner.u <= 1 && corner.v >= 0 && corner.v <= 1);
-  // Two points left of the shape at different heights must not map to the same pick
-  // (that is the "only follows the horizontal position" symptom). Outside the left
-  // edge the nearest points differ along the zero-saturation edge, so the lightness (u)
-  // is what moves.
+
   const a = P.pickInside(tri, 0.1, 0.8);
   const b = P.pickInside(tri, 0.1, 0.2);
   assert.ok(Math.abs(a.u - b.u) > 1e-6, 'vertical movement still changes the pick');
@@ -63,8 +53,8 @@ test('the polar mask rejects points outside the disc', () => {
 });
 
 test('the cusp frame moves its apex with the hue and round-trips', () => {
-  const low = P.triangle({ a: 0.2, b: 1 }); // blue-ish cusp: dark
-  const high = P.triangle({ a: 0.9, b: 1 }); // yellow-ish cusp: light
+  const low = P.triangle({ a: 0.2, b: 1 });
+  const high = P.triangle({ a: 0.9, b: 1 });
   const lowApex = low.toScreen(low.cusp.a, 1);
   const highApex = high.toScreen(high.cusp.a, 1);
   assert.ok(lowApex.y > highApex.y, 'the apex sits lower for a dark cusp');
@@ -120,27 +110,26 @@ test('a chroma-less slice has no cusp frame', () => {
 });
 
 test('findCusp finds an interior cusp and a corner cusp', () => {
-  // A lens-shaped gamut: chroma peaks in the middle of the lightness axis.
+
   const lens = (a) => ({ b: Math.sin(Math.PI * a), chroma: Math.sin(Math.PI * a) });
   const c1 = P.findCusp(lens);
   assert.ok(near(c1.a, 0.5, 1e-3), `lens cusp at ${c1.a}`);
   assert.ok(c1.b > 0.99);
 
-  // A dense (Okhsv-like) slice: the max chroma is the corner at the top.
   const corner = (a) => ({ b: 1, chroma: Math.pow(a, 2) });
   const c2 = P.findCusp(corner);
   assert.ok(c2.a > 0.99, `corner cusp at ${c2.a}`);
 });
 
 test('boxCoords keeps a projection square inside any panel', () => {
-  // Square panel: identity.
+
   const sq = P.boxCoords(0.25, 0.75, 1);
   assert.ok(near(sq.x, 0.25) && near(sq.y, 0.75));
-  // Wide panel: the square grows horizontally, so the same point moves outward.
+
   const wide = P.boxCoords(1, 0.5, 2);
   assert.ok(near(wide.x, 1.5) && near(wide.y, 0.5), 'the right edge of a 2:1 panel is outside the square');
   assert.ok(near(P.boxCoords(0.75, 0.5, 2).x, 1), 'x = 0.75 is the square edge in a 2:1 panel');
-  // Tall panel: the square grows vertically instead.
+
   const tall = P.boxCoords(0.5, 1, 0.5);
   assert.ok(near(tall.x, 0.5) && near(tall.y, 1.5));
   for (const aspect of [1, 1.5, 2, 0.5, 0.75, 3]) {
@@ -172,7 +161,7 @@ test('the fixed triangle puts white, black and the pure hue on fixed corners', (
   assert.deepEqual(corner(1, 0), { x: P.TRI_FIXED_W.x, y: P.TRI_FIXED_W.y }, 'u=1, s=0 is white');
   assert.deepEqual(corner(0, 0.4), { x: P.TRI_FIXED_K.x, y: P.TRI_FIXED_K.y }, 'v=0 is black at any saturation');
   assert.deepEqual(corner(1, 1), { x: P.TRI_FIXED_APEX.x, y: P.TRI_FIXED_APEX.y }, 'u=1, s=1 is the pure hue');
-  // Same geometry for every hue: the corners do not depend on a cusp.
+
   assert.deepEqual(t.toScreen(1, 1), t.toScreen(1, 1));
 });
 
@@ -188,7 +177,7 @@ test('the fixed triangle is invertible across the slice', () => {
 
 test('the fixed triangle is the classic barycentric triangle, not the square', () => {
   const t = P.triangleFixed();
-  // The bottom-right of the rectangle is outside the triangle: u + v > 1.
+
   const outside = t.fromScreen(0.8, 0.8);
   assert.ok(outside.u + outside.v > 1, 'the lower-right rectangle corner is outside');
   assert.equal(t.id, 'triangle-fixed');

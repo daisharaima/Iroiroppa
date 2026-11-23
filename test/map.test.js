@@ -1,9 +1,5 @@
 'use strict';
 
-// Guards the code index an agent reads instead of whole files (docs/ARCHITECTURE.md):
-// it must say how many files it saw, and `--files` must list every one of them. A
-// silently skipped file is how a review ends up reporting real modules as missing.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
@@ -39,9 +35,9 @@ test('the index header reports every file the walk saw', () => {
 
 test('--files lists every walked file, including those with no declarations', () => {
   const out = runMap('--files');
-  const rows = out.trim().split('\n').slice(1); // the header
+  const rows = out.trim().split('\n').slice(1);
   assert.equal(rows.length, jsFiles(path.join(ROOT, 'src')).length + jsFiles(path.join(ROOT, 'scripts')).length);
-  // Locales declare nothing, so they are exactly the files the old index dropped.
+
   assert.ok(rows.some((r) => r.includes('src/shared/locales/en.js')), 'a declaration-free file must still be listed');
 });
 

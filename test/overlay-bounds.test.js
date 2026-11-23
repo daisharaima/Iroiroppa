@@ -1,9 +1,5 @@
 'use strict';
 
-// The drag overlay must never cover a whole display: Windows 11 turns Do Not Disturb
-// on for a full-screen app, and the palette drag used to show a desktop-sized surface.
-// See src/main/overlay-bounds.js.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

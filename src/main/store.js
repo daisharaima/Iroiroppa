@@ -1,7 +1,5 @@
 'use strict';
 
-// Tiny JSON-file store. Used for settings.json and session.json.
-
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -53,13 +51,12 @@ class JsonStore {
   _write() {
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      // Write a sibling temp file, then rename: an atomic replace means a crash
-      // mid-write cannot leave a truncated settings/history file.
+
       const tmp = `${this.file}.tmp`;
       fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), 'utf8');
       fs.renameSync(tmp, this.file);
     } catch (err) {
-      // Persisting is best-effort; a read-only location must not crash the app.
+
       process.emitWarning(`could not write ${this.file}: ${err.message}`);
     }
   }

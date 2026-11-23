@@ -1,30 +1,8 @@
 'use strict';
 
-// The schema-v1 view of the workspace document.
-//
-// Main owns the v2 workspace (a list of palettes — docs/LAYOUT.md), but the board
-// and the float layer still speak schema v1: `columns` whose modules carry a
-// `weight`, plus an array of float entries with `x`/`y`/`width`/`height`/`snap`.
-// Rather than translate in three places, all of it lives here, and the layout
-// service serves and accepts v1.
-//
-// v1 cannot *name* a height: `weight: null` means "the module's own default" and
-// a number is a share. So:
-//
-//   fill(N) <-> N            auto <-> null (when the stored height was auto)
-//   px(P)   <-> null (when the stored height was px)
-//
-// i.e. a px height reads back as null and a null write keeps the stored px, so a
-// v1 round-trip is lossless for every document a v1 writer can produce — a v1
-// board can never *change* a px height because it cannot express one. This is
-// transitional: fine-grained intents replace the whole-document writes, and then
-// this file, and the `weight` key, go.
-
 const Model = require('../shared/layout-model');
 const Codec = require('../shared/layout-codec');
 
-// The column codec now lives in shared code (plan P1) so the boards and main use one
-// copy; the document-level v1 mapping below is what is transitional, not this.
 const {
   finite, heightToV1, heightRatioToV1, heightFromV1, heightEntryFromV1, columnsToV1, columnsFromV1,
 } = Codec;
@@ -63,11 +41,7 @@ function paletteFromFloat(existing, float, ctx) {
   const height = finite(float.height);
   const snap = SNAP_EDGES.includes(float.snap) ? float.snap : null;
   const columns = Array.isArray(float.columns) ? float.columns : null;
-  // A palette that already exists keeps everything but its columns. Position, size, snap and
-  // collapsed belong to the workspace document — main is their only writer — so a window's own
-  // save can never push a stale position back over a move the drag session just committed, or
-  // drop a join it just recorded. (That is what made a palette jump back on the next launch.)
-  // A float we have never seen is created from the v1 record, which is how an upgrade bootstraps.
+
   if (existing) {
     return {
       ...existing,
@@ -121,8 +95,7 @@ function applyV1Doc(doc, v1, ctx) {
   if (Array.isArray(v1 && v1.floats)) {
     const byId = new Map(palettes.slice(1).map((p) => [p.id, p]));
     const kept = [];
-    // A float the workspace has not seen gets the next palette name, so a new
-    // window is never an anonymous "Palette".
+
     let counter = finite(next.nextPaletteNumber) || palettes.length + 1;
     for (const float of v1.floats) {
       if (!float || float.floatId == null) continue;
@@ -131,14 +104,11 @@ function applyV1Doc(doc, v1, ctx) {
       if (!existing) palette.name = `Palette ${counter++}`;
       kept.push(palette);
     }
-    // v1 floats were snapped to the palette, so default the anchor to it.
+
     for (const palette of kept) {
       if (palette.snap && !palette.snapTo) palette.snapTo = palettes[0].id;
     }
-    // A palette the v1 doc does not mention is *kept*: only `palette.close` and
-    // `workspace.load` remove a palette now, and this bridge must never lose one —
-    // a duplicate, for instance, has a window but no v1 entry yet when the board's
-    // own save lands (docs/LAYOUT.md, V6).
+
     const listed = new Set(kept.map((p) => p.id));
     const untouched = palettes.slice(1).filter((p) => !listed.has(p.id));
     next.palettes = [palettes[0], ...kept, ...untouched];

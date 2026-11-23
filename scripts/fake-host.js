@@ -1,16 +1,5 @@
 'use strict';
 
-// A minimal fake CSP Companion Mode host for developing/testing the UI without
-// Clip Studio Paint. It answers Authenticate, TellHeartbeat, SyncColorCircleUIState
-// and the two Quick Access commands (so a module that reads brush sub-tool flags
-// works against it), and logs SetCurrentColor.
-//
-//   node scripts/fake-host.js [main|sub|transparent] [port] [cycle] [--main #rrggbb] [--sub #rrggbb]
-//                                [--flags toolpressuretosize,toolbrushusewatercolor]
-//
-// Point the app at it by writing a session.json whose ips/port match (the app
-// reconnects automatically), e.g. 127.0.0.1:<port>.
-
 const net = require('node:net');
 const { parseFrame, splitFrames, encodeFrame, TYPE } = require('../src/main/companion/packets');
 const Color = require('../src/shared/color');
@@ -43,17 +32,16 @@ const payload = {
   CurrentColorIndex: swap ? 1 : 0,
   HSVColorMainH: mainHsv ? mainHsv.h : 0,
   HSVColorMainS: mainHsv ? mainHsv.s : MAX,
-  HSVColorMainV: mainHsv ? mainHsv.v : MAX, // default: red
+  HSVColorMainV: mainHsv ? mainHsv.v : MAX,
   HSVColorSubH: subHsv ? subHsv.h : Math.round((240 / 360) * MAX),
   HSVColorSubS: subHsv ? subHsv.s : MAX,
-  HSVColorSubV: subHsv ? subHsv.v : MAX, // default: blue
+  HSVColorSubV: subHsv ? subHsv.v : MAX,
   IsCurrentColorTransparent: mode === 'transparent',
   CurrentToolAlphaPercent: 100,
   CanExecuteSetterCommand: true,
   IsManipulating: false,
 };
 
-// `cycle` mutates the state over time to emulate a user eyedropping in CSP.
 if (process.argv.includes('cycle')) {
   let i = 0;
   setInterval(() => {
@@ -65,12 +53,6 @@ if (process.argv.includes('cycle')) {
   }, 300);
 }
 
-// --- Quick Access state (docs/PROTOCOL.md) -----------------------------------
-// The brush sub-tool flags a module reads with SyncQuickAccessUIState and clicks
-// with DoQuickAccess. Checkboxes flip; the toolcomposite* names behave like a
-// strict radio group (clicking the active one is a no-op), which is what a real
-// CSP build does unless the C1 spike says otherwise. An unknown name changes
-// nothing but still answers success — the behaviour callers must read back from.
 const COMPOSITE_PREFIX = 'toolcomposite';
 const flags = new Map();
 for (const name of (process.argv.find((a) => a.startsWith('--flags=')) || '').slice(8).split(',')) {
@@ -109,7 +91,7 @@ function clickCommand(name) {
     flags.set(name, flags.get(name) !== true);
     return true;
   }
-  return false; // unknown: the host still answers success
+  return false;
 }
 
 const server = net.createServer((sock) => {
@@ -141,11 +123,11 @@ const server = net.createServer((sock) => {
           if (!clickCommand(spec && spec.ItemCommandName)) {
             console.log('DoQuickAccess (no-op)', pkt.rawDetail.toString('utf8'));
           }
-        } catch { /* malformed: still answer success, like the host */ }
+        } catch {  }
       }
       try {
         sock.write(encodeFrame(TYPE.SUCCESS, pkt.command, pkt.serial, detail));
-      } catch { /* client went away */ }
+      } catch {  }
     }
   });
   sock.on('error', () => {});

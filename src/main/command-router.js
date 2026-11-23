@@ -1,25 +1,15 @@
 'use strict';
 
-// Routes a module command from the calling window to the window that mounts the
-// target instance, and correlates the async reply (docs/MODULES.md, "Module
-// commands"). It is deliberately free of Electron: `send(wcId, channel, payload)`
-// is injected and windows are identified by an opaque id, so the routing and the
-// correlation are unit-testable (test/command-router.test.js).
-//
-// Main owns the registry because the app is multi-window: a command issued in the
-// palette must reach a target mounted in a float, and only main knows which
-// window holds which instance.
-
 /**
  * @param {object} opts
  * @param {(wcId: number, channel: string, payload: object) => void} opts.send
  * @param {number} [opts.timeoutMs] how long a call waits for the target's reply
  */
 function createCommandRouter({ send, timeoutMs = 5000 } = {}) {
-  const byInstance = new Map(); // instanceId -> wcId
-  const byWindow = new Map();   // wcId -> Set<instanceId>
-  const names = new Map();      // instanceId -> [commandName, ...]
-  const pending = new Map();    // callId -> { resolve, reject, timer }
+  const byInstance = new Map();
+  const byWindow = new Map();
+  const names = new Map();
+  const pending = new Map();
   let seq = 0;
 
   /**
@@ -44,8 +34,7 @@ function createCommandRouter({ send, timeoutMs = 5000 } = {}) {
     const set = byWindow.get(wcId);
     if (!set) return;
     for (const instanceId of set) {
-      // Only drop what this window still owns: another window may have re-registered
-      // the instance since, and a stale unregister must not delete the live owner.
+
       if (byInstance.get(instanceId) !== wcId) continue;
       byInstance.delete(instanceId);
       names.delete(instanceId);

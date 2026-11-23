@@ -1,8 +1,5 @@
 'use strict';
 
-// The manual update download/install helpers (src/main/update-install.js):
-// URL allowlist, a Windows-executable check, and the detached portable replacer.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

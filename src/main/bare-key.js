@@ -1,11 +1,5 @@
 'use strict';
 
-// Bare-key helper (bare-keys.ps1). A bare letter cannot be a RegisterHotKey or a
-// globalShortcut without swallowing typing everywhere; the PowerShell helper
-// installs a low-level hook, applies a native typing guard, and only blocks the
-// key when main says the foreground is ours and the guard says the user is not
-// typing. Main sends `active`/`typing` state over stdin.
-
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { spawn: defaultSpawn } = require('node:child_process');
@@ -70,8 +64,7 @@ class BareKeyWatcher extends EventEmitter {
     host.on('exit', () => { if (this.host === host) this.emit('gone'); });
     host.on('keyhook', (message) => {
       if (!message || message.keyhook !== 0) return;
-      // The host could not install a keyboard hook: stop claiming the binding and let
-      // the caller fall back, or the shortcut silently stops working.
+
       this.host = null;
       this.emit('failed', 'hook-unavailable');
       this._spawnPowerShell();
@@ -85,30 +78,28 @@ class BareKeyWatcher extends EventEmitter {
     if (this.host && this.vk) {
       this.host.keyCanvas(this.vk, this.canvas).catch(() => {});
     }
-    // The PowerShell helper has no canvas check; a re-registration is pointless there,
-    // so the flag simply means "not gated" until the host is back.
+
   }
 
   /** CSP says it would refuse a Quick Access command right now: pass the key through. */
   setBusy(value) {
     this.busy = Boolean(value);
     if (this.host && this.vk) this.host.keyBusy(this.vk, this.busy).catch(() => {});
-    // No equivalent in the PowerShell helper: there the key is always gated by the
-    // foreground/typing checks only.
+
   }
 
   /** Report the key without swallowing it. */
   setObserve(value) {
     this.observe = Boolean(value);
     if (this.host && this.vk) this.host.keyObserve(this.vk, this.observe).catch(() => {});
-    // The PowerShell helper never consumed a bare key either, so observer is its default.
+
   }
 
   start() {
     if (this.proc || this.stopped === false) return false;
 
     if (this.host) {
-      // The host is asynchronous: wait for it rather than racing into PowerShell.
+
       const host = this.host;
       this.stopped = false;
       host.whenReady(600).then((ok) => {
@@ -122,8 +113,7 @@ class BareKeyWatcher extends EventEmitter {
           if (this.health) this.health.set('keys', 'host');
           return;
         }
-        // The host is not serving this session: use the PowerShell helper rather than
-        // dropping the user's shortcut.
+
         this.host = null;
         this._spawnPowerShell();
       });
@@ -238,7 +228,7 @@ class BareKeyWatcher extends EventEmitter {
   /** Try to move back to the host after a fallback. */
   retryHost() {
     if (!this.hostRef || !this.hostRef.available) return false;
-    if (this.proc) { try { this.proc.kill(); } catch { /* gone */ } this.proc = null; }
+    if (this.proc) { try { this.proc.kill(); } catch {  } this.proc = null; }
     this.host = this.hostRef;
     this.hostRef.addKey(this.vk, this.active, this.typing).catch(() => {});
     if (this.health) this.health.set('keys', 'host');
@@ -254,7 +244,7 @@ class BareKeyWatcher extends EventEmitter {
     }
     if (!this.proc) { this.stopped = true; return; }
     this._write('quit');
-    try { this.proc.kill(); } catch { /* already gone */ }
+    try { this.proc.kill(); } catch {  }
     this.proc = null;
     this.ready = false;
     this.stopped = true;

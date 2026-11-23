@@ -1,10 +1,5 @@
 'use strict';
 
-// Tell main when a text-entry control in this window has focus. Bare-key
-// shortcuts use a low-level keyboard hook, and that hook must pass the key
-// through while the user is naming a layer, searching, editing a hex value, or
-// recording a new shortcut.
-
 (function () {
   const csp = window.csp;
   if (!csp || typeof csp.uiTyping !== 'function') return;
@@ -26,13 +21,12 @@
   const report = (on) => {
     if (on === last) return;
     last = on;
-    try { csp.uiTyping(on); } catch { /* the app is closing */ }
+    try { csp.uiTyping(on); } catch {  }
   };
 
   document.addEventListener('focusin', (event) => report(isTextEntry(event.target)), true);
   document.addEventListener('focusout', () => {
-    // focusout fires before the new target receives focus; defer one task so a
-    // focus move between fields does not briefly un-suppress the hook.
+
     setTimeout(() => report(isTextEntry(document.activeElement)), 0);
   }, true);
   window.addEventListener('blur', () => report(false));

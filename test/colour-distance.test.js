@@ -1,8 +1,5 @@
 'use strict';
 
-// The MetricSpace distance helper (docs/COLOR.md, "Distance"). It is not used by
-// any picker yet; these tests pin the numbers and the null-not-throw contract.
-
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -21,7 +18,7 @@ test('identical colours have no distance', () => {
 });
 
 test('the trained metric reproduces the documented pair', () => {
-  // The Helmlab README quotes 0.0227 for this pair.
+
   const d = Dist.difference(lab('#3b82f6'), lab('#4c8af7'));
   assert.ok(Math.abs(d - 0.0227) < 2e-3, `expected about 0.0227, got ${d}`);
 });

@@ -1,13 +1,5 @@
 'use strict';
 
-// Auth / share-parameter obfuscation for CSP Companion Mode.
-//
-// Two independent 7-byte repeating-key XOR keys were recovered by
-// chocolatkey/clipremote from CSP's symboled libClipStudioPaint.so:
-//   - REMOTE_KEY obfuscates the QR payload's `s` parameter.
-//   - AUTH_KEY   obfuscates the session passwords carried by Authenticate.
-// XOR is its own inverse, so the same helper both scrambles and unscrambles.
-
 const crypto = require('node:crypto');
 
 const REMOTE_KEY = Buffer.from([0x74, 0xb2, 0x92, 0x5b, 0x4a, 0x21, 0xda]);

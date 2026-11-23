@@ -1,8 +1,5 @@
 'use strict';
 
-// The native host supervisor: framing, request matching, restart, shutdown.
-// Drives a fake child, so it never starts a real process.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { EventEmitter } = require('node:events');
@@ -71,7 +68,6 @@ test('a request resolves on its own reply even when events interleave', async (t
   const band = host.topmost(1234);
   const fg = host.setForeground(true);
 
-  // An unrelated event, then the two replies, out of order.
   child.stdout.emit('data', '{"mouse":"up","x":0,"y":0,"t":5}\n');
   child.stdout.emit('data', '{"fgon":1,"hook":1,"t":6}\n');
   child.stdout.emit('data', '{"topmost":1,"hwnd":1234,"applied":1,"changed":1,"swp":1,"t":7}\n');
@@ -138,8 +134,7 @@ test('defaultExePath points at the built helper', () => {
 
 test('the built helper exists and is current', () => {
   const { isCurrent } = require('../scripts/build-host.js');
-  // Not a hard failure: a source checkout without the in-box compiler still passes
-  // the suite, but a stale binary must be visible in the output.
+
   if (!isCurrent()) {
     assert.ok(true, 'irohost.exe missing or stale — run node scripts/build-host.js');
   }

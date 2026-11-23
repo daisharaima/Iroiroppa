@@ -1,19 +1,4 @@
-/*
- * The Color Disc's mapping: a hue angle and a radius onto the model's axes, and back.
- *
- * The disc draws hue by angle and chroma by radius at one fixed light axis. That is
- * the polar form of a space, so a rectangular model (OKLab, CIELAB, HelmGen) and its
- * polar twin (OKLCH, CIELCH, HelmGen LCH) draw the *same* disc — the only difference
- * is the numbers the footer prints. The module's model list keeps one of each pair.
- *
- * `axesAt` and `pointFromAxes` must stay exact inverses: the pointer is drawn with
- * the latter and the pick with the former, so a mismatch puts the pointer somewhere
- * the click does not go. The pointer's radius is `chroma / rim` — never a chroma
- * re-derived at another lightness (that used to collapse to 0 and snap the pointer
- * to the centre for some hues).
- *
- * Loads as CommonJS in Node and as a global `IroDiscMap` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(require('./color'), require('./color-models'));
@@ -23,7 +8,6 @@
 })(typeof self !== 'undefined' ? self : this, function (Color, Models) {
   'use strict';
 
-  // Reference lightnesses (OKLab L) used to find the disc's rim in model units.
   const DISC_REFS = [0.35, 0.5, 0.65, 0.8];
   const rimCache = new Map();
 
@@ -50,8 +34,7 @@
     for (const L of DISC_REFS) {
       for (let i = 0; i < 90; i += 1) {
         const H = (i / 90) * 360;
-        // The gamut body, not the thin primary fin: a fin's far end would set the
-        // rim and leave every other hue looking shrunken.
+
         const ivs = typeof store.chromaIntervals === 'function' ? store.chromaIntervals(L, H) : [];
         const C = ivs.length ? ivs[0][1] : store.maxChroma(L, H);
         if (!(C > 0)) continue;
@@ -69,7 +52,7 @@
   function axesAt(model, axes, hue, r, scale) {
     const out = axes.slice();
     if (model.hueIndex == null) {
-      // A rectangular model has no hue axis: the disc angle is the a/b angle.
+
       const rad = (hue * Math.PI) / 180;
       const C = r * scale;
       out[1] = C * Math.cos(rad);

@@ -1,15 +1,5 @@
 'use strict';
 
-// Named saved workspaces (Settings → Layout).
-//
-// A workspace is a *snapshot of the whole layout document*, the same shape
-// `workspace:export` writes and `workspace:import` accepts. Main owns this store
-// (one writer) exactly as it owns layout.json; the renderer only asks it to save,
-// load, rename and delete. Each workspace is one file under
-// `%APPDATA%\Iroiroppa\workspaces\<id>.json`, written atomically.
-//
-// Electron-free, so it is unit-tested headlessly.
-
 const fs = require('node:fs');
 const path = require('node:path');
 const { readJsonFile, writeJsonAtomic } = require('./json-file');

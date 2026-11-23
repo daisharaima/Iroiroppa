@@ -1,13 +1,8 @@
 'use strict';
 
-/* Settings window. Segmented tabs (General / Appearance / Modules / Shortcuts /
- * Layout / About); General holds the connection + behaviour rows, Appearance the
- * UI scale and theme. Talks to main through window.csp only. */
-
 const $ = (id) => document.getElementById(id);
 
-// User modules (docs/USER-MODULES.md), so the Modules list can offer them.
-try { window.IroModuleManifest.register(window.csp.userModules()); } catch { /* bundled only */ }
+try { window.IroModuleManifest.register(window.csp.userModules()); } catch {  }
 
 const el = {
   dot: $('settings-dot'),
@@ -75,11 +70,11 @@ const hex6 = (v) => {
 const themeRegistry = new window.Iro.ThemeRegistry();
 const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
 let themeId = 'default-light';
-let accents = {}; // persisted per-theme overrides
+let accents = {};
 
 const SCALE_MIN = 0.8;
 const SCALE_MAX = 1.6;
-let scaleFrame = null; // one uiScale update per frame
+let scaleFrame = null;
 
 /** The current UI scale from the slider. */
 function currentScale() {
@@ -109,11 +104,10 @@ function populateThemes() {
 /** Fill the language dropdown from the shipped locales. */
 async function populateLanguages() {
   let codes = ['en'];
-  try { codes = await window.csp.i18nLocales(); } catch { /* bundled English only */ }
+  try { codes = await window.csp.i18nLocales(); } catch {  }
   const names = window.IroLocaleNames;
   const label = (code) => (names ? names.nameOf(code) : code);
-  // Each language is written in its own language and sorted by that name, the
-  // way Photoshop presents its UI languages.
+
   codes = [...new Set((codes || []).map((c) => String(c).toLowerCase()))]
     .sort((a, b) => label(a).localeCompare(label(b)));
   const auto = document.createElement('option');
@@ -153,8 +147,6 @@ function updateAccentTrigger() {
   el.btnAccentReset.disabled = !hex6(accents[themeId]);
 }
 
-// --- accent picker popup ---------------------------------------------------
-
 let accentHsv = { h: 0, s: 0, v: 1 };
 let svDragging = false;
 
@@ -189,8 +181,6 @@ function closeAccentPopup() {
 function accentPopupOpen() {
   return !el.accentPopup.classList.contains('hidden');
 }
-
-// --- update notice ---------------------------------------------------------
 
 let updateUrl = '';
 let updateInstallable = false;
@@ -299,9 +289,7 @@ function applySettings(s) {
     const auto = el.setLanguage.querySelector('option[value=""]');
     if (auto) auto.textContent = window.Iro.t('settings.language.auto');
   }
-  // The whole Settings window follows the same locale as the palette. Re-applying it
-  // rewrites every [data-i18n] node, including the connection row that updateStatus
-  // owns — so only switch when the language actually changed, then repaint the status.
+
   const language = s.language || navigator.language || 'en';
   if (language !== appliedLanguage) {
     appliedLanguage = language;
@@ -358,8 +346,7 @@ function fitWindow() {
   const bar = document.getElementById('titlebar');
   if (!body) return;
   const needed = Math.ceil((bar ? bar.offsetHeight : 0) + body.offsetHeight);
-  // The viewport shrinks when the UI scale zooms in, so re-fit whenever the
-  // measured content and the viewport disagree (main takes CSS pixels).
+
   if (Math.abs(needed - window.innerHeight) > 2) csp.resizeSettings(needed);
 }
 
@@ -391,13 +378,10 @@ function selectTab(name) {
 
 /** Re-read the board layout (it may have changed in the palette). */
 async function refreshModules() {
-  // The live v2 document, not the legacy stored `columns` + float list: they disagree
-  // after a hide/show, and the live one is what the palette is actually showing.
+
   await loadBoardLayout();
   renderModules();
 }
-
-// --- colour profile (the palette's mode bar, mirrored here) -----------------
 
 let profileOptions = [];
 let currentProfileValue = '';
@@ -460,10 +444,8 @@ async function browseProfile() {
     if (!path) return;
     await chooseProfile(path);
     await loadProfiles(true);
-  } catch { /* dialog cancelled or unreadable profile */ }
+  } catch {  }
 }
-
-// --- CSP data folder -------------------------------------------------------
 
 /** Show the folder the Shortcuts module will actually read. */
 async function refreshCspFolder() {
@@ -491,16 +473,13 @@ async function browseCspFolder() {
     if (!picked) return;
     await window.csp.updateSettings({ cspDataDir: picked.path || '' });
     await refreshCspFolder();
-  } catch { /* dialog cancelled or unreadable path */ }
+  } catch {  }
 }
-
-// --- modules tab -----------------------------------------------------------
 
 let moduleIds = [];
 let boardLayout = null;
 const moduleSettingsCache = new Map();
-// Which instance the Modules tab is editing ('' = the module's own defaults, which
-// every instance inherits from: docs/LAYOUT.md, N1).
+
 let selectedInstance = '';
 
 /**
@@ -522,8 +501,7 @@ function applySettingsMinWidth() {
     widest = Math.max(widest, probe.getBoundingClientRect().width);
   }
   probe.remove();
-  // light (10) + row gap (8) + row padding (8×2) + list padding (4×2) + a
-  // little slack for the scrollbar and borders.
+
   const listWidth = Math.ceil(widest) + 62;
   const needed = Math.min(728, Math.max(390, listWidth + MODULE_DETAIL_MIN + 26));
   Promise.resolve(window.csp.setSettingsMinWidth(needed)).catch(() => {});
@@ -531,9 +509,7 @@ function applySettingsMinWidth() {
 
 /** A module changed elsewhere: drop the cached copy and refresh its detail. */
 function invalidateModule(id) {
-  // The cache is keyed by the instance being edited (or the module id for its
-  // defaults), while the broadcast carries the module id — deleting by that id
-  // almost always missed. Clear it; the detail is re-read on demand.
+
   moduleSettingsCache.clear();
   const onModules = !document.getElementById('tab-modules').classList.contains('hidden');
   if (id === selectedModule && onModules) renderModuleDetail();
@@ -544,8 +520,7 @@ function invalidateModule(id) {
 /** Fetch the live board layout (the palette's columns and every float's). */
 async function loadBoardLayout() {
   try {
-    // `workspace:get` is the live document (never null); `getLayout` is the stored
-    // one, which stays null on a first run.
+
     const layout = (await window.csp.getWorkspace()) || (await window.csp.getLayout());
     const floats = await window.csp.floatsList();
     let hiddenInstances = [];
@@ -562,9 +537,7 @@ async function loadBoardLayout() {
 
 async function loadModules() {
   try { moduleIds = await window.csp.listModuleIds(); } catch { moduleIds = []; }
-  // The layout is fetched *before* the module scripts: the script loads are awaited
-  // one by one, and the Modules tab can be opened while they are still arriving — a
-  // detail pane rendered in that window would not know what is mounted (N1's strip).
+
   await loadBoardLayout();
   for (const id of moduleIds) {
     if (window.Iro.modules && window.Iro.modules[id]) continue;
@@ -577,8 +550,7 @@ async function loadModules() {
       document.head.append(script);
     });
   }
-  // If the tab is already showing, the detail pane may have rendered before the
-  // layout arrived: render it again now that the data is here.
+
   const onModulesTab = !document.getElementById('tab-modules').classList.contains('hidden');
   if (onModulesTab && selectedModule) renderModuleDetail();
 }
@@ -627,10 +599,9 @@ async function moduleSettingsApi(key, moduleId) {
     let stored = {};
     try { stored = (await window.csp.getModuleSettings(key, moduleId)) || {}; } catch { stored = {}; }
     if (typeof def.migrate === 'function') {
-      try { stored = def.migrate(stored) || stored; } catch { /* keep as-is */ }
+      try { stored = def.migrate(stored) || stored; } catch {  }
     }
-    // Show the effective values, not just the stored ones (a module with no saved
-    // file runs on its defaults).
+
     moduleSettingsCache.set(key, { ...(def.defaults || {}), ...stored });
   }
   const current = moduleSettingsCache.get(key);
@@ -667,20 +638,12 @@ function refreshModuleLights() {
   }
 }
 
-
-
 const moduleName = (id) => {
   const manifest = (window.IroModuleManifest && window.IroModuleManifest.get(id)) || {};
   const fallback = manifest.name || id;
   return (window.Iro && window.Iro.i18n) ? window.Iro.i18n.moduleName(id, fallback) : fallback;
 };
 
-// --- module preview --------------------------------------------------------
-
-// Renders the selected module into the detail pane so turning one off is not
-// guesswork. It gets its own ColorStore and a no-op CSP, so a stray interaction
-// cannot write to the real one (the preview is pointer-inert as well), and it
-// mirrors the live mode, gamut and colour so it looks like the palette.
 let previewStore = null;
 let previewHost = null;
 let previewRecord = null;
@@ -697,10 +660,10 @@ function getPreviewStore() {
 
 function destroyPreview() {
   if (previewRecord) {
-    try { previewRecord.ro && previewRecord.ro.disconnect(); } catch { /* ignore */ }
+    try { previewRecord.ro && previewRecord.ro.disconnect(); } catch {  }
     try {
       if (previewRecord.instance && previewRecord.instance.destroy) previewRecord.instance.destroy();
-    } catch { /* ignore */ }
+    } catch {  }
     previewRecord = null;
   }
   if (previewHost) previewHost.reset();
@@ -726,9 +689,6 @@ async function syncPreview() {
   store.notify();
 }
 
-// The preview is a mockup: it seeds representative slots and a few rows of
-// colours so a module looks like it does in use (there is no live history in the
-// Settings window). Nothing here touches the real store or CSP.
 let previewHistorySeeded = false;
 function ensurePreviewState(store) {
   if (!store.slots.main) {
@@ -763,7 +723,7 @@ function previewHeight(id, settings) {
   if (PREVIEW_HEIGHTS[id]) return PREVIEW_HEIGHTS[id];
   if (id === 'color-history') {
     const tile = Math.max(12, Math.min(48, Number(settings.tile) || 24));
-    return 36 + tile * 3 + 2; // head + three rows + two 1px gaps
+    return 36 + tile * 3 + 2;
   }
     if (id === 'color-slices') {
     const panels = ['constantHue', 'constantLightness', 'constantChroma']
@@ -794,13 +754,13 @@ async function renderModulePreview(id, settings, token) {
   }
   const record = await previewHost.mount(id, box, `preview-${id}`, { settings });
   if (token !== detailToken) {
-    try { record.ro && record.ro.disconnect(); } catch { /* ignore */ }
-    try { record.instance && record.instance.destroy && record.instance.destroy(); } catch { /* ignore */ }
+    try { record.ro && record.ro.disconnect(); } catch {  }
+    try { record.instance && record.instance.destroy && record.instance.destroy(); } catch {  }
     box.remove();
     return;
   }
   previewRecord = record;
-  // The module lays out on a real size, which only exists once it is in the DOM.
+
   requestAnimationFrame(() => {
     if (previewRecord === record && record.instance && record.instance.onResize) {
       record.instance.onResize({ width: box.clientWidth, height: box.clientHeight });
@@ -812,10 +772,6 @@ async function renderModulePreview(id, settings, token) {
  *  the selected module's settings on the right. */
 let selectedModule = null;
 
-// --- the Trash: settings files nothing uses ---------------------------------
-// Both a module default and an instance in the workspace count as used; a file for an instance that
-// was deleted, or for a module that no longer exists, does not. Deleting keeps those files so a
-// mis-click is recoverable, and startup sweeps the ones older than module-store's TRASH_DAYS.
 async function renderTrash() {
   if (!el.trashPanel || !el.trashList || !el.trashCount || !csp.listTrash) return;
   const info = await csp.listTrash();
@@ -887,7 +843,6 @@ async function renderTrash() {
   requestAnimationFrame(fitWindow);
 }
 
-
 if (el.btnTrash) {
   el.btnTrash.addEventListener('click', async () => {
     const hidden = el.trashPanel.classList.toggle('hidden');
@@ -916,9 +871,7 @@ function moduleGroupOf(id) {
 
 function renderModules() {
   el.moduleList.replaceChildren();
-  // Group the list the way the manifest declares it (Core, Color Picker, Utility):
-  // the manifest is the one source of truth, so a new module lands in a sensible
-  // section without this file changing.
+
   const byGroup = new Map();
   for (const id of moduleIds) {
     const g = moduleGroupOf(id);
@@ -941,9 +894,7 @@ function renderModules() {
 
       const light = document.createElement('span');
       light.className = 'module-light';
-      // Presence indicator only: green when at least one instance is mounted and
-      // visible, grey when every instance is hidden (or none exists). The title
-      // says how many, so “hidden” is not silently the same as “never added”.
+
       const usage = moduleUsageOf(id);
       light.classList.toggle('on', usage.visible > 0);
       light.title = usage.visible > 0
@@ -1051,7 +1002,7 @@ async function setInstanceLens(instanceId, moduleId, lens) {
   try { stored = (await window.csp.getModuleSettings(instanceId, moduleId)) || {}; } catch { stored = {}; }
   stored.lens = lens;
   moduleSettingsCache.delete(instanceId);
-  try { await window.csp.saveModuleSettings(instanceId, stored, 1, moduleId); } catch { /* shown on reopen */ }
+  try { await window.csp.saveModuleSettings(instanceId, stored, 1, moduleId); } catch {  }
 }
 
 function selectModule(id) {
@@ -1080,7 +1031,7 @@ function renderModuleSizing(container, instanceId, moduleId) {
   const man = window.IroModuleManifest;
   const def = man && man.get ? man.get(moduleId) : null;
   const current = instanceRatio(instanceId);
-  if (!current && !(def && def.defaultRatio)) return; // not a locked-ratio module
+  if (!current && !(def && def.defaultRatio)) return;
   const ratio = current || def.defaultRatio;
   const row = document.createElement('div');
   row.className = 'row module-size-row';
@@ -1109,8 +1060,7 @@ function renderModuleSizing(container, instanceId, moduleId) {
   let raf = 0;
   rng.addEventListener('input', () => {
     num.value = Number(rng.value).toFixed(2);
-    // One intent per frame: a live drag would otherwise flood main with writes and
-    // make the palette re-fit on every pixel.
+
     if (raf) return;
     raf = requestAnimationFrame(() => {
       raf = 0;
@@ -1145,20 +1095,13 @@ async function renderModuleDetail() {
   title.textContent = moduleName(id);
   el.moduleDetail.append(title);
 
-  // Every instance of this module, so its settings can be edited per instance
-  // (docs/LAYOUT.md, N1). The module's *default* is a hidden template: a new
-  // instance is added from it with the ＋ row, and the default itself is never
-  // edited here — no "defaults" row, so there is no way to write it by accident.
-  // An empty layout means the fetch lost a race with the tab being opened: ask
-  // again (the list below is only as good as this data).
   if (!boardLayout || !(boardLayout.columns || []).length) await loadBoardLayout();
   const instances = instancesOf(id);
-  // Instances that exist but are mounted nowhere (hidden): they keep their
-  // settings, and this is the only place they can be seen or brought back.
+
   let hiddenInstances = [];
   try { hiddenInstances = (await window.csp.listHidden()) || []; } catch { hiddenInstances = []; }
   hiddenInstances = hiddenInstances.filter((h) => h.moduleId === id);
-  // A singleton can never have a second instance, so it has no add row (N2).
+
   const singleton = window.IroModuleManifest && window.IroModuleManifest.isSingleton
     && window.IroModuleManifest.isSingleton(id);
 
@@ -1166,14 +1109,11 @@ async function renderModuleDetail() {
     ...instances.map((inst) => ({ instanceId: inst.instanceId, where: inst.where, hidden: false })),
     ...hiddenInstances.map((h) => ({ instanceId: h.instanceId, where: 'hidden', hidden: true })),
   ];
-  // Keep the selection on a live instance; otherwise the first one. The default
-  // is never selected — it is a template, not an editable instance.
+
   if (!selectedInstance || !allInstances.some((x) => x.instanceId === selectedInstance)) {
     selectedInstance = allInstances[0] ? allInstances[0].instanceId : '';
   }
 
-  // The instance list: a green circle (mounted) or a light grey one (hidden)
-  // that toggles it, and the name that selects it — the show/hide control.
   const list = document.createElement('div');
   list.className = 'instance-list';
   if (allInstances.length) {
@@ -1205,8 +1145,6 @@ async function renderModuleDetail() {
         renderModuleDetail();
       });
 
-      // Duplicate and delete the instance, right here in the list (the same main-owned
-      // intents the module's own ⋯ popup uses). Delete asks twice.
       const dup = layoutIcon('Duplicate this instance', '⧉', async (btn) => {
         btn.disabled = true;
         await refreshAfterInstanceChange(await window.csp.duplicateModule(inst.instanceId));
@@ -1253,17 +1191,12 @@ async function renderModuleDetail() {
   }
   title.textContent = moduleName(id);
 
-  // The preview is a generic mockup on the module's *defaults*, so it always shows
-  // everything the module can render (e.g. every Color Slices panel) no matter what
-  // the user has switched off — and it must be here even with no instance mounted:
-  // it is what tells the user what the module is for.
   const previewSettings = { ...(def.defaults || {}) };
   await renderModulePreview(id, previewSettings, token);
   if (token !== detailToken) return;
 
   if (!selectedInstance) {
-    // The list above already carries the "No instance mounted" note and the ＋ add
-    // control; there is no instance whose settings could be edited.
+
     for (const row of el.moduleList.children) row.classList.toggle('selected', row.dataset.module === id);
     return;
   }
@@ -1276,7 +1209,7 @@ async function renderModuleDetail() {
     try {
       def.settingsUI(api, body, { viewFamily: liveSettings && liveSettings.viewFamily });
     } catch (err) {
-      // A settings UI that throws must say so, not leave just the size slider behind.
+
       console.error('[settings] settingsUI failed', id, err);
       body.replaceChildren();
       const failed = document.createElement('div');
@@ -1301,7 +1234,6 @@ async function renderModuleDetail() {
   }
   for (const row of el.moduleList.children) row.classList.toggle('selected', row.dataset.module === id);
 }
-
 
 /** A small icon button for the Layout rows (duplicate / export / delete / …). */
 function layoutIcon(title, glyph, onClick, opts = {}) {
@@ -1486,13 +1418,6 @@ async function renderWorkspaces() {
   }
 }
 
-
-// The per-module command shortcuts. The catalog comes from main (which resolves each
-// mounted instance's module name); the Shortcuts tab groups them by module.
-// --- shortcuts tab ---------------------------------------------------------
-// Three sections on the left (General, Palette, Modules) and the selected
-// target's bindings on the right. The module commands reuse the existing
-// catalog; General/Palette rows use the new shortcut:set channel.
 let shortcutData = null;
 let shortcutSelection = 'app';
 let shortcutLoading = false;
@@ -1625,7 +1550,7 @@ function renderShortcutTargets() {
   for (const group of shortcutModuleGroups(shortcutInstances())) {
     shortcutTargetRow(moduleName(group.moduleId), `module:${group.moduleId}`);
   }
-  // The selection may point at a palette/module that just vanished.
+
   if (!el.shortcutTargets.querySelector(`.module-row[data-target="${CSS.escape(shortcutSelection)}"]`)) {
     shortcutSelection = 'app';
     el.shortcutTargets.querySelector('.module-row')?.classList.add('selected');
@@ -1709,7 +1634,7 @@ function shortcutMode(value, target) {
   select.addEventListener('change', async () => {
     try {
       await csp.setShortcutOption({ target, option: 'mode', value: select.value });
-    } catch { /* the refresh shows the truth */ }
+    } catch {  }
     await refreshShortcutTab();
   });
   return select;
@@ -1724,7 +1649,7 @@ function shortcutAutoDismiss(checked, target) {
   box.addEventListener('change', async () => {
     try {
       await csp.setShortcutOption({ target, option: 'autoDismiss', value: box.checked });
-    } catch { /* the refresh shows the truth */ }
+    } catch {  }
     await refreshShortcutTab();
   });
   const track = document.createElement('span');
@@ -1754,7 +1679,7 @@ function shortcutPosition(value, target) {
   select.addEventListener('change', async () => {
     try {
       await csp.setShortcutOption({ target, option: 'position', value: select.value });
-    } catch { /* the refresh shows the truth */ }
+    } catch {  }
     await refreshShortcutTab();
   });
   return select;
@@ -1937,9 +1862,7 @@ function summonAccelerator(e, { allowBare = false } = {}) {
 }
 
 function wire() {
-  // A module deleted or duplicated elsewhere (its own ⋯ popup, another palette
-  // window) changes the instance list this tab is built from, so re-read the
-  // layout and re-render whatever tab is showing.
+
   csp.onLayoutChanged?.(() => {
     if (activeTab !== 'modules' && activeTab !== 'layout' && activeTab !== 'shortcuts') return;
     loadBoardLayout().then(() => {
@@ -1952,7 +1875,7 @@ function wire() {
   for (const btn of document.querySelectorAll('.seg-btn[data-tab]')) {
     btn.addEventListener('click', () => {
       selectTab(btn.dataset.tab);
-      // Remember the tab across restarts (a new settings key, additive).
+
       window.csp.updateSettings({ settingsTab: btn.dataset.tab });
     });
   }
@@ -1961,7 +1884,7 @@ function wire() {
   el.setLanguage.addEventListener('change', () => csp.updateSettings({ language: el.setLanguage.value }));
 
   el.btnAccent.addEventListener('click', openAccentPopup);
-  // The Layout tab's own controls; the list itself renders from `selectTab`.
+
   document.getElementById('btn-export-ws')?.addEventListener('click', () => {
     window.csp.exportWorkspace({}).then((res) => {
       const note = document.getElementById('layout-note');
@@ -1993,7 +1916,7 @@ function wire() {
       renderWorkspaces();
     });
   });
-  // Settings export / import (General tab): a plain settings.json bundle.
+
   document.getElementById('btn-export-settings')?.addEventListener('click', () => {
     window.csp.exportSettings({}).then((res) => {
       const note = document.getElementById('settings-note');
@@ -2084,7 +2007,7 @@ function wire() {
   }
 
   el.setUiScale.addEventListener('input', () => {
-    // One update per frame: each step persists settings and re-zooms both windows.
+
     if (scaleFrame) return;
     scaleFrame = requestAnimationFrame(() => {
       scaleFrame = null;
@@ -2105,13 +2028,13 @@ function wire() {
     if (accentPopupOpen()) closeAccentPopup();
     else { destroyPreview(); csp.closeSettings(); }
   });
-  // A UI-scale change re-zooms the contents; re-fit when the viewport changes.
+
   window.addEventListener('resize', () => requestAnimationFrame(fitWindow));
 
   csp.onStatus(updateStatus);
   csp.onSettings(applySettings);
   csp.onUpdate(showUpdate);
-  // About: fixed local file links and the external links named in the credits list.
+
   document.addEventListener('click', (event) => {
     const target = event.target;
     if (!target || !target.closest) return;
@@ -2179,14 +2102,12 @@ function wire() {
   if (el.autoCheck) {
     el.autoCheck.addEventListener('change', async () => {
       const on = el.autoCheck.checked;
-      try { await csp.updateSettings({ checkUpdatesAutomatically: on }); } catch { /* shown by the check */ }
-      // Turning it on is a request to know now; the main process also arms the timer.
+      try { await csp.updateSettings({ checkUpdatesAutomatically: on }); } catch {  }
+
       if (on) checkUpdates();
     });
   }
 }
-
-// --- About tab -------------------------------------------------------------
 
 let aboutLoaded = false;
 
@@ -2276,18 +2197,16 @@ async function init() {
   await loadModules();
   const snap = await csp.snapshot();
   previewColor = snap.color || null;
-  // Load the catalog *before* the first paint: `applySettings` asks for it without
-  // awaiting, and a tab rendered first (Layout's empty-workspace line, a module
-  // preview) would otherwise print the raw key until something re-rendered it.
+
   const initialLanguage = snap.settings.language || navigator.language || 'en';
   try {
     await window.Iro.i18n.use(initialLanguage);
     appliedLanguage = initialLanguage;
-  } catch { /* English fallback */ }
+  } catch {  }
   await populateLanguages();
   applySettings(snap.settings);
   renderModules();
-  // Reopen where the user left it; Appearance is only the first-run default.
+
   selectTab(snap.settings.settingsTab || 'appearance');
   updateStatus(snap.status);
   csp.getVersion().then((v) => { el.version.textContent = `Iroiroppa v${v}`; }).catch(() => {});
@@ -2295,8 +2214,7 @@ async function init() {
   if (csp.onModuleChanged) csp.onModuleChanged(({ id } = {}) => invalidateModule(id));
   fitWindow();
   setTimeout(fitWindow, 80);
-  // Opening a menu (or any settings section) changes the content height; keep the
-  // window fitted to it, or the list is clipped at the window edge.
+
   if (typeof ResizeObserver === 'function') {
     const body = document.getElementById('settings-body');
     if (body) new ResizeObserver(() => requestAnimationFrame(fitWindow)).observe(body);

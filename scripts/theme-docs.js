@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-// Regenerate the token table in docs/THEMES.md from the manifest, so the doc can
-// never drift from src/shared/theme-tokens.js. Run via `npm run theme:docs`; the
-// test fails if the file is out of date.
-
 const fs = require('node:fs');
 const path = require('node:path');
 const T = require('../src/shared/theme-tokens');

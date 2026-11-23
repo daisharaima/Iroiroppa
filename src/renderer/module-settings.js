@@ -1,19 +1,14 @@
 'use strict';
 
-// The module settings popout. It mounts a module's settingsUI() in its own
-// window so the options are not limited by the palette's size; it closes when it
-// loses focus. Board actions (move to column, float) live here too.
-
 (function () {
   const csp = window.csp;
-  // User modules (docs/USER-MODULES.md), so this window can load one's settingsUI.
-  try { window.IroModuleManifest.register(csp.userModules()); } catch { /* bundled only */ }
+
+  try { window.IroModuleManifest.register(csp.userModules()); } catch {  }
   const themeRegistry = new window.Iro.ThemeRegistry();
   const params = new URLSearchParams(location.search);
   const moduleId = params.get('moduleId') || '';
   const instanceId = params.get('instanceId') || '';
-  // Per-instance settings (docs/LAYOUT.md, N1): this window edits the *instance*
-  // that opened it; the module's own file is the fallback it inherits from.
+
   const settingsKey = instanceId || moduleId;
   const rootEl = document.getElementById('ms-root');
 
@@ -37,18 +32,16 @@
     return btn;
   }
 
-  // The whole window follows the palette's language.
   csp.snapshot()
     .then((s) => window.Iro.i18n.use(((s && s.settings) || {}).language || navigator.language || 'en'))
-    .catch(() => { /* keep English */ });
+    .catch(() => {  });
 
   let settings = {};
   const api = {
     get: () => ({ ...settings }),
     patch: (partial) => {
       Object.assign(settings, partial || {});
-      // Pass the module id and version, as the Settings list does: a settings file
-      // without moduleId cannot be restored from the Trash.
+
       const def = window.Iro.modules && window.Iro.modules[moduleId];
       csp.saveModuleSettings(settingsKey, settings, (def && def.version) || 1, moduleId).catch(() => {});
     },
@@ -57,10 +50,7 @@
   function fitWindow() {
     const app = document.getElementById('app');
     if (!app) return;
-    // Measure the CONTENT, not the box: `#app` is clipped by the window, so its own
-    // offsetHeight stays at the old window height and the panel never grows. The body may
-    // also scroll (the safety net), which clamps its scrollHeight to the same stale box, so
-    // measure with the overflow opened for one frame and put it back.
+
     const body = document.querySelector('.ms-body');
     const prev = body ? body.style.overflow : '';
     if (body) body.style.overflow = 'visible';
@@ -96,8 +86,7 @@
     try { floats = await csp.floatsList(); } catch { floats = []; }
     if (!layout) return;
     const columns = layout.columns || [];
-    // A module inside a float is arranged by dragging its title bar there, so
-    // the palette's board actions do not apply to it.
+
     const inFloat = (floats || []).some((f) => (f.columns || [])
       .some((col) => (col.modules || []).some((m) => m.instanceId === instanceId)));
     const current = columns.find((col) => (col.modules || []).some((m) => m.instanceId === instanceId));
@@ -110,11 +99,6 @@
     note.className = 'ms-note';
     actions.append(iconRow);
 
-    // Deleting is about the *instance*, not about where it sits, so it is offered for a floated
-    // module too — and it asks twice, because this one cannot be undone from the UI. The workspace
-    // refuses to remove the last module, and the reason is shown rather than swallowed. A **singleton**
-    // (Session) is never deletable at all: it can be hidden instead, so the panel you need when
-    // nothing is connected cannot be thrown away.
     const singleton = window.Iro.modules && window.Iro.modules[moduleId]
       && window.Iro.modules[moduleId].instanceable === false;
     if (!singleton) {
@@ -147,9 +131,6 @@
       iconRow.append(btn);
     }
 
-    // Disable (hide) the instance: it keeps its settings but is mounted nowhere,
-    // and Settings → Modules can bring it back. A singleton is not offered it —
-    // hiding Session would strand the only way to open Settings.
     if (!singleton) {
       const hideBtn = iconAction(window.Iro.t('ui.modules.disableTitle'), ICONS.hide, async () => {
         await csp.hideModule(instanceId);
@@ -158,8 +139,6 @@
       iconRow.append(hideBtn);
     }
 
-    // The Module Size slider, for a locked-ratio module: its height is the column
-    // width times the ratio, so this is the one control that resizes it.
     const man = window.IroModuleManifest;
     const mdef = man && man.get ? man.get(moduleId) : null;
     let currentRatio = null;
@@ -183,8 +162,7 @@
       rng.max = '2.5';
       rng.step = '0.01';
       rng.value = String(ratio);
-      // Editable number, not a read-only label: typing 0.75 is exact and does not
-      // depend on hitting a 1% slider step.
+
       const num = document.createElement('input');
       num.type = 'number';
       num.className = 'pop-range-input';
@@ -199,7 +177,7 @@
       let raf = 0;
       rng.addEventListener('input', () => {
         num.value = Number(rng.value).toFixed(2);
-        // One intent per frame (a live drag would flood main with layout writes).
+
         if (raf) return;
         raf = requestAnimationFrame(() => {
           raf = 0;
@@ -263,7 +241,7 @@
     const snapshot = await csp.snapshot();
     try {
       await window.Iro.i18n.use(((snapshot && snapshot.settings) || {}).language || navigator.language || 'en');
-    } catch { /* English fallback */ }
+    } catch {  }
     themeRegistry.apply(snapshot.settings.theme, snapshot.settings.accents || {});
 
     const def = await loadDef(moduleId);
@@ -277,7 +255,7 @@
     let stored = {};
     try { stored = (await csp.getModuleSettings(settingsKey, moduleId)) || {}; } catch { stored = {}; }
     if (def && typeof def.migrate === 'function') {
-      try { stored = def.migrate(stored) || stored; } catch { /* keep as-is */ }
+      try { stored = def.migrate(stored) || stored; } catch {  }
     }
     settings = { ...((def && def.defaults) || {}), ...stored };
 
@@ -290,8 +268,7 @@
         try {
           def.settingsUI(api, settingsBox, settingsStore);
         } catch (err) {
-          // A settings UI that throws used to leave an empty box — a popup that looked
-          // as if the module had no settings (the "settings disappeared" report).
+
           console.error('[module-settings] settingsUI failed', err);
           settingsBox.replaceChildren();
           const failed = document.createElement('div');
@@ -328,16 +305,12 @@
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') csp.closeModuleSettings(); });
     requestAnimationFrame(fitWindow);
     setTimeout(fitWindow, 60);
-    // Opening a menu grows the page; the window is content-fitted, so re-fit it or the
-    // list is cut at the window edge.
+
     if (typeof ResizeObserver === 'function') {
       const app = document.getElementById('app');
       if (app) new ResizeObserver(() => requestAnimationFrame(fitWindow)).observe(app);
     }
-    // …and the content itself: a module may redraw its settings after the window is already
-    // sized (a dropdown replacing a grid, a recipe selected, a section added), and `#app`
-    // then keeps the old height, so no ResizeObserver fires and the lower half of the panel
-    // stays clipped - the "the settings lost some options" report.
+
     if (typeof MutationObserver === 'function') {
       const body = document.querySelector('.ms-body');
       if (body) {

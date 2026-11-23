@@ -50,8 +50,6 @@ const SETTINGS = { windowBounds: { x: 100, y: 80, width: 300, height: 640, displ
 
 const heights = (column) => column.modules.map((m) => m.height);
 
-// --- migration -------------------------------------------------------------
-
 test('migrateV1 turns the palette and the floats into palettes', () => {
   const doc = migrateV1(V1, SETTINGS, { registry: REGISTRY });
   assert.equal(doc.version, 2);
@@ -63,7 +61,7 @@ test('migrateV1 turns the palette and the floats into palettes', () => {
   assert.deepEqual(primary.pos, { x: 100, y: 80, displayId: 2 });
   assert.deepEqual(primary.size, { width: 300, height: 640 });
   assert.deepEqual(heights(primary.columns[0]), [
-    { mode: 'auto' },                        // weight null on an autoHeight module
+    { mode: 'auto' },
     { mode: 'fill', weight: 5 },
     { mode: 'fill', weight: 20 },
   ]);
@@ -85,16 +83,14 @@ test('migrateV1 turns the palette and the floats into palettes', () => {
 test('migrateV1 without a registry keeps v1 weight semantics', () => {
   const doc = migrateV1(V1, SETTINGS);
   assert.deepEqual(heights(doc.palettes[0].columns[0]), [
-    { mode: 'fill', weight: 17 },              // v1's DEFAULT_WEIGHT
+    { mode: 'fill', weight: 17 },
     { mode: 'fill', weight: 5 },
     { mode: 'fill', weight: 20 },
   ]);
 });
 
 test('migrateV1 keeps a v1 locked ratio instead of dropping it to a default', () => {
-  // v1 wrote a locked-ratio module's share as `ratio`, not `weight`. Reading only
-  // `weight` sent every such module to its default height, so a recipe or a user's
-  // saved board lost its proportions on the way into v2.
+
   const doc = migrateV1({
     columns: [{
       id: 'c1',
@@ -110,7 +106,7 @@ test('migrateV1 keeps a v1 locked ratio instead of dropping it to a default', ()
   assert.deepEqual(heights(doc.palettes[0].columns[0]), [
     { mode: 'ratio', ratio: 1.9 },
     { mode: 'ratio', ratio: 0.36 },
-    { mode: 'fill', weight: 17 }, // no ratio and no weight: the module's own default
+    { mode: 'fill', weight: 17 },
   ]);
 });
 
@@ -120,8 +116,6 @@ test('migrateV1 reads the older windowPos/windowSize keys', () => {
   assert.deepEqual(doc.palettes[0].size, { width: 250, height: 500 });
   assert.equal(doc.palettes[0].columns.length, 0, 'an empty board is allowed');
 });
-
-// --- store -----------------------------------------------------------------
 
 test('a v2 document round-trips through the store', () => {
   const dir = tempDir();

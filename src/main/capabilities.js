@@ -1,11 +1,5 @@
 'use strict';
 
-// The live capability set for main (docs/ARCHITECTURE.md). Main is the sole
-// owner: it builds one adapter per channel, follows the Companion service's
-// status, and broadcasts `capabilities:changed` so every window mirrors it.
-// `--capabilities <ids>` / `--cap-off <ids>` force a channel on/off, which is how
-// a `--shot` renders the unavailable state without unplugging anything.
-
 const cap = require('../shared/capabilities');
 const { companionChannel } = require('./channels/companion');
 const { captureChannel } = require('./channels/capture');
@@ -36,7 +30,6 @@ function createMainCapabilities({ service, broadcast, argv = process.argv } = {}
     },
   });
 
-  // Dev/shot overrides, applied after the adapters so they win over the live value.
   for (const id of flagList('cap-off', argv)) {
     capabilities.set(id, { available: false, reason: 'disabled (--cap-off)' });
   }

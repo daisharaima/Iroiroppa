@@ -1,20 +1,5 @@
 'use strict';
 
-// Selector module: the colour wheel. A hue ring around the model's hue slice —
-// the two axes that are not hue, so OKLCH shows L x C and OKHSV/OKHSL show
-// light x saturation. The ring turns only the hue (chroma lives inside), and the
-// inner shape can be drawn flat or in the cusp frame (projection.js).
-//
-// The ring has two bands (you asked for this): the OUTER band is a fixed pure-hue
-// reference that never changes with the selected colour; the INNER band is the
-// model's most saturated colour at the current lightness/value, so it follows the
-// selection. Both bands turn the hue.
-//
-// The inner frame is inscribed in the ring's hole: black and white sit exactly on
-// the inner edge. Okhsv's triangle is fixed (all three corners on the circle);
-// Okhsl's cusp frame keeps the cusp on the vertical line x = 0.9 (K/W on the
-// circle, the cusp touches it only near mid-lightness).
-
 (function () {
   const reg = (window.Iro = window.Iro || {});
   reg.modules = reg.modules || {};
@@ -25,10 +10,9 @@
   const Pj = window.IroProjection || null;
   const SV = window.IroSliceView || null;
   const WHEEL_MODELS = ['oklch', 'okhsv', 'okhsl', 'cielch', 'helmgenlch'];
-  // Models whose slice square is itself the gamut, so a triangle is exact and the
-  // user may switch between the square and the triangle. OKLCH is always flat.
+
   const SHAPED_MODELS = ['okhsv', 'okhsl'];
-  const RING_SPLIT = 0.5; // outer reference band / inner contextual band
+  const RING_SPLIT = 0.5;
 
   const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
   const clamp01 = (x) => clamp(x, 0, 1);
@@ -189,9 +173,6 @@
     hint.textContent = window.Iro.t('module.slices.guideLock');
     root.append(hint);
 
-    // The inner shape only exists where the slice square is itself the gamut
-    // (Okhsv/Okhsl); OKLCH always shows its flat L×C slice. `id` is the model just
-    // picked, because api.get() may not reflect the patch yet.
     const syncShapeRow = (id) => {
       shapeRow.classList.toggle('hidden', !SHAPED_MODELS.includes(id || api.get().model));
     };
@@ -284,10 +265,7 @@
         const size = Math.min(w, h);
         const outer = Math.max(0, size / 2 - 2);
         const ringW = Math.min(Math.max(size * ringWidth, 10), Math.max(1, size * 0.25));
-        // The ring's hole (where its inner band ends) and the slightly smaller circle
-        // the inner slice is inscribed in. The two bands meet at the hole; only the
-        // slice keeps the gap, so the ring reads as one ring and the slice never
-        // touches it.
+
         const hole = Math.max(0, outer - ringW);
         const gap = Math.min(6, Math.max(3, size * 0.02));
         return {
@@ -299,16 +277,8 @@
         };
       };
 
-      // --- ring --------------------------------------------------------------
       const ringCache = new Map();
 
-      // The outer band is the *document's* most colourful colour per hue (its cusp), the
-      // inner band the same hue at the selected lightness. Both are mapped to the display
-      // with `fitToSrgb` — hue and lightness kept, chroma reduced to the sRGB edge — so
-      // neighbouring hues always differ (a channel clip made long arcs of different hues
-      // collapse to one sRGB primary: the "red takes so much space" look) and the profile
-      // shows through the cusp's lightness. A narrow print gamut even shows its own
-      // saturated ring, because its cusp is inside sRGB.
       const RING_HELM_L = 0.65;
       const display = (L, C, H) => {
         const f = Color.fitToSrgb(L, C, H);
@@ -358,7 +328,7 @@
           c2d.stroke();
           return;
         }
-        // Fallback: one short arc per degree (older runtimes).
+
         for (let deg = 0; deg < 360; deg += 1) {
           c2d.beginPath();
           c2d.arc(geo.cx, geo.cy, radius, ((deg - 0.4) * Math.PI) / 180, ((deg + 1.4) * Math.PI) / 180);
@@ -377,9 +347,7 @@
         off.width = w; off.height = h;
         const c2d = off.getContext('2d');
         if (geo.outerW <= 0 || geo.outer <= 0) return off;
-        // The stroke is a hair wider than its band on the inner side, so the two bands
-        // overlap at their joint: compositing two separately drawn anti-aliased edges
-        // leaves a white hairline, which read as a gap between the rings.
+
         const radius = geo.outer - (geo.outerW + 1.5) / 2;
         paintBand(c2d, geo, radius, geo.outerW, (deg) => outerColour(model, deg));
         if (ringCache.size > 12) ringCache.clear();
@@ -389,8 +357,7 @@
 
       /** The contextual inner band: the same hue at the selected OKLab L. */
       const innerRingPlot = (w, h, model, geo, third) => {
-        // No hold: a single conic gradient is cheap enough to rebuild per frame, and the
-        // old 200 ms hold is what made dragging the wheel look laggy.
+
         const thirdPaint = Math.round(third * 200) / 200;
         const lightAxes = currentAxes();
         lightAxes[lightAxis(model)] = thirdPaint;
@@ -412,17 +379,12 @@
         return off;
       };
 
-      // --- inner shape -------------------------------------------------------
       const innerCache = new Map();
 
-      // The lens over this wheel (a per-channel band grid, src/shared/lens.js). It covers
-      // the inner shape *and* the hue ring: a quantised inner shape inside an unquantised
-      // rainbow would say two different things about what the wheel can pick.
       const LensAccess = window.IroLensAccess;
       let lensKey = null;
       let lensNow = null;
-      // The cursor in the inner shape's own coordinates, so a lensed pointer stays put
-      // under the mouse instead of snapping to its band.
+
       let lastCursorPoint = null;
       const lensScratch = [0, 0, 0];
       const syncLens = () => {
@@ -450,8 +412,7 @@
         const band = lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb);
         const cursor = Color.oklabToOklch(lab.L, lab.a, lab.b);
         const quantised = Color.oklabToOklch(band.L, band.a, band.b);
-        // At (near) zero chroma the hue means nothing, so the band's own hue is as good and
-        // avoids rotating a grey to the anchor the store happens to hold.
+
         const H = quantised.C < 1e-4 ? quantised.H : cursor.H;
         return Color.oklchToOklab(quantised.L, quantised.C, H);
       };
@@ -495,11 +456,9 @@
 
       const innerProj = (model, hue) => {
         if (!Pj) return null;
-        // OKLCH always draws its L×C slice flat, whatever the shape setting says:
-        // the lens has to be seen whole, so there is no triangle for it.
+
         if (!SHAPED_MODELS.includes(model.id) || shape !== 'triangle') return Pj.flat;
-        // Okhsv's triangle has fixed corners (its V/S square *is* the gamut);
-        // Okhsl gets the cusp frame, whose apex follows the hue.
+
         if (model.id === 'okhsv') return Pj.triangleFixed();
         const cusp = cuspFor(model, hue, currentAxes()[lightAxis(model)]);
         return (cusp && Pj.triangle(cusp)) || Pj.flat;
@@ -510,17 +469,14 @@
       const buildInner = (w, h, model, hue, proj, box, scale = 2) => {
         const cuspKey = proj && proj.cusp ? `${proj.cusp.a.toFixed(3)},${proj.cusp.b.toFixed(3)}` : (proj ? proj.id : 'f');
         const axes = currentAxes();
-        // Plane 0 is the fixed-hue plane: its pixel colours depend on that one fixed
-        // axis, not on the selected lightness or chroma. Keying on all three axes
-        // (the old key) rebuilt the whole inner shape on every lightness drag.
+
         const [,, fi] = Models.planesFor(model)[0];
         const fixedKey = Number.isFinite(axes[fi]) ? axes[fi].toFixed(4) : 'x';
         const s = Math.max(1, Math.round(scale));
         const key = `inner:${store.plotKeyTag()}:${lensKey}:${model.id}:${shape}:${hue.toFixed(1)}:${fixedKey}:${s}:${w}x${h}:${box.x.toFixed(1)},${box.y.toFixed(1)},${box.w.toFixed(1)},${box.h.toFixed(1)}:${cuspKey}`;
         const hit = innerCache.get(key);
         if (hit && hit.width === w / s && hit.height === h / s) return hit;
-        // While a gesture is in flight the build is paced by its own measured cost, so
-        // a ring drag updates the inner slice as fast as the model allows.
+
         const now = performance.now();
         if (store.interactive && lastInner && now < innerHoldUntil) return lastInner;
         const started = performance.now();
@@ -554,11 +510,9 @@
             }
             const a = G.pickAxes(model, 0, un, vn, axes, store);
             const lab = model.toLab(a);
-            // A lens decides the pixel: the band is a real document colour, so it paints
-            // at full strength — no hole, no pale stand-in, no out-of-display dimming.
+
             if (lensNow) {
-              // Recolour only inside the shape the wheel already draws: the lens must not
-              // add area, and a wider document gamut keeps its own outline.
+
               const inShape = typeof model.inGamut === 'function'
                 ? model.inGamut(a)
                 : (!workingGamut || workingGamut(lab));
@@ -612,12 +566,10 @@
         return off;
       };
 
-      // --- layout helpers -----------------------------------------------------
       /** The inner control's box inside the panel, in device pixels. */
       const innerBox = (geo, proj) => {
         if (proj && String(proj.id).startsWith('triangle')) {
-          // The slice's bounding square: the triangle vertices are on the inscribed
-          // circle in these normalized coordinates.
+
           return { x: geo.cx - geo.slice, y: geo.cy - geo.slice, w: geo.slice * 2, h: geo.slice * 2 };
         }
         const half = geo.slice / Math.SQRT2;
@@ -662,21 +614,18 @@
           const cx = box.x + box.w / 2;
           const cy = box.y + box.h / 2;
           c2d.translate(cx, cy);
-          // Canvas applies the last transform first: flip, then rotate, so this
-          // matches SV.forward() (rotate, then flip in display space).
+
           c2d.scale(view.flipH ? -1 : 1, view.flipV ? -1 : 1);
           c2d.rotate((view.rotate * Math.PI) / 180);
           c2d.translate(-cx, -cy);
         }
-        // An interactive build is at native device pixels and scaled up here (smooth:
-        // it is a gradient map, and this is not a block-filled map).
+
         c2d.imageSmoothingEnabled = true;
         c2d.drawImage(off, 0, 0, off.width, off.height, 0, 0, w, h);
         c2d.restore();
       };
 
-      // --- pointer ------------------------------------------------------------
-      let active = null; // 'ring' | 'inner'
+      let active = null;
       let startAxes = null;
       let lockLight = null;
       let resetCleanup = null;
@@ -693,20 +642,17 @@
           let deg = (Math.atan2(py - geo.cy, px - geo.cx) * 180) / Math.PI;
           if (deg < 0) deg += 360;
           axes[hIdx] = (deg - hueRotation + 360) % 360;
-          // Keep the current chroma/saturation: the ring only turns the hue.
+
           const held = lockLight !== null ? G.setLightness(model, axes, lockLight, store) : axes;
           if (lockLight !== null && !G.lightnessReached(model, held, lockLight)) return;
-          // A grey has no hue of its own, so without naming the anchor the store keeps
-          // the old one and the ring cannot be turned. Probe the model at a tiny chroma
-          // to get an OKLCH hue (what the anchor stores), then set both.
+
           const probe = held.slice();
           if (Math.abs(probe[1]) < 1e-6) probe[1] = model.axes[1].max * 1e-3;
           const pLab = model.toLab(probe);
           const hueOKLCH = Color.oklabToOklch(pLab.L, pLab.a, pLab.b).H;
           const heldLab = model.toLab(held);
           const recorded = recordedKeepingHue(heldLab);
-          // The ring turns the *cursor's* hue; the lens only decides what is recorded, or
-          // the hue would jump to each band's canonical hue while dragging.
+
           store.setLab(heldLab, { notify: 'live', hue: hueOKLCH, recorded });
           return;
         }
@@ -723,9 +669,7 @@
         let un = xN;
         let vn = 1 - yN;
         if (proj && proj.id !== 'flat') {
-          // Outside the drawn shape the pick is the *nearest* point on it: the affine
-          // inverse alone clamps its axes and slides along one edge ("the pointer only
-          // follows the horizontal position").
+
           const m = (Pj && Pj.pickInside)
             ? Pj.pickInside(proj, xN, yN)
             : proj.fromScreen(xN, yN);
@@ -733,9 +677,7 @@
           un = clamp01(m.u);
           vn = clamp01(m.v);
         }
-        // The hue is the one the drag started with — this branch only writes the two
-        // free axes (slice-geometry#pickAxes keeps the rest), so an inner drag can never
-        // turn the hue, however far the cursor wanders.
+
         lastCursorPoint = { u: un, v: vn };
         let a = G.pickAxes(model, 0, un, vn, axes, store);
         if (lockLight !== null) {
@@ -802,17 +744,12 @@
         resetCleanup = () => window.removeEventListener('iro:input-reset', onReset);
       };
 
-      // --- overlay ------------------------------------------------------------
       const drawGuide = (c2d, model, axes, proj, box, scale) => {
         if (!guideLines) return;
         const target = lockLight != null ? lockLight : G.lightnessOf(model, axes);
         const curve = G.guideCurve(model, 0, target, axes, store, 48);
         if (!curve) return;
-        // Only the part of the contour that is (a) reachable — `flags` is the gamut
-        // test, the same one the raster paints with — and (b) inside the shape the
-        // projection actually shows. A cusp triangle covers a subset of the (u,v)
-        // plane, so an unclipped contour ran out over the page and appeared to stop
-        // in mid-air (the "guide gets cut off" report).
+
         const segments = [];
         let cur = null;
         const push = () => { if (cur && cur.length > 1) segments.push(cur); cur = null; };
@@ -840,7 +777,6 @@
         c2d.restore();
       };
 
-      // --- render -------------------------------------------------------------
       let rafId = 0;
       const schedule = () => {
         if (rafId) return;
@@ -848,11 +784,9 @@
       };
 
       const render = () => {
-        // One map resolution for idle and drag: the canvas must not change shape
-        // or quality when a gesture starts, only its rebuild cadence may change.
+
         const { w, h } = sizeCanvas(2, true);
-        // A module that is still unmeasured draws nothing (the box arrives via
-        // onResize); arc() with a negative radius throws and would abort the board.
+
         if (w < 12 || h < 12) return;
         const dpr = w / Math.max(1, canvas.clientWidth);
         const geo = geometry(w, h);
@@ -866,7 +800,6 @@
         c2d.setTransform(1, 0, 0, 1, 0, 0);
         c2d.clearRect(0, 0, w, h);
 
-        // Two bands: a fixed outer reference and a contextual inner ring.
         const outer = outerRingPlot(w, h, geo, model);
         const innerRing = innerRingPlot(w, h, model, geo, third);
         c2d.save();
@@ -878,21 +811,15 @@
         c2d.drawImage(outer, 0, 0);
         c2d.drawImage(innerRing, 0, 0);
         c2d.restore();
-        // The two bands meet exactly (`outer - outerW === inner + innerW`), so no
-        // separator is drawn: they read as one ring.
 
         const proj = innerProj(model, hue);
         const box = innerBox(geo, proj);
-        // Supersampled when idle, native device pixels while a gesture is in flight:
-        // the map must never stall the pointer, and it stays 1:1 with the screen.
+
         const innerScale = Math.max(1, Math.round(dpr));
         drawInner(c2d, buildInner(w, h, model, hue, proj, box, innerScale), box, w, h);
 
-        // The single lightness guide through the selected colour.
         drawGuide(c2d, model, axes, proj, box, dpr);
 
-        // The hue pointer sits on the fixed outer band and uses the same small
-        // transparent-centre ring as the Color Slider.
         const a = ((hue + hueRotation) * Math.PI) / 180;
         const ringRadius = geo.outer - geo.outerW / 2;
         const cxr = geo.cx + ringRadius * Math.cos(a);
@@ -913,8 +840,7 @@
 
         const clamped = G.clampAxes(model, axes, store);
         const pt = G.pointOf(model, 0, clamped.axes, store);
-        // Under a lens the stored colour is a band, whose canonical position is not under
-        // the mouse: the pointer follows the cursor, the readout says what will be recorded.
+
         const p = viewPoint(proj, box, pt.u, pt.v);
         Overlay.pointer(c2d, p.x, p.y, { clamped: clamped.clamped, scale: dpr });
 
@@ -933,8 +859,7 @@
         onResize() { schedule(); },
         onSettings(settings) {
           syncLens();
-          // A partial payload must not reset a value it does not carry: the def's
-          // defaults are applied at mount, not on every settings push.
+
           if (settings.model !== undefined) {
             const nextModel = WHEEL.some((m) => m.id === settings.model) ? settings.model : 'oklch';
             if (nextModel !== modelId) {

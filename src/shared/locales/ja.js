@@ -1,4 +1,4 @@
-// 日本語.
+
 (function (root) {
   'use strict';
 

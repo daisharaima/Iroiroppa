@@ -1,13 +1,5 @@
 'use strict';
 
-// Supervisor for the native helper (src/main/native/irohost.cs).
-//
-// One process does the band repair, the mouse hook and the foreground watcher
-// that used to be three PowerShell processes. This module owns its lifetime:
-// spawn, line framing, request/response, restart with backoff, and a clean stop.
-// It never throws at the caller — a missing binary or a crash surfaces as
-// `available === false` so the caller can fall back.
-
 const { EventEmitter } = require('node:events');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -131,10 +123,10 @@ class NativeHost extends EventEmitter {
     try {
       child.stdin.write('quit\n');
     } catch {
-      // already gone
+
     }
     const killTimer = setTimeout(() => {
-      try { child.kill(); } catch { /* already gone */ }
+      try { child.kill(); } catch {  }
     }, 500);
     if (killTimer.unref) killTimer.unref();
     this.child = null;
@@ -150,7 +142,7 @@ class NativeHost extends EventEmitter {
   whenReady(timeoutMs = 400) {
     if (this.available) return Promise.resolve(true);
     if (this.stopped || !this.child) {
-      // Not started yet (or permanently off): give the caller the fallback at once.
+
       if (!this.child) return Promise.resolve(false);
     }
     return new Promise((resolve) => {
@@ -190,8 +182,6 @@ class NativeHost extends EventEmitter {
       }
     });
   }
-
-  // --- convenience wrappers -------------------------------------------------
 
   ping() { return this.request('ping'); }
   /** Set/clear each style bit and optionally (re)enter the band. */
@@ -239,8 +229,6 @@ class NativeHost extends EventEmitter {
   /** The current foreground process name, asked once (no spawn). */
   foreground() { return this.request('foreground'); }
 
-  // --- internals ------------------------------------------------------------
-
   _onData(chunk) {
     this.buffer += chunk;
     let index;
@@ -272,11 +260,9 @@ class NativeHost extends EventEmitter {
 
     if (message.error) {
       this.emit('error-line', message.error);
-      // An error line may still answer the waiting command; fall through to the
-      // key match below so a failed `topmost` does not hang its caller.
+
     }
 
-    // Events the app consumes directly.
     for (const event of ['key', 'mouse', 'fg', 'repair', 'hook', 'keyhook']) {
       if (Object.prototype.hasOwnProperty.call(message, event)) {
         this.emit(event, message);
@@ -331,7 +317,6 @@ function defaultExePath() {
   const candidates = [];
   candidates.push(path.join(__dirname, 'native', 'bin', 'irohost.exe'));
 
-  // Packaged: the module itself sits inside app.asar, so replace that segment.
   if (__dirname.includes('app.asar')) {
     candidates.unshift(path.join(__dirname.replace('app.asar', 'app.asar.unpacked'), 'native', 'bin', 'irohost.exe'));
   }

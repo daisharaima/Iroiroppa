@@ -1,18 +1,4 @@
-/*
- * The Iroiroppa workspace document and its reducer.
- *
- * One document, one writer: the main process owns the workspace and is the only
- * process that persists it. Renderers send *intents*; `reduce` is pure and
- * returns the next document plus the `effects` the window layer must apply
- * (open / close / fit), so every structural rule is testable with no Electron
- * and no display.
- *
- * The document is schema v2: a list of palettes. There is no main window / sub
- * window split — a float is just another palette. See docs/LAYOUT.md.
- *
- * Loads as CommonJS in Node and as a global `IroLayoutModel` in the renderer, so
- * the board and main share one implementation of the rules.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./module-manifest'));
   else root.IroLayoutModel = factory(root.IroModuleManifest);
@@ -21,12 +7,11 @@
 
   const SCHEMA_VERSION = 2;
   const SNAP_EDGES = ['left', 'right', 'top', 'bottom'];
-  const DEFAULT_WEIGHT = 17; // v1's DEFAULT_WEIGHT, kept for the migration
+  const DEFAULT_WEIGHT = 17;
 const DEFAULT_COLUMN_WIDTH = 260;
 const DEFAULT_PALETTE_SIZE = { width: 300, height: 640 };
 const MAX_NAME = 60;
-// A module's height is its column width times its locked ratio (docs/LAYOUT.md,
-// "Locked-ratio sizing"). The bounds keep a stored value sane.
+
 const RATIO_MIN = 0.05;
 const RATIO_MAX = 4;
 const clampRatio = (r) => Math.min(RATIO_MAX, Math.max(RATIO_MIN, r));
@@ -42,8 +27,6 @@ function ratioFromDrag(height, width, minHeight = 24) {
   const h = Math.max(Number(minHeight) || 0, Number(height) || 0);
   return clampRatio(Math.min(2.5, h / w));
 }
-
-  // --- small helpers --------------------------------------------------------
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -84,8 +67,6 @@ function ratioFromDrag(height, width, minHeight = 24) {
     return { ok: false, error, doc, effects: [] };
   }
 
-  // --- normalise ------------------------------------------------------------
-
   function uniqueId(raw, prefix, env, used) {
     let id = str(raw, null);
     if (!id || used.has(id)) id = env.newId(prefix);
@@ -104,11 +85,10 @@ function ratioFromDrag(height, width, minHeight = 24) {
     if (raw && raw.mode === 'ratio') {
       const ratio = finite(raw.ratio);
       if (ratio && ratio > 0) return { mode: 'ratio', ratio: clampRatio(ratio) };
-      // Fall through to the default when a ratio is missing or nonsense.
+
     }
     if (raw && raw.mode === 'fill') {
-      // A fill height predates the locked-ratio model: a module that declares a
-      // default ratio adopts it, so an old board converges on the new model.
+
       if (def && def.defaultRatio) return { mode: 'ratio', ratio: clampRatio(def.defaultRatio) };
       const weight = finite(raw.weight);
       return { mode: 'fill', weight: weight && weight > 0 ? weight : DEFAULT_WEIGHT };
@@ -119,22 +99,17 @@ function ratioFromDrag(height, width, minHeight = 24) {
       return { mode: 'auto' };
     }
     if (raw && raw.mode === 'auto') {
-      // A module that used to size to its own content and now declares a locked ratio has
-      // changed its model, so the stored board converges the way a legacy `fill` does. A
-      // module that still declares `autoHeight` keeps its choice: an explicit mode wins.
+
       if (def && def.defaultRatio && !def.autoHeight) {
         return { mode: 'ratio', ratio: clampRatio(def.defaultRatio) };
       }
       return { mode: 'auto' };
     }
-    // Nothing stored: the module's own default (a locked ratio where it declares
-    // one, its content size when `autoHeight`, otherwise a fluid share).
+
     if (def && def.defaultRatio) return { mode: 'ratio', ratio: clampRatio(def.defaultRatio) };
     return def && def.autoHeight ? { mode: 'auto' } : { mode: 'fill', weight: DEFAULT_WEIGHT };
   }
 
-  // Module ids renamed in Oct 2026 (a model no longer names a module): a stored
-  // document still referring to the old id maps to the new one on read.
   const LEGACY_MODULE_IDS = { 'oklch-slice': 'color-slices', 'oklch-slider': 'color-slider' };
   const canonicalModuleId = (id) => (id && LEGACY_MODULE_IDS[id]) || id;
 
@@ -145,7 +120,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
       if (!m || typeof m !== 'object') continue;
       const moduleId = canonicalModuleId(str(m.moduleId, null));
       if (!moduleId) continue;
-      if (env.registry && !env.registry[moduleId]) continue; // unknown module
+      if (env.registry && !env.registry[moduleId]) continue;
       modules.push({
         instanceId: uniqueId(m.instanceId, 'i', env, used),
         moduleId,
@@ -212,33 +187,27 @@ function ratioFromDrag(height, width, minHeight = 24) {
         p.snap = null;
       }
     }
-    // The number a *new* palette gets: the smallest "Palette N" not already in use, so
-    // the counter cannot ratchet. It used to be persisted and only ever incremented, so
-    // a session that added windows drifted to "Palette 34", "Palette 43"…
+
     const taken = new Set();
     for (const p of palettes) {
       const m = /^Palette (\d+)$/.exec(String(p.name || ''));
       if (m) taken.add(Number(m[1]));
     }
-    // Instances that are hidden: kept (with their settings, which are keyed by instance id)
-    // but placed in no column. An entry whose instance is placed again, or whose module is
-    // gone, is dropped, so the list cannot drift from the document.
+
     const hiddenInstances = [];
     const seenHidden = new Set();
     for (const raw of Array.isArray(src.hiddenInstances) ? src.hiddenInstances : []) {
       const instanceId = str(raw && raw.instanceId, null);
       const moduleId = canonicalModuleId(str(raw && raw.moduleId, null));
       if (!instanceId || !moduleId || seenHidden.has(instanceId)) continue;
-      // A module that no longer exists (removed from the manifest) cannot be shown again, so a
-      // hidden entry for it is dead weight — drop it like a placed one.
+
       if (env.registry && !env.registry[moduleId]) continue;
       const placed = palettes.some((p) => p.columns.some((c) => c.modules.some((m) => m.instanceId === instanceId)));
       if (placed) continue;
       seenHidden.add(instanceId);
       hiddenInstances.push({ instanceId, moduleId });
     }
-    // One-time migration markers: a document records the fixes it has already had, so a seed
-    // never runs twice — and never re-adds a module the user deliberately removed.
+
     const seeded = [];
     for (const raw of Array.isArray(src.seeded) ? src.seeded : []) {
       const key = str(raw, null);
@@ -248,8 +217,6 @@ function ratioFromDrag(height, width, minHeight = 24) {
     while (taken.has(free)) free += 1;
     return { version: SCHEMA_VERSION, palettes, hiddenInstances, seeded, nextPaletteNumber: free };
   }
-
-  // --- queries --------------------------------------------------------------
 
   function findPalette(doc, paletteId) {
     if (!doc || !Array.isArray(doc.palettes)) return null;
@@ -336,8 +303,6 @@ function ratioFromDrag(height, width, minHeight = 24) {
 
   const totalInstances = (doc, moduleId) => allInstances(doc).filter((i) => i.moduleId === moduleId).length;
 
-  // --- drop helpers ---------------------------------------------------------
-
   /** Every moving module, in document order. */
   function flatOrder(source, items) {
     const out = [];
@@ -375,8 +340,6 @@ function ratioFromDrag(height, width, minHeight = 24) {
     if (n == null) return length;
     return Math.max(0, Math.min(length, Math.floor(n)));
   }
-
-  // --- intents --------------------------------------------------------------
 
   /**
    * The one drag/drop intent. `target` is a union:
@@ -419,11 +382,9 @@ function ratioFromDrag(height, width, minHeight = 24) {
     const flat = moving.length === 1 ? moving[0].modules : moving.reduce((all, g) => all.concat(g.modules), []);
 
     const targetColumnId = target.kind === 'column' ? str(target.columnId, null) : null;
-    // Take the modules out. A column is kept alive while it is the drop target,
-    // so a drop back into the same column still has somewhere to land.
+
     for (const palette of doc.palettes) {
-      // Work out what this costs the window's size before the columns are mutated (the refs point
-      // at the live columns).
+
       const takenFromHere = refs.filter((r) => r.column && palette.columns.includes(r.column)).length;
       const removed = [];
       palette.columns = palette.columns.filter((column) => {
@@ -432,19 +393,14 @@ function ratioFromDrag(height, width, minHeight = 24) {
         if (!keep) removed.push(column);
         return keep;
       });
-      // A column that leaves *this window for another* takes its width with it, so the columns
-      // that remain keep their size instead of stretching. A module that leaves without taking a
-      // column takes its *height* instead (docs/LAYOUT.md, "Snapping": the size rule). A move
-      // inside one window changes nothing about its size and must not fit, and a palette that is
-      // left with nothing closes instead (no fit for a window that is going away).
+
       const intoOtherWindow = !target.paletteId || target.paletteId !== palette.id;
       if (intoOtherWindow && palette.columns.length > 0) {
         if (removed.length) {
           effects.push({
             type: 'palette.fit',
             paletteId: palette.id,
-            // `columnIds` lets main use its own measurement; `px` is the document's
-            // estimate, used when there is no report (the widths there are hints).
+
             change: {
               kind: 'columns-removed',
               columnIds: removed.map((c) => c.id),
@@ -474,13 +430,12 @@ function ratioFromDrag(height, width, minHeight = 24) {
       if (!palette) return { error: 'unknown-target' };
       const column = palette.columns.find((c) => c.id === target.columnId);
       if (!column) return { error: 'unknown-target' };
-      // The index was measured before the modules were taken out: drop the ones
-      // that used to sit in front of it (a selection dropped on its own span).
+
       let before = 0;
       const original = refs.filter((r) => r.column.id === target.columnId && r.moduleIndex < clampIndex(target.index, Infinity));
       before = original.length;
       column.modules.splice(clampIndex(target.index, column.modules.length + before) - before, 0, ...flat);
-      // Rows stack vertically, so this grows the window's height by what was dropped in.
+
       effects.push({ type: 'palette.fit', paletteId: palette.id, change: { kind: 'module-added', py: grownHeight, count: flat.length } });
     } else if (target.kind === 'seam' || target.kind === 'outer') {
       const palette = findPalette(doc, target.paletteId);
@@ -489,7 +444,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
       if (target.kind === 'outer') {
         at = target.side === 'left' ? 0 : palette.columns.length;
       } else {
-        // A seam was measured before the source columns vanished.
+
         let removedBefore = 0;
         const raw = clampIndex(target.seamIndex, source.columns.length);
         for (let i = 0; i < raw; i++) if (gone.has(source.columns[i].id)) removedBefore += 1;
@@ -499,17 +454,14 @@ function ratioFromDrag(height, width, minHeight = 24) {
       const px = (grouping === 'columns' && moving.length > 1)
         ? created.reduce((sum, c) => sum + (c.width || 0), 0)
         : (created[0].width || 0);
-      // A new column widens the window by what was dropped in (a whole palette carries its own
-      // window width; a card the width it was drawn at).
+
       effects.push({ type: 'palette.fit', paletteId: palette.id, change: { kind: 'columns-added', px: grownWidth || px } });
     } else if (target.kind === 'desktop') {
       const name = `Palette ${doc.nextPaletteNumber}`;
       doc.nextPaletteNumber += 1;
       const pos = target.pos && typeof target.pos === 'object' ? target.pos : {};
       const size = target.size && typeof target.size === 'object' ? target.size : {};
-      // Re-creating a whole window (a palette dropped out) keeps the window it came
-      // from; a single module's new window is sized by whoever opens it, from the
-      // box it was drawn in (main does that in `openPane`).
+
       const sourceSize = grouping === 'columns' && source ? source.size : null;
       const palette = {
         id: env.newId('p'),
@@ -531,8 +483,6 @@ function ratioFromDrag(height, width, minHeight = 24) {
       return { error: 'bad-target' };
     }
 
-    // A palette emptied by the drop closes — unless it is the only one, which
-    // stays as an empty drop zone so the user is never left with no window.
     const live = doc.palettes.filter((p) => p.columns.length > 0);
     if (live.length) {
       doc.palettes = live;
@@ -553,12 +503,11 @@ function ratioFromDrag(height, width, minHeight = 24) {
     if (!palette) return { error: 'unknown-palette' };
     if ((doc.palettes || []).length <= 1) return { error: 'last-palette' };
     doc.palettes = doc.palettes.filter((p) => p.id !== palette.id);
-    // Anything that was joined to it comes free rather than pointing at a palette that is gone.
+
     for (const p of doc.palettes) {
       if (p.snapTo === palette.id) { p.snap = null; p.snapTo = null; }
     }
-    // The window is closed by the lifecycle effect (`lifecycleEffects` sees it vanish), so this
-    // handler only changes the document.
+
     return {};
   }
 
@@ -588,8 +537,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
     if (!palette) return { error: 'unknown-palette' };
     if (!Array.isArray(intent.columns)) return { error: 'bad-columns' };
     palette.columns = intent.columns;
-    // A board that emptied itself closes — unless it is the only palette (the same rule
-    // a drop follows). `lifecycleEffects` turns the removal into `palette.close`.
+
     const empty = !palette.columns.some((c) => (c.modules || []).length > 0);
     if (empty && doc.palettes.length > 1) {
       doc.palettes = doc.palettes.filter((p) => p.id !== palette.id);
@@ -765,14 +713,11 @@ function ratioFromDrag(height, width, minHeight = 24) {
     const snap = SNAP_EDGES.includes(intent.snap) ? intent.snap : null;
     const requested = str(intent.snapTo, null);
     if (requested && !findPalette(doc, requested)) return { error: 'unknown-snap-target' };
-    // With no anchor named, a snapped palette attaches to the primary one — v1's
-    // floats followed the palette, and a caller only names an anchor when it has
-    // another (docs/LAYOUT.md).
+
     const anchor = snap ? (requested || (doc.palettes[0] ? doc.palettes[0].id : null)) : null;
     palette.snap = anchor ? snap : null;
     palette.snapTo = anchor;
-    // Attaching is also a *move*: the palette sits flush against that edge of its anchor, so a
-    // snap group looks joined (docs/LAYOUT.md, "Snap zones"). The caller moves the window.
+
     if (anchor) {
       const target = findPalette(doc, anchor);
       if (target && target.id !== palette.id) {
@@ -796,8 +741,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
     if (def && def.instanceable === false && totalInstances(doc, moduleId) > 0) return { error: 'already-present' };
     const palette = findPalette(doc, intent.paletteId) || doc.palettes[0];
     if (!palette) return { error: 'no-palette' };
-    // An explicitly lone module gets its own column (Settings → Add / Show /
-    // Duplicate). Seeding and migration leave `lone` off and keep appending.
+
     let column;
     if (intent.lone === true) {
       column = { id: env.newId('c'), width: null, modules: [] };
@@ -806,9 +750,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
       if (!palette.columns.length) palette.columns.push({ id: env.newId('c'), width: null, modules: [] });
       column = palette.columns[palette.columns.length - 1];
     }
-    // An instance id may be supplied (main mints it when it duplicates an instance, so it
-    // can copy that instance's settings before the module is mounted); it is still
-    // main-generated, and one that is already in use is ignored.
+
     const given = str(intent.instanceId, null);
     const taken = given && doc.palettes.some((p) => p.columns.some((c) => c.modules.some((m) => m.instanceId === given)));
     column.modules.push({
@@ -848,15 +790,14 @@ function ratioFromDrag(height, width, minHeight = 24) {
     if (!placed) {
       return hiddenOf(doc, instanceId) ? { noop: true } : { error: 'unknown-instance' };
     }
-    // The module id has to be remembered: the settings file is keyed by instance id, and
-    // showing it again re-creates the placement.
+
     let moduleId = null;
     for (const palette of doc.palettes) {
       for (const column of palette.columns) {
         for (const m of column.modules) if (m.instanceId === instanceId) moduleId = m.moduleId;
       }
     }
-    // Removing the last module of the last palette would leave no window at all.
+
     const total = doc.palettes.reduce((n, p) => n + p.columns.reduce((k, c) => k + c.modules.length, 0), 0);
     if (total <= 1) return { error: 'last-module' };
     unplaceInstance(doc, instanceId);
@@ -999,9 +940,7 @@ function ratioFromDrag(height, width, minHeight = 24) {
   function defaultWorkspace(opts) {
     const env = envOf(opts);
     const ids = env.newId;
-    // The manifest owns the first-run order (AGENTS.md → "Screenshots"); a caller
-    // may override it for tests. Filtering through the registry keeps a removed
-    // module out of a new document.
+
     const wanted = (opts && Array.isArray(opts.defaultIds)
       ? opts.defaultIds
       : ((Manifest && Manifest.DEFAULT_IDS) || [])).filter((id) => !env.registry || env.registry[id]);

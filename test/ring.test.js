@@ -1,9 +1,5 @@
 'use strict';
 
-// The wheel's hue rings (src/shared/ring.js): a hue wheel has to give every hue a
-// distinct colour (no long flat arcs where a channel clip collapsed a range of hues
-// into one sRGB primary) and has to follow the document's gamut.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -31,7 +27,6 @@ const adobeStore = () => storeFor(Proof.createProof({
   trc: { type: 'gamma', gamma: 563 / 256 },
 }, 'working'));
 
-// A narrow print-like gamut: the proof's own boundary, well inside sRGB.
 const narrowStore = () => {
   const maxC = (L, H) => (L > 0 && L < 1 ? 0.08 * Math.sin(Math.PI * L) * (0.8 + 0.2 * Math.cos((H * Math.PI) / 180)) : 0);
   return { plotKeyTag: () => 'narrow', documentMaxChroma: maxC };
@@ -48,7 +43,7 @@ test('the outer ring never has a long flat arc (no "red takes so much space")', 
     for (let h = 1; h < 360; h += 1) {
       const c = Ring.outerColour(store, h);
       worstStep = Math.max(worstStep, rgbDelta(c, Ring.outerColour(store, h - 1)));
-      // A run is broken when the colour has moved visibly from where the run started.
+
       if (rgbDelta(c, runStart) > 2) { run = 1; runStart = c; } else { run += 1; longest = Math.max(longest, run); }
     }
     assert.ok(longest <= 8, `${store.plotKeyTag()}: a ${longest}° arc has one colour`);
@@ -87,7 +82,7 @@ test('the inner ring follows the selected lightness', () => {
   const dark = Ring.innerColour(store, 30, 0.2);
   const light = Ring.innerColour(store, 30, 0.9);
   assert.ok(rgbDelta(dark, light) > 60, 'a dark and a light band differ');
-  // The cusp cache is per store and per reference key, so a profile switch is not stale.
+
   const first = Ring.cusp(store, 30);
   store.key = 'other';
   const again = Ring.cusp(store, 30);

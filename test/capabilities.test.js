@@ -1,8 +1,5 @@
 'use strict';
 
-// The capability layer (docs/ARCHITECTURE.md): the pure model, the main
-// registry that follows the Companion service, and the manifest's declarations.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

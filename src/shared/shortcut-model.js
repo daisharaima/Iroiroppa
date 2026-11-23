@@ -1,16 +1,4 @@
-/*
- * The shortcut settings shape, in one place.
- *
- * `settings.json#shortcuts` is deliberately small: for the whole app and for
- * each palette, a show/hide chord, a hold chord, an after-colour-pick switch,
- * and the appearance position. Module command bindings stay in
- * `settings.json#commandBindings` (keyed by instance and command, not palette).
- *
- * This module is pure and shared so main (registration, conflict checks,
- * pruning) and the Settings window (rendering, capture) cannot disagree about
- * what a binding is called. It loads as CommonJS in Node and as a global
- * `IroShortcutModel` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./shortcut-match'));
   else root.IroShortcutModel = factory(root.IroShortcutMatch);
@@ -33,8 +21,7 @@
   const positionOf = (value) => (POSITIONS.includes(value) ? value : 'keep');
   const targetMode = (value, raw) => {
     if (MODES.includes(value)) return value;
-    // Migration: the old fields allowed several methods at once. Pick the one the
-    // user most likely meant, while keeping the saved keys for when they switch.
+
     if (raw && typeof raw.afterPick === 'boolean') {
       if (raw.afterPick) return 'afterPick';
       const oldToggle = typeof raw.toggle === 'string' ? raw.toggle.trim() : '';
@@ -188,7 +175,7 @@
     targetShortcuts,
     bindings,
     findConflict,
-    // Hold is momentary and can coexist with Auto-hide; kept for old callers.
+
     holdAllowed: () => true,
     POSITIONS,
     MODES,

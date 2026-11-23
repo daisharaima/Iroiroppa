@@ -1,14 +1,5 @@
 'use strict';
 
-// The lens machinery: a per-channel bit grid over the document's channels.
-//
-// These tests pin the three promises the feature makes to the rest of the app:
-//   - a band colour is always a real document colour (clamped, on the grid, so the
-//     recorded value never needs a gamut snap that could move it off the grid);
-//   - the same call produces the displayed pixel and the recorded colour, so the map
-//     cannot disagree with the picker;
-//   - 8 bits is the identity, and an absent profile means the document *is* sRGB.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const Lens = require('../src/shared/lens.js');
@@ -27,7 +18,7 @@ test('8 bits is the identity', () => {
   assert.strictEqual(lens.inert, true);
   const out = lens.applySrgb(0.1234, 0.5678, 0.9);
   assert.deepStrictEqual(out, [0.1234, 0.5678, 0.9]);
-  // 8/8/8 has 256 levels per channel, i.e. the whole 8-bit cube.
+
   assert.strictEqual(lens.count, 16777216);
 });
 
@@ -36,7 +27,7 @@ test('3/3/3 gives 512 colours on a 1/7 grid', () => {
   assert.strictEqual(lens.count, 512);
   assert.strictEqual(lens.label, '3/3/3');
   const out = lens.applySrgb(0.1, 0.5, 0.99);
-  // 0.1 * 7 = 0.7 -> 1 -> 1/7 ; 0.5 * 7 = 3.5 -> 4 -> 4/7 ; 0.99 -> 7/7
+
   assert.ok(near(out[0], 1 / 7), `r ${out[0]}`);
   assert.ok(near(out[1], 4 / 7), `g ${out[1]}`);
   assert.ok(near(out[2], 1), `b ${out[2]}`);
@@ -76,15 +67,14 @@ test('every band maps into the table and back', () => {
 });
 
 test('a profile round trip keeps the band count, through a display table', () => {
-  // A pretend document: channels are the sRGB values scaled by half, so the display
-  // colour of a band differs from the band — the case a table has to get right.
+
   const toDoc = (r, g, b) => [r * 0.5, g * 0.5, b * 0.5];
   const fromDoc = (r, g, b) => [r * 2, g * 2, b * 2];
   const lens = Lens.create({ bits: [2, 2, 2], toDoc, fromDoc });
   assert.strictEqual(lens.hasTable, true);
   assert.strictEqual(lens.sameSpace, false);
   const out = lens.applySrgb(0.9, 0.1, 0.5);
-  // doc 0.45/0.05/0.25 -> 2-bit grid 1/3,0,1/3 -> display 2/3,0,2/3 (table is float32)
+
   assert.ok(near(out[0], 2 / 3, 1e-5), `r ${out[0]}`);
   assert.ok(near(out[1], 0), `g ${out[1]}`);
   assert.ok(near(out[2], 2 / 3, 1e-5), `b ${out[2]}`);
@@ -122,8 +112,7 @@ test('parseSpec tolerates anything on disk', () => {
 });
 
 test('what the map paints is what the pick records (the raster/pick gate)', () => {
-  // The two entry points the selectors use: `applySrgb` paints a pixel, `applyLab` records
-  // a pick. Feeding a colour through both must land on the same band, or the map lies.
+
   const toDoc = (r, g, b) => [r * 0.8, g * 0.8, b * 0.8];
   const fromDoc = (r, g, b) => [r / 0.8, g / 0.8, b / 0.8];
   const rgbToLab = (r, g, b) => ({ L: r, a: g, b });

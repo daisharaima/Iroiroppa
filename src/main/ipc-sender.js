@@ -1,11 +1,5 @@
 'use strict';
 
-// Sender validation for the IPC surface (docs/STATE.md). Every privileged channel
-// — colour writes, layout/settings/module changes — must come from a live window
-// this app owns. The sender is never trusted from the payload; the window is
-// resolved from the event. Pure predicates, so they are unit-tested without
-// Electron (the window lookup is injected).
-
 const isDestroyed = (o) => Boolean(o && typeof o.isDestroyed === 'function' && o.isDestroyed());
 
 /**

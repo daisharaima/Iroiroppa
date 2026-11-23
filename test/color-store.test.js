@@ -1,11 +1,5 @@
 'use strict';
 
-// Host colours are recorded by main (src/main/history-recorder.js); a window's
-// ColorStore only mirrors the shared list and records its own explicit picks.
-// This file is the guard against a second per-window writer coming back: two
-// stores with their own settle timers (a palette and a hidden float) are what
-// let an older pick land after a newer one (docs/INVARIANTS.md).
-
 const test = require('node:test');
 const assert = require('node:assert');
 const Color = require('../src/shared/color');
@@ -24,7 +18,7 @@ test('an incoming colour never writes the shared history (main is the writer)', 
   const store = loadStore({ pushHistory: (c) => pushed.push(c) });
   store.applyIncoming({ active: 'main', main: { rgb: rgb(10, 20, 30) }, rgb: rgb(10, 20, 30) });
   store.applyIncoming({ active: 'main', main: { rgb: rgb(40, 50, 60) }, rgb: rgb(40, 50, 60) });
-  await new Promise((r) => setTimeout(r, 500)); // past the old 450 ms settle
+  await new Promise((r) => setTimeout(r, 500));
   assert.deepEqual(store.history, []);
   assert.deepEqual(pushed, []);
 });
@@ -104,8 +98,6 @@ test('the drawing-only gate pushes an explicit pick but adds no local tile', () 
   assert.deepEqual(pushed, [store.lastStored], 'main still learns the pending pick');
 });
 
-// --- our own write comes back through the service broadcast ---------------------
-
 test('the echo of our own write does not move the colour', () => {
   const store = loadStore();
   store.setLCH({ L: 0.6, C: 0.02, H: 250 }, { notify: 'commit' });
@@ -127,8 +119,6 @@ test('a genuinely different host colour is still applied', () => {
   assert.ok(Math.abs(store.lch().H - before) > 5, 'the host colour wins');
 });
 
-// --- a sibling palette's preview stream is a gesture --------------------------
-
 test('a preview makes the window interactive, then settles', async () => {
   const store = loadStore();
   assert.equal(store.interactive, false);
@@ -147,15 +137,13 @@ test('a preview never writes, records or suppresses a local drag state', () => {
   assert.deepEqual(writes, []);
   assert.deepEqual(pushed, []);
   assert.equal(store.dragging, false);
-  // A local drag still ignores an incoming preview, and `interactive` stays true.
+
   store.dragging = true;
   const before = store.lch();
   store.applyPreview({ lab: { L: 0.9, a: 0, b: 0 } });
   assert.deepEqual(store.lch(), before);
   assert.equal(store.interactive, true);
 });
-
-// --- the hue anchor can be named (a grey still carries a hue) ----------------
 
 test('setLab can name the hue of a grey, so the Wheel ring can turn it', () => {
   const store = loadStore();
@@ -167,13 +155,6 @@ test('setLab can name the hue of a grey, so the Wheel ring can turn it', () => {
   store.setLab({ L: 0.5, a: 0, b: 0 });
   assert.equal(store.H, 200, 'without a name the anchor is preserved');
 });
-
-// --- the echo ring: what protects a live drag from its own read-back ----------
-//
-// These two cases pin the mechanism E1 will touch. The first is the behaviour to
-// keep; the second is the limitation R9 replaces (origin tag *in addition to* the
-// value match, never instead of it): a read-back is an 8-bit record that need not
-// equal the derived float, so "is this mine?" cannot be answered by origin alone.
 
 test('the 8-bit echo of our own write keeps the derived colour', () => {
   const store = loadStore();
@@ -192,16 +173,12 @@ test('the echo ring matches on value, not on origin (documented limitation)', ()
   store.setLCH({ L: 0.5, C: 0.05, H: 20 }, { notify: 'live' });
   const stored = { ...store.lastStored };
   assert.equal(store._ownWrites.length, 1);
-  // An external change that happens to equal one of our writes is swallowed as
-  // an echo: the value is already on screen, so nothing moves — but the ring is
-  // not cleared either, which is what an origin tag would fix.
+
   store.applyIncoming({ active: 'main', main: { rgb: stored }, rgb: stored });
   assert.equal(store._ownWrites.length, 1, 'the ring stays armed');
   store.applyIncoming({ active: 'main', main: { rgb: { r: 1, g: 2, b: 3 } }, rgb: { r: 1, g: 2, b: 3 } });
   assert.equal(store._ownWrites.length, 0, 'any real host change ends the burst');
 });
-
-// --- E1: the interaction protocol, flag-only --------------------------------
 
 function interactionStore() {
   const calls = [];
@@ -246,23 +223,20 @@ test('a reject ends the interaction and the next drag opens a fresh one', () => 
   assert.notEqual(second, first, 'a new interaction id after a reject');
 });
 
-// --- the lens's recorded value ------------------------------------------------
-
 test('a lensed pick writes the band but keeps the pointer colour', () => {
   const writes = [];
   const store = loadStore({ writeColor: (v) => writes.push(v) });
-  // A write only leaves the window while the host is connected.
+
   store.connected = true;
   store.liveSync = true;
-  // The cursor sits at L 0.60; the lens answers with a band at L 0.57.
+
   store.setLCH({ L: 0.6, C: 0.1, H: 30 }, {
     notify: 'commit',
     recorded: Color.oklchToOklab(0.57, 0.1, 30),
   });
-  // The store's own colour is still the cursor's: the pointer, the guide and the plane's
-  // fixed axes all read this, which is why a band must never be written here.
+
   assert.ok(Math.abs(store.L - 0.6) < 1e-9, `L moved to ${store.L}`);
-  // What CSP receives, and what the swatch reads, is the band.
+
   const written = writes[writes.length - 1];
   const expected = Color.oklabToRgb(0.57, Color.oklchToOklab(0.57, 0.1, 30).a, Color.oklchToOklab(0.57, 0.1, 30).b);
   assert.ok(Math.abs(written.r - Math.round(expected.r * 255)) <= 1, `${written.r} vs ${expected.r * 255}`);
@@ -289,7 +263,7 @@ test('a drag that ends with "commit what we have" keeps the lens band', () => {
   const duringDrag = writes[writes.length - 1];
   store.recommit();
   const atRelease = writes[writes.length - 1];
-  // Pen-up must not switch CSP back to the cursor's colour: that was the visible jump.
+
   assert.deepEqual(atRelease, duringDrag, 'the band changed at pen-up');
   assert.ok(Math.abs(store.L - 0.62) < 1e-9, 'the store kept the cursor colour');
 });

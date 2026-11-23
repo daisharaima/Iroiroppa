@@ -1,18 +1,5 @@
 'use strict';
 
-// ThemeRegistry: applies a theme to the document.
-//
-// Two layers, both as <style> blocks so a theme can override anything:
-//   1. the token set on :root (validated; the accent is derived here), and
-//   2. the theme's optional CSS, injected *after* the tokens and the base sheets.
-// The list of themes (tokens + css) comes from the main process, which reads the
-// bundled `themes/*` plus the user's app-data `themes/` folder.
-//
-// The manifest (window.Iro.ThemeTokens, from src/shared/theme-tokens.js) fills in
-// any token a theme omits and names the *structural* tokens. When a theme change
-// moves a structural value the window must re-measure and re-clamp once, so the
-// registry fires a `theme-structural` event (see Board#remeasure).
-
 (function () {
   const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
@@ -46,7 +33,7 @@
     if (!rgb) return '#ffffff';
     const L = relLuminance(rgb);
     const contrastWhite = 1.05 / (L + 0.05);
-    const contrastDark = (L + 0.05) / 0.056; // near-black ink, luminance ~0.006
+    const contrastDark = (L + 0.05) / 0.056;
     return contrastWhite >= contrastDark ? '#ffffff' : '#111418';
   };
 
@@ -104,9 +91,7 @@
 
       const decls = [];
       const structural = {};
-      // Every manifest token is emitted: a theme's own value, else the manifest
-      // default. Unknown ids the theme carries are ignored (only known tokens and
-      // the local vars the stylesheet owns can reach the document).
+
       const decl = (key, value) => decls.push(`${key}: ${value};`);
       if (manifest) {
         for (const t of manifest.TOKENS) {
@@ -129,8 +114,6 @@
       root.dataset.theme = theme.id;
       root.style.colorScheme = theme.dark ? 'dark' : 'light';
 
-      // A structural change moves measured sizes; ask the window to re-measure and
-      // re-clamp once (the first apply is the startup layout and needs no pass).
       const changed = this._structural !== null
         && Object.keys(structural).some((k) => this._structural[k] !== structural[k]);
       this._structural = structural;

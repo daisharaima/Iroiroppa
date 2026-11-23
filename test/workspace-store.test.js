@@ -57,6 +57,6 @@ test('a malformed file is skipped, not fatal', () => {
 test('an unknown id is null and a bad rename is reported', () => {
   const store = makeStore();
   assert.equal(store.get('nope'), null);
-  assert.equal(store.remove('nope').ok, true); // force:true is idempotent
+  assert.equal(store.remove('nope').ok, true);
   assert.equal(store.rename('nope', 'x').ok, false);
 });

@@ -1,9 +1,5 @@
 'use strict';
 
-// Reading CSP's shortcut files. The files are SQLite;
-// the fixture here is one of ours, built with the same `node:sqlite` the reader
-// uses, so the parse is exercised end to end without CSP installed.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

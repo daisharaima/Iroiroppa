@@ -1,18 +1,11 @@
 'use strict';
 
-// CMYK profiles for the proof.
-//
-// The renderer has no build step and cannot `require` the engine, so the engine
-// (jscolorengine, a main-process dependency) bakes two plain grids here and the
-// renderer interpolates them (`src/shared/lut.js`). Baking is done once per
-// selected profile and cached by the proof store.
-
 const { Profile, Transform, eIntent, color } = require('jscolorengine');
 
-const DEFAULT_SIZE = 17;   // sRGB -> CMYK grid points per axis
-const DEFAULT_INV = 9;     // CMYK -> sRGB grid points per axis
+const DEFAULT_SIZE = 17;
+const DEFAULT_INV = 9;
 
-const step = (i, n) => (n <= 1 ? 0 : (i / n) * 100); // 0..100 for the engine
+const step = (i, n) => (n <= 1 ? 0 : (i / n) * 100);
 const unit = (i, n) => (n <= 1 ? 0 : i / n);
 
 /** Load an ICC buffer and report whether the engine accepts it. */

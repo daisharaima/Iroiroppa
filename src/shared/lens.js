@@ -1,30 +1,4 @@
-/*
- * A lens: a transform that sits over a selector's colour map.
- *
- * The v1 lens is **Quantize** — a per-channel bit grid over the *document's* channels,
- * so every colour the map shows is a colour the document can actually hold and record.
- * Quantizing in the document's own channels is what keeps an Adobe RGB document's
- * saturated colours reachable; masking the display's sRGB bytes would quietly cap the
- * reachable gamut at sRGB instead.
- *
- * Two rules make a lens safe, and both live here:
- *
- * 1. **The pick half is not optional.** The map paints `applySrgb(...)` and the picker
- *    records the same function's result, so a shown colour is always the recorded
- *    colour. This module is the single implementation both call — a lens that moved the
- *    bitmap but not the picker would be the same bug as a display-only rotate.
- * 2. **A band colour is always a real document colour.** Document channels are clamped
- *    to 0..1 before quantizing, so the result is on the grid *and* inside the document's
- *    gamut by construction — no out-of-gamut search, no snap that can move it off the
- *    grid. (docs/INVARIANTS.md, "a lensed pick is on the grid and in gamut")
- *
- * Cost: the display colour of a band is a property of the band alone, so it is
- * precomputed once per (profile, bits) into a table and looked up per pixel. A pixel
- * pays one document conversion; at 3 bits the table is 512 entries.
- *
- * Loads as CommonJS in Node and as a global `IroLens` in the renderer.
- * Unit-tested in `test/lens.test.js`.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroLens = factory();
@@ -35,9 +9,6 @@
   const MIN_BITS = 1;
   const MAX_BITS = 8;
 
-  // Above this many bands (`2^sum(bits)`) a display table costs more than it saves, so
-  // `applySrgb` converts through the profile per pixel instead. 262,144 entries is
-  // 6 bits per channel; 7 and 8 bits take the direct path.
   const MAX_TABLE = 1 << 18;
 
   const clamp01 = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x);
@@ -94,7 +65,6 @@
     const isInert = inert(bits);
     const sameSpace = !toDoc && !fromDoc;
 
-    // Per-call scratch, so a raster loop allocates nothing.
     const doc = [0, 0, 0];
     const docIn = [0, 0, 0];
 
@@ -135,8 +105,6 @@
       return c;
     }
 
-    // The display colour of every band, precomputed: `Float32Array(size * 3)`.
-    // Only when the conversion is not the identity and the grid is small enough.
     let table = null;
     if (!isInert && !sameSpace && size <= MAX_TABLE) {
       table = new Float32Array(size * CHANNELS);
@@ -176,7 +144,7 @@
         return c;
       }
       if (sameSpace) {
-        // The document is sRGB, so the band *is* the display colour.
+
         c[0] = Math.round(clamp01(r) * steps[0]) / steps[0];
         c[1] = Math.round(clamp01(g) * steps[1]) / steps[1];
         c[2] = Math.round(clamp01(b) * steps[2]) / steps[2];
@@ -194,8 +162,7 @@
     function applyLab(lab, rgbToLab, oklabToRgb) {
       if (isInert) return { L: lab.L, a: lab.a, b: lab.b };
       const rgb = oklabToRgb(lab.L, lab.a, lab.b);
-      // Exactly the document value `applySrgb` derives for this pixel, so the pick and
-      // the painted pixel are the same band by construction.
+
       const d = toDocument(rgb.r, rgb.g, rgb.b);
       const q = quantizeDoc(d[0], d[1], d[2], doc);
       if (docToLab) return docToLab(q[0], q[1], q[2]);

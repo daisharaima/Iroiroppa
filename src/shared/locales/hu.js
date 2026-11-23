@@ -1,4 +1,4 @@
-// Magyar.
+
 (function (root) {
   'use strict';
 

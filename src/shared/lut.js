@@ -4,13 +4,6 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-// N-dimensional grid interpolation for the CMYK proof.
-//
-// The CMYK engine (jscolorengine) is a main-process dependency — the renderer has
-// no build step and cannot `require` it. So main bakes two plain grids (sRGB->CMYK
-// and CMYK->sRGB) and the renderer interpolates them here. The grids are flat
-// Float arrays; the first axis is the outermost, matching how main fills them.
-
 /**
  * Multilinear interpolation of a flat grid.
  * @param {ArrayLike<number>} grid flat values, `size^dims * channels`

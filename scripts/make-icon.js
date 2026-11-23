@@ -1,17 +1,11 @@
 'use strict';
 
-// Generates build/icon.png (256x256) at build time so the repo needs no binary
-// assets. The art is shared with the tray icon (src/shared/icon-art.js): a soft
-// pastel rounded square with one big I, no colour wheel.
-
 const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { drawIcon } = require('../src/shared/icon-art');
 
 const SIZE = 256;
-
-// --- minimal PNG encoder ---------------------------------------------------
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
@@ -43,12 +37,12 @@ function encodePng(w, h, rgba) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(w, 0);
   ihdr.writeUInt32BE(h, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // RGBA
+  ihdr[8] = 8;
+  ihdr[9] = 6;
   const stride = w * 4;
   const raw = Buffer.alloc((stride + 1) * h);
   for (let y = 0; y < h; y++) {
-    raw[y * (stride + 1)] = 0; // filter: none
+    raw[y * (stride + 1)] = 0;
     rgba.copy(raw, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
   }
   return Buffer.concat([

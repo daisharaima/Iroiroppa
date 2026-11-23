@@ -1,21 +1,10 @@
 'use strict';
 
-// Theme files: bundled JSON (and optional CSS) beside the renderer, plus user
-// themes in the app-data `themes/` folder (a user theme overrides a bundled one
-// of the same id).
-//
-// A theme is `<id>.json` (tokens) plus an optional sibling `<id>.css` (arbitrary
-// overrides, injected after the base stylesheets). Per-theme assets (fonts,
-// images) live in a folder named after the id, `<themesDir>/<id>/...`, and reach
-// the renderer over the `theme://` protocol via themeAssetPath().
-//
-// Electron-free except for the injected app-data directory.
-
 const fs = require('node:fs');
 const path = require('node:path');
 
 const THEME_DIR = path.join(__dirname, '..', 'renderer', 'themes');
-// Values written before themes became files; migrated on load.
+
 const THEME_ALIASES = { light: 'default-light', dark: 'default-dark' };
 
 /** The optional sibling CSS for a theme JSON, or ''. */
@@ -63,8 +52,7 @@ function createThemeStore(userData) {
     for (const t of readThemeDir(THEME_DIR, 'bundled')) byId.set(t.id, t);
     for (const t of readThemeDir(path.join(dir(), 'themes'), 'user')) {
       const prior = byId.get(t.id);
-      // A user theme that brings no CSS inherits the bundled one, so recolouring a
-      // bundled theme does not silently drop its layout overrides.
+
       if (prior && prior.css && !t.css) t.css = prior.css;
       byId.set(t.id, t);
     }
@@ -90,7 +78,7 @@ function createThemeStore(userData) {
     for (const root of roots) {
       const file = path.join(root, ...parts);
       if (!file.startsWith(root + path.sep)) continue;
-      try { if (fs.statSync(file).isFile()) return file; } catch { /* try the next root */ }
+      try { if (fs.statSync(file).isFile()) return file; } catch {  }
     }
     return '';
   }

@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-// Build the native helper with the C# compiler that ships with Windows.
-//
-//   node scripts/build-host.js [--check]
-//
-// No SDK, no NuGet, no extra runtime: the .NET Framework 4 compiler is present on
-// every Windows 10/11 machine. `--check` reports whether the output is current
-// without writing anything (the tests and `pack` use it).
 
 'use strict';
 
@@ -46,12 +39,6 @@ function build() {
 
   fs.mkdirSync(outDir, { recursive: true });
 
-  // /target:winexe: no console window may ever flash — the process talks over
-  // redirected pipes only. /platform:anycpu keeps it architecture-neutral.
-  //
-  // The file version comes from package.json so the helper always matches the app
-  // it ships with: an exe reporting 0.0.0.0 is unsigned *and* anonymous, which is
-  // the combination a virus heuristic scores worst.
   const pkg = require(path.join(root, 'package.json'));
   const version = String(pkg.version || '0.0.0');
   const parts = version.split('.').map((n) => parseInt(n, 10) || 0);

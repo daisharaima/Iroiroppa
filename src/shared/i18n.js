@@ -1,12 +1,4 @@
-/*
- * Tiny i18n core. No dependency: a flat message
- * catalog, `{var}` interpolation, and locale resolution against what is actually
- * shipped. Locales live as UMD modules in `src/shared/locales/<code>.js`, so the
- * renderer can load one with a `<script>` tag (it has no build step) and main can
- * `require` the same file.
- *
- * Loads as CommonJS in Node and as a global `IroI18n` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroI18n = factory();

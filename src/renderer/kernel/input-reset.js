@@ -1,23 +1,18 @@
 'use strict';
 
-// Tracks pointer captures owned by picker canvases so a lost pointerup, a
-// hidden window, or a popover transition cannot leave the next gesture captured
-// by an old element. Every module registers its capture here; the app/float
-// input-reset event releases all of them and the modules clear their drag state.
-
 (function () {
   const captures = new Set();
 
   function capture(canvas, pointerId) {
     if (!canvas || !Number.isFinite(pointerId)) return;
     captures.add({ canvas, pointerId });
-    try { canvas.setPointerCapture(pointerId); } catch { /* synthetic pointer / already gone */ }
+    try { canvas.setPointerCapture(pointerId); } catch {  }
   }
 
   function release(canvas, pointerId) {
     for (const entry of [...captures]) {
       if (entry.canvas === canvas && (pointerId == null || entry.pointerId === pointerId)) {
-        try { entry.canvas.releasePointerCapture(entry.pointerId); } catch { /* already released */ }
+        try { entry.canvas.releasePointerCapture(entry.pointerId); } catch {  }
         captures.delete(entry);
       }
     }
@@ -25,7 +20,7 @@
 
   function releaseAll() {
     for (const entry of captures) {
-      try { entry.canvas.releasePointerCapture(entry.pointerId); } catch { /* already released */ }
+      try { entry.canvas.releasePointerCapture(entry.pointerId); } catch {  }
     }
     captures.clear();
   }
@@ -73,8 +68,7 @@
       lastMove = now;
       send('pointermove', ev);
     }, true);
-    // What a press at the centre would hit: an invisible overlay shows up here even
-    // though its cursor may be inherited from the element below.
+
     requestAnimationFrame(() => {
       const x = Math.round(window.innerWidth / 2);
       const y = Math.round(window.innerHeight / 2);

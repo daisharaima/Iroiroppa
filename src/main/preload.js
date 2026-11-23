@@ -1,13 +1,7 @@
 'use strict';
 
-// Bridge between the sandboxed renderer and the main process.
-
 const { contextBridge, ipcRenderer } = require('electron');
 
-// The user modules (docs/USER-MODULES.md), passed by main as a window argument so
-// the renderer has them before it builds the board — with no IPC round trip. A
-// synchronous IPC here could freeze a window if the main handler were missing
-// (e.g. a stale main process), which showed up as a blank Settings window.
 const USER_MODULES = (() => {
   const prefix = '--user-modules=';
   const arg = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith(prefix));
@@ -18,17 +12,12 @@ const USER_MODULES = (() => {
   } catch { return []; }
 })();
 
-// Which state path the renderer uses (docs/STATE.md). `model` consumes the canonical
-// model through `onStateChanged`; `legacy` keeps the per-domain channels. Main
-// defaults to `legacy` until the model path has passed a live check.
 const STATE_MODE = (() => {
   const prefix = '--state-mode=';
   const arg = (process.argv || []).find((a) => typeof a === 'string' && a.startsWith(prefix));
   return arg ? arg.slice(prefix.length) : 'legacy';
 })();
 
-// The window's own palette id (plan: palette equality). Every palette window and float
-// is told which palette it renders, so it never has to assume it is "the primary".
 const HOLD_INTERACTION = (process.argv || []).includes('--hold-interaction=1');
 
 const PALETTE_ID = (() => {
@@ -53,8 +42,7 @@ contextBridge.exposeInMainWorld('csp', {
   capabilities: () => ipcRenderer.invoke('capabilities:get'),
   captureSources: () => ipcRenderer.invoke('capture:sources'),
   cspShortcuts: () => ipcRenderer.invoke('csp:shortcuts'),
-  // The shared Quick Access reader: declare the command names you care about once and
-  // main polls the union of every subscriber, at one interval, and publishes changes.
+
   watchQuickAccess: (names) => ipcRenderer.invoke('csp:watch', names),
   unwatchQuickAccess: () => ipcRenderer.invoke('csp:unwatch'),
   quickAccessState: () => ipcRenderer.invoke('csp:quickState'),
@@ -69,9 +57,6 @@ contextBridge.exposeInMainWorld('csp', {
     return () => ipcRenderer.removeListener('capabilities:changed', h);
   },
 
-  // The canonical state layer (docs/STATE.md, §12). `stateMode` is read from the
-  // window arguments, so the renderer knows which path to consume without a round
-  // trip. One listener per channel keeps the IPC-listener budget low.
   stateMode: STATE_MODE,
   paletteId: PALETTE_ID,
   onStateChanged: (fn) => {
@@ -117,7 +102,7 @@ contextBridge.exposeInMainWorld('csp', {
   trashPreview: (id) => ipcRenderer.invoke('modules:trash:preview', { id }),
   trashRestore: (id) => ipcRenderer.invoke('modules:trash:restore', { id }),
   getLayout: () => ipcRenderer.invoke('layout:get'),
-  // The window's own palette columns (plan: palette equality) — no id in the payload.
+
   getPaletteColumns: () => ipcRenderer.invoke('palette:columns:get'),
   setPaletteColumns: (columns) => ipcRenderer.send('palette:columns:set', columns),
   getWorkspace: () => ipcRenderer.invoke('workspace:get'),
@@ -126,13 +111,12 @@ contextBridge.exposeInMainWorld('csp', {
   floatRemove: (floatId) => ipcRenderer.send('float:remove', { floatId }),
   floatDock: (spec) => ipcRenderer.send('float:dock', spec),
   windowBounds: () => ipcRenderer.invoke('window:bounds'),
-  // `floatAdd`, `moduleHover` and `moduleDrop` are gone: a drop is a `layout.place`
-  // intent now and the resolver decides the target (docs/LAYOUT.md, V6).
+
   getHistory: () => ipcRenderer.invoke('history:get'),
   pushHistory: (rgb) => ipcRenderer.send('history:add', rgb),
   floatRemoveModule: (moduleId) => ipcRenderer.send('float:remove-module', { moduleId }),
   dragOverlay: (spec) => ipcRenderer.send('drag:overlay', spec),
-  // The palette menu, drawn by the overlay window so it can leave the palette's own window.
+
   showPaletteMenu: (spec) => ipcRenderer.send('palette:menu', spec),
   onPaletteMenuPick: (cb) => ipcRenderer.on('palette:menu:pick', (_e, d) => cb(d)),
   overlayMenuPick: (index) => ipcRenderer.send('overlay:menu:pick', { index }),
@@ -146,10 +130,9 @@ contextBridge.exposeInMainWorld('csp', {
   onOverlayTooltip: (cb) => ipcRenderer.on('overlay:tooltip', (_e, d) => cb(d)),
   closeModuleSettings: () => ipcRenderer.send('module-settings:close'),
   onInputReset: (cb) => ipcRenderer.on('input:reset', () => cb()),
-  // Opt-in input diagnosis (`--trace-input`); main drops the record without the flag.
+
   inputTrace: (rec) => ipcRenderer.send('input:trace', rec),
-  // A press makes Chromium rewrite the window's extended style; main re-asserts the
-  // topmost/non-activating band so the window cannot fall behind (topmost.js).
+
   inputPress: () => ipcRenderer.send('input:press'),
   boardMetrics: (metrics) => ipcRenderer.send('board:metrics', metrics),
   dragBegin: (payload) => ipcRenderer.send('drag:begin', payload),
@@ -179,7 +162,7 @@ contextBridge.exposeInMainWorld('csp', {
   openModuleSettings: (spec) => ipcRenderer.invoke('moduleSettings:open', spec),
   closeModuleSettings: () => ipcRenderer.send('moduleSettings:close'),
   resizeModuleSettings: (height) => ipcRenderer.send('moduleSettings:resize', { height }),
-  // The Lens window (a second popout kind: see docs/MODULES.md, "Lenses").
+
   openLens: (spec) => ipcRenderer.invoke('lens:open', spec),
   closeLens: () => ipcRenderer.send('lens:close'),
   resizeLens: (height) => ipcRenderer.send('lens:resize', { height }),
@@ -187,7 +170,6 @@ contextBridge.exposeInMainWorld('csp', {
   onLensApply: (cb) => ipcRenderer.on('lens:apply', (_e, d) => cb(d)),
   requestModuleAction: (payload) => ipcRenderer.send('module:action', payload),
 
-  // The module command bus (docs/MODULES.md, "Module commands").
   commandRegister: (table) => ipcRenderer.send('module:command:register', table),
   commandCall: (target, command, args) => ipcRenderer.invoke('module:command:call', { target, command, args }),
   commandResult: (callId, ok, value, error) => ipcRenderer.send('module:command:result', { callId, ok, value, error }),
@@ -227,24 +209,21 @@ contextBridge.exposeInMainWorld('csp', {
   quit: () => ipcRenderer.send('app:quit'),
 
   onStatus: (cb) => ipcRenderer.on('companion:status', (_e, s) => cb(s)),
-  // Native-helper health: pushed on every transition and on each window show.
+
   onHelpersState: (cb) => ipcRenderer.on('helpers:state', (_e, s) => cb(s)),
   helpersState: () => ipcRenderer.invoke('helpers:get'),
   onColor: (cb) => ipcRenderer.on('companion:color', (_e, c) => cb(c)),
   onColorPreview: (cb) => ipcRenderer.on('companion:color-preview', (_e, c) => cb(c)),
-  // E1: the local-first interaction protocol (docs/STATE.md). `localFirst` is a
-  // window argument, so the renderer knows before its first write which path to
-  // use; the channels exist either way but main ignores them when the flag is off.
+
   localFirst: (process.argv || []).includes('--local-first=1'),
   holdInteraction: HOLD_INTERACTION,
   interactionBegin: (spec) => ipcRenderer.invoke('interaction:begin', spec),
   interactionUpdate: (spec) => ipcRenderer.send('interaction:update', spec),
   interactionEnd: (spec) => ipcRenderer.invoke('interaction:end', spec),
   onInteractionReject: (cb) => ipcRenderer.on('interaction:reject', (_e, d) => cb(d)),
-  // --perf-gaps: the renderer measures frame gaps during a gesture and reports them.
+
   perfGaps: (process.argv || []).includes('--perf-gaps=1'),
-  // Diagnostics: treat the store as mid-gesture so the interactive render cadence can
-  // be exercised without a human drag (docs/DEV.md).
+
   forceInteractive: (process.argv || []).includes('--force-interactive=1'),
   perfGapsReport: (summary) => ipcRenderer.send('perf:gaps', summary),
   onSettings: (cb) => ipcRenderer.on('settings:changed', (_e, s) => cb(s)),

@@ -34,14 +34,11 @@ test('the sync gate lets CSP pause worktime while the user is away', () => {
   };
   svc._ensurePolling();
 
-  // Recent input and the palette on screen: keep the host awake.
   svc._lastGateAt = 0;
   svc._pollTick();
   assert.equal(svc._syncActive, true);
   assert.deepEqual(calls, [], 'staying active needs no flip');
 
-  // Another app is foreground: even with the palette visible and recent input,
-  // do not hold CSP's worktime timer awake.
   cspActive = false;
   svc._lastGateAt = 0;
   svc._pollTick();
@@ -53,7 +50,6 @@ test('the sync gate lets CSP pause worktime while the user is away', () => {
   assert.equal(svc._syncActive, true);
   assert.deepEqual(calls, [false, true]);
 
-  // The user walks away: go passive and stop polling so CSP can pause.
   idle = 60;
   svc._lastGateAt = 0;
   svc._pollTick();
@@ -64,7 +60,6 @@ test('the sync gate lets CSP pause worktime while the user is away', () => {
   svc._pollTick();
   assert.equal(reads.length, readsWhenPassive, 'no Sync* while passive');
 
-  // A hidden palette parks the host even when the machine is being used.
   visible = false;
   idle = 0;
   svc._lastGateAt = 0;
@@ -72,7 +67,6 @@ test('the sync gate lets CSP pause worktime while the user is away', () => {
   assert.equal(svc._syncActive, false, 'a hidden palette stays passive');
   assert.deepEqual(calls, [false, true, false]);
 
-  // Back to work: the palette is up and there is input again.
   visible = true;
   svc._lastGateAt = 0;
   svc._pollTick();
@@ -124,7 +118,7 @@ test('selectSlot derives HSV when a cached slot has only RGB', async () => {
     alive: true,
     setSlotColor: (index, hsv) => { calls.push([index, hsv]); return Promise.resolve(); },
   };
-  // As left by a write: the active slot carries RGB but no HSV.
+
   svc.lastColor = {
     main: { rgb: { r: 255, g: 0, b: 0 }, hsv: null },
     sub: { rgb: { r: 0, g: 0, b: 255 } },
@@ -153,13 +147,11 @@ test('a partial payload cannot blank a slot or fabricate a change', () => {
   const emitted = [];
   svc.on('color', (c) => emitted.push(c));
 
-  // Partial diff: only the main slot, no active colour.
   svc._emitIfChanged({ main: { rgb: { r: 10, g: 20, b: 30 } }, sub: null, rgb: null, active: null, transparent: false });
   assert.equal(emitted.length, 0, 'no spurious emit');
   assert.deepEqual(svc.lastColor.sub.rgb, { r: 40, g: 50, b: 60 }, 'sub is preserved');
   assert.equal(svc.lastColor.active, 'sub', 'active is preserved');
 
-  // A real change to the sub slot still emits.
   svc._emitIfChanged({ main: null, sub: { rgb: { r: 1, g: 2, b: 3 } }, rgb: { r: 1, g: 2, b: 3 }, active: 'sub', transparent: false });
   assert.equal(emitted.length, 1);
   assert.deepEqual(emitted[0].sub.rgb, { r: 1, g: 2, b: 3 });
@@ -198,8 +190,7 @@ test('sameColor detects slot and active-slot changes', () => {
 
 test('readColor merges partial payloads instead of blanking slots', async () => {
   const svc = makeService();
-  // A partial diff that carries none of the active colour must not replace the
-  // known state (previously readColor assigned it verbatim).
+
   svc.client = {
     alive: true,
     readColor: async () => ({ main: null, sub: null, rgb: null, active: null, transparent: false }),
@@ -219,7 +210,6 @@ test('readColor merges partial payloads instead of blanking slots', async () => 
   assert.equal(svc.lastColor.active, 'sub', 'active is preserved');
   assert.equal(emitted.length, 0, 'no spurious emit');
 
-  // A partial that does update a slot merges it and keeps the rest.
   svc.client.readColor = async () => ({ main: { rgb: { r: 1, g: 2, b: 3 } }, sub: null, rgb: null, active: null });
   await svc.readColor();
   assert.deepEqual(svc.lastColor.main.rgb, { r: 1, g: 2, b: 3 }, 'main is updated');

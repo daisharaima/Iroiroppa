@@ -1,36 +1,10 @@
-/*
- * Iso-lines of a scalar field — the lightness guides, derived from the pixels.
- *
- * A guide has to promise one thing: every point on the line has the same lightness
- * as every other point. A solved contour (an axis sweep plus a root find) cannot
- * promise that: it stops where the solve or the gamut test fails, which is exactly
- * the "line is cut off before the edge, at a lightness it never had" report. This
- * module reads the field the raster itself painted (src/shared/raster-plane.js
- * `luma`), so the line is iso-light by construction and ends exactly where the
- * painted shape ends.
- *
- * Marching squares over the grid, then the segments are stitched into polylines so
- * the caller can stroke each one with a single path (picker-overlay.js#guide).
- * NaN cells are "not painted" and break the line there. A coarse `stride` samples
- * the field sparsely; the gaps that leaves are joined afterwards (`gap`), because a
- * broken guide is unusable as a path to drag along.
- *
- * `nearestOnLines` is the other half: the guide is also the *pick*, so the caller
- * can project a pointer onto it (within a screen-pixel ellipse) and select exactly
- * the colour the line was drawn for.
- *
- * Loads as CommonJS in Node and as a global `IroContour` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroContour = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // Edge numbering, clockwise from the top edge, with the cell's corners as
-  //   c0 top-left, c1 top-right, c2 bottom-right, c3 bottom-left.
-  // Each case lists the edge pairs a crossing joins; 5 and 10 are ambiguous and
-  // are resolved by the cell's centre value.
   const CASES = [
     [], [[0, 3]], [[0, 1]], [[1, 3]],
     [[1, 2]], null, [[0, 2]], [[2, 3]],
@@ -85,11 +59,11 @@
         if (index === 0 || index === 15) continue;
         let pairs = CASES[index];
         if (pairs === null) {
-          // Diagonal neighbours: the centre decides which way the two corners meet.
+
           const centre = (v0 + v1 + v2 + v3) / 4;
           pairs = (index === 5) === (centre >= target) ? AMBIGUOUS_A : AMBIGUOUS_B;
         }
-        // Crossings, lazily: only the edges this case uses are interpolated.
+
         const cross = (edge) => {
           let a; let b; let ax; let ay; let bx; let by;
           if (edge === 0) { a = v0; b = v1; ax = x0; ay = y0; bx = x1; by = y0; }
@@ -102,9 +76,7 @@
         for (const [ea, eb] of pairs) segs.push([cross(ea), cross(eb)]);
       }
     }
-    // A single unpainted pixel removes every cell it corners, so a speck of
-    // out-of-gamut colour leaves a one-cell hole in the line: bridge those, or the
-    // guide arrives in pieces and cannot be dragged as one path.
+
     const gap = Number.isFinite(opts.gap) ? Math.max(0, opts.gap) : stride * 2.5;
     return joinGaps(stitch(segs), gap);
   }
@@ -138,7 +110,7 @@
       used[start] = 1;
       const first = segs[start];
       const pts = [first[0], first[1]];
-      // Forward from the tail, then backward from the head.
+
       for (let p = pts[pts.length - 1]; ;) {
         const nxt = nextFrom(p);
         if (!nxt) break;
@@ -166,9 +138,8 @@
   function joinGaps(lines, tol) {
     if (!(tol > 0) || lines.length < 2) return lines;
     const lim = tol * tol;
-    // A closed loop's ends coincide to floating-point precision; the join tolerance
-    // is much larger than that, so "the ends are close" cannot mean "it is a loop".
-    const closed = 0.0625; // 0.25 px
+
+    const closed = 0.0625;
     const out = lines.slice();
     const used = new Uint8Array(out.length);
     let merged = true;
@@ -179,7 +150,7 @@
         const a = out[i];
         const aHead = a[0];
         const aTail = a[a.length - 1];
-        if (dist2(aHead, aTail) <= closed) continue; // already a loop
+        if (dist2(aHead, aTail) <= closed) continue;
         for (let j = i + 1; j < out.length && !merged; j += 1) {
           if (used[j]) continue;
           const b = out[j];

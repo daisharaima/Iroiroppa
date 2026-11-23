@@ -1,9 +1,5 @@
 'use strict';
 
-// The slice geometry bridge (docs/MODULES.md, "Slice projections"): the raster
-// and the pointer share one mapping, the crosshair can only sit on a reachable
-// point, and the Shift lock / guide line are computed in the same axis space.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -33,7 +29,7 @@ test('pickAxes / pointOf round-trip for every model and plane', () => {
 });
 
 test('pickAxes keeps the fixed axis exactly where it was', () => {
-  const model = Models.get('okhsv'); // plane 0 = (V,S) fixed H
+  const model = Models.get('okhsv');
   const fixed = [123, 0.5, 0.5];
   const axes = G.pickAxes(model, 0, 0.2, 0.7, fixed, store);
   assert.equal(axes[0], 123, 'the fixed hue is untouched');
@@ -102,8 +98,6 @@ test('planeOf is the model plane and the label names its two free channels', () 
   assert.equal(Models.planeLabel(Models.get('oklch'), 1), 'H \u00d7 C');
 });
 
-// --- canonical lightness guide and lock -------------------------------------
-
 test('every model declares whether its light axis is canonical', () => {
   for (const model of Models.list()) {
     assert.ok(model.lightSource === 'native' || model.lightSource === 'oklab', `${model.id} lightSource`);
@@ -133,12 +127,12 @@ test('setLightness holds canonical OKLab L (and HelmGen its own L)', () => {
 
 test('a fixed-light plane projects onto its iso-L contour without moving the plane', () => {
   const hsv = Models.get('okhsv');
-  // Plane 1 is H x S with V fixed; pick a point, then lock its current L.
+
   const fixed = [0, 0, 0.6];
   const picked = G.pickAxes(hsv, 1, 0.4, 0.7, fixed, store);
   const target = G.lightnessOf(hsv, picked);
   const moved = picked.slice();
-  moved[1] = 0.2; // a different saturation
+  moved[1] = 0.2;
   const held = G.applyLightness(hsv, 1, moved, target, store);
   assert.ok(Math.abs(G.lightnessOf(hsv, held) - target) < 1e-4);
   assert.equal(held[0], moved[0], 'the hue follows the pointer');

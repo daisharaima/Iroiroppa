@@ -1,9 +1,5 @@
 'use strict';
 
-// The v1 column codec (plan P1): the board's weight/ratio vocabulary <-> the
-// document's v2 height. It must round-trip losslessly for anything a v1 writer can
-// express, and must leave an inexpressible (auto/px/ratio) height untouched.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Codec = require('../src/shared/layout-codec');
@@ -56,7 +52,7 @@ test('a px/auto height survives a v1 write untouched', () => {
     { instanceId: 'i2', moduleId: 'm-auto', height: { mode: 'auto' } },
   ] }];
   const v1 = Codec.columnsToV1({ columns: stored });
-  assert.equal(v1[0].modules[0].weight, null); // v1 cannot express a px height
+  assert.equal(v1[0].modules[0].weight, null);
   const back = Codec.columnsFromV1(v1, stored, ctx);
   assert.deepEqual(back[0].modules.map((m) => m.height), [{ mode: 'px', px: 88 }, { mode: 'auto' }]);
 });
@@ -69,7 +65,7 @@ test('a minimized module round-trips through v1', () => {
   assert.equal(v1[0].modules[0].collapsed, true);
   const back = Codec.columnsFromV1(v1, stored, ctx);
   assert.equal(back[0].modules[0].collapsed, true);
-  // An older board that omits the key must not expand the card.
+
   const old = Codec.columnsFromV1([{ id: 'c1', width: 200, modules: [{ instanceId: 'i1', moduleId: 'm-plain', weight: null }] }], stored, ctx);
   assert.equal(old[0].modules[0].collapsed, true);
 });

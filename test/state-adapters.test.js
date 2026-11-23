@@ -1,9 +1,5 @@
 'use strict';
 
-// The per-domain adapters are browser code (they read `window.Color` and the token
-// helpers). Node fakes those globals; the conversion is tested against the real
-// shared colour maths, so the 0–255 / 0–1 hex convention is exercised for real.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');

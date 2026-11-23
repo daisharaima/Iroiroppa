@@ -118,7 +118,6 @@ test('parseColorState marks a partial payload without clobbering the active colo
   assert.equal(full.active, 'sub');
   assert.ok(full.rgb);
 
-  // No sub channels even though index says sub is active -> partial diff.
   const partial = parseColorState({
     ColorSelectionModel: 'HSV',
     CurrentColorIndex: 1,
@@ -158,8 +157,7 @@ test('the heartbeat carries the idle-timer reset only while sync is active', () 
 });
 
 test('close() settles a connect that is still dialling', async () => {
-  // A socket that never emits connect/error stands in for an unreachable host,
-  // which used to leave connect() pending forever after a teardown.
+
   const realCreate = net.createConnection;
   net.createConnection = () => new net.Socket();
   try {

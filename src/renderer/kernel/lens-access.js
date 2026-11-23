@@ -1,18 +1,4 @@
-/*
- * Where a lens meets the profile.
- *
- * `src/shared/lens.js` is pure: it knows about bit grids and bands, not about documents.
- * This adapter is the one place that knows what "the document's channels" means, and it
- * is the only place that reads `store.proof`, so a module never has to.
- *
- * What the document's channels are (docs/COLOR.md):
- * - no profile         — the stored values are sRGB, so the band *is* the display colour;
- * - a matrix/TRC profile (Adobe RGB and friends) — the stored value is that profile's own
- *   R/G/B, and `appearanceSrgb` / `recordedSrgb` are the two exact directions;
- * - a LUT profile — a soft proof only: `createLutProof` records sRGB unchanged and routes
- *   the *appearance* through the LUT, so the grid is over sRGB and only the display goes
- *   through the proof (`.scratch/color-lens/DECISIONS.md`, B1).
- */
+
 (function () {
   const reg = (window.Iro = window.Iro || {});
 
@@ -38,7 +24,7 @@
     const proof = store && store.proof ? store.proof : null;
     const opts = { bits: spec.bits };
     if (proof && proof.kind === 'lut') {
-      // The document is sRGB; only the appearance goes through the proof.
+
       opts.fromDoc = (r, g, b) => proof.appearanceSrgb([r, g, b]);
       opts.docToLab = (r, g, b) => Color.rgbToOklab(r, g, b);
     } else if (proof) {
@@ -64,7 +50,6 @@
   }
 
   reg.lensAccess = { build, key };
-  // The selectors read it as a global (they are classic scripts, like every other shared
-  // helper): one name, so a typo cannot silently switch every lens off.
+
   window.IroLensAccess = reg.lensAccess;
 })();

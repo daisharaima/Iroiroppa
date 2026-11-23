@@ -1,10 +1,5 @@
 'use strict';
 
-// The canonical state model (docs/STATE.md, §4.3). Main is the sole writer and
-// every window mirrors it. Deliberately free of Electron — `emit` is injected —
-// so the revision/emit behaviour is unit-tested headlessly
-// (test/state-hub.test.js), the same pattern as command-router.js.
-
 const StateDomains = require('../shared/state-domains');
 
 /**
@@ -13,7 +8,7 @@ const StateDomains = require('../shared/state-domains');
  * @param {object} [opts.domains] defaults to the shared registry
  */
 function createStateHub({ emit, domains = StateDomains } = {}) {
-  const store = new Map();   // id -> { rev, value }
+  const store = new Map();
   const listeners = new Set();
 
   const equal = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -32,9 +27,9 @@ function createStateHub({ emit, domains = StateDomains } = {}) {
     const rev = (prev ? prev.rev : 0) + 1;
     store.set(domain, { rev, value: norm.value });
     const change = { domain, rev, value: norm.value };
-    // A broadcast must never abort the state update (docs/INVARIANTS.md).
-    if (typeof emit === 'function') { try { emit('state:changed', change); } catch { /* keep going */ } }
-    for (const fn of listeners) { try { fn(change); } catch { /* keep going */ } }
+
+    if (typeof emit === 'function') { try { emit('state:changed', change); } catch {  } }
+    for (const fn of listeners) { try { fn(change); } catch {  } }
     return true;
   }
 

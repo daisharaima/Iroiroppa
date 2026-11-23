@@ -1,10 +1,5 @@
 'use strict';
 
-// Quick Access: the name-addressed read/write pair CSP exposes for its own
-// commands (docs/PROTOCOL.md). A selector module reads brush sub-tool flags and
-// clicks them through `cspInvoke({ quickAccess })`, so the shapes matter: a wrong
-// item ID silently reads as "off", and a NAK resolves like an ACK.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -64,7 +59,7 @@ test('a reply survives both item shapes and a JSON string', () => {
     QuickAccess.parseState(JSON.stringify({ CheckedItemIDs: [item('y')] })).on,
     ['y'],
   );
-  // An off item is absent, not false — and a missing/odd payload is "nothing known".
+
   assert.deepEqual(QuickAccess.parseState(undefined), { on: [], disabled: [] });
   assert.deepEqual(QuickAccess.parseState('{oops'), { on: [], disabled: [] });
   assert.deepEqual(QuickAccess.parseState({}), { on: [], disabled: [] });

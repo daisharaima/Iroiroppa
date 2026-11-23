@@ -1,9 +1,5 @@
 'use strict';
 
-// The renderer state client is browser code: it reads `window`/`window.csp`. Node
-// gives it a faked global so the mirror/dispatch half is unit-tested headlessly,
-// the same way command-bus.test.js tests the bus.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');

@@ -1,14 +1,5 @@
 'use strict';
 
-// Native senders: send keystrokes to whatever window
-// has focus. This is the fallback for a CSP command the protocol cannot invoke
-// (see the `DoQuickAccess` probe), and it follows the capture helper's pattern —
-// one long-lived PowerShell process, compiled once, answering one expression per
-// line — so an invocation never pays the `Add-Type` cost.
-//
-// It is Windows-only. `toSendKeys` is pure and unit-tested; the PowerShell side
-// uses `System.Windows.Forms.SendKeys`, the classic dependency-free route.
-
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -27,9 +18,7 @@ const NAMED = {
  * syntax (`^+s`, `{F2}`, `{DELETE}`). Returns '' when there is no key.
  */
 function toSendKeys(accel) {
-  // An accelerator is a key combo, never a script: the helper runs every line it
-  // reads through Invoke-Expression (sender.js PS_SENDER), so anything outside this
-  // set — newline, quote, `$`, backtick — is refused here (docs/STATE.md).
+
   if (!/^[A-Za-z0-9 +\-\[\]]*$/.test(String(accel || ''))) return '';
   const parts = String(accel || '').split('+').map((s) => s.trim()).filter(Boolean);
   let mods = '';
@@ -88,7 +77,7 @@ function createSender({ platform = process.platform } = {}) {
   function dropChild(cooldownMs) {
     const c = child;
     child = null;
-    if (c) { try { c.stdin.end(); c.kill(); } catch { /* ignore */ } }
+    if (c) { try { c.stdin.end(); c.kill(); } catch {  } }
     cooldownUntil = Date.now() + (cooldownMs || 15000);
   }
 
@@ -102,7 +91,7 @@ function createSender({ platform = process.platform } = {}) {
     c.replyWaiters = [];
     c.stdout.setEncoding('utf8');
     c.stderr.setEncoding('utf8');
-    c.stderr.on('data', () => { /* a query just times out */ });
+    c.stderr.on('data', () => {  });
     c.stdout.on('data', (chunk) => {
       c.replyBuffer += chunk;
       let idx;
@@ -151,7 +140,7 @@ function createSender({ platform = process.platform } = {}) {
 
   function stop() {
     dropChild(0);
-    if (scriptPath) { try { fs.unlinkSync(scriptPath); } catch { /* ignore */ } scriptPath = null; }
+    if (scriptPath) { try { fs.unlinkSync(scriptPath); } catch {  } scriptPath = null; }
   }
 
   return { available, sendKeys, sendWindowMessage, stop };

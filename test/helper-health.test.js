@@ -1,15 +1,11 @@
 'use strict';
 
-// The helper-health registry: which implementation serves each native capability, and
-// whether the app is running degraded.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { HelperHealth, CAPABILITIES } = require('../src/main/helper-health.js');
 
 test('an unreported capability is pending, not degraded', () => {
-  // A profile with no bare-key binding never reports `keys`; that must not leave a
-  // permanent warning.
+
   const health = new HelperHealth();
   assert.equal(health.summary().state, 'healthy');
   assert.deepEqual(health.summary().pending, CAPABILITIES);

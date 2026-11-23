@@ -1,9 +1,5 @@
 'use strict';
 
-// The What's New note reader (src/shared/release-note.js): it must keep the note's
-// headings/bullets/bold/code, stop before the Install/Requirements tail, and never
-// hand raw markup to the dialog.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

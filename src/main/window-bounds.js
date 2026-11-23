@@ -1,9 +1,5 @@
 'use strict';
 
-// Where the palette reopens. Kept free of Electron so it can be tested without a
-// display — `main.js` is not headless-requirable. All values here are DIP, the
-// unit Electron's `screen` and window geometry use.
-
 /**
  * The display a window belongs on: the one it was last seen on, else the one
  * under the cursor, else the primary. `primary` is one of `displays` in
@@ -53,11 +49,7 @@ function resolveWindowBounds(saved, size, displays, cursor, primary, min = { wid
   const height = Math.min(Math.max(min.height, Math.round(size.height)), maxH);
 
   const hadPosition = Boolean(saved && Number.isFinite(saved.x) && Number.isFinite(saved.y));
-  // A position that is still inside a display which exists is used as-is. A desktop can
-  // legitimately have a negative origin (a monitor left of or above the primary), and clamping
-  // into the *chosen* display's work area teleported such a window to that display's corner —
-  // a palette at (-600, -900) reopened at (0, 0). Only a position on no display at all is
-  // clamped back into one.
+
   const fits = (d) => {
     const b = d && (d.bounds || d.workArea);
     if (!b) return false;

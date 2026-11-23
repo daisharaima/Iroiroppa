@@ -1,8 +1,5 @@
 'use strict';
 
-// Theme validation, shared by `scripts/theme-check.js` and the theme test so the
-// command line and CI agree on what "valid" means. Pure and Electron-free.
-
 const T = require('./theme-tokens');
 
 /** `#rgb` / `#rrggbb` -> [r, g, b], else null. */
@@ -34,8 +31,6 @@ function contrast(a, b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// Text pairs worth reading in any theme. Failure is a warning, not an error: a
-// theme may deliberately go low-contrast, but it should be a decision.
 const CONTRAST_PAIRS = [
   ['--text', '--bg', 4.5],
   ['--text', '--card', 4.5],
@@ -104,13 +99,6 @@ function validateTheme(theme, opts = {}) {
   return { errors, warnings };
 }
 
-// --- theme CSS budget ------------------------------------------------------
-
-// A theme's CSS is expressive but must stay cheap and must not move layout: any
-// property that can change geometry belongs to a structural token instead (see
-// docs/THEMES.md). These are heuristics over the declaration text, not a CSS
-// parser — a cleverly written rule can slip past; bundled themes are checked
-// strictly, user themes get warnings.
 const FORBIDDEN_PROPS = [
   /^animation(-|$)/,
   /^transition(-|$)/,

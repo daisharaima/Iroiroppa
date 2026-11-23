@@ -1,10 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-// Check every shipped locale against the English catalog. Translations are
-// produced by AI and validated here, so a locale that
-// is missing keys — or carries keys English does not — fails the command.
-
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -37,7 +33,5 @@ for (const file of files) {
   }
 }
 
-// A locale may omit a key and fall back to English, but a key English does not
-// have is a stale leftover and fails.
 console.log(`${files.length} locale(s); ${bad} with stale keys`);
 process.exit(bad ? 1 : 0);

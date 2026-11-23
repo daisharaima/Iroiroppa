@@ -1,12 +1,5 @@
 'use strict';
 
-// Copy / paste a module's settings (the module settings popout, docs/MODULES.md).
-//
-// The clipboard carries a small JSON envelope, so a paste can tell our own
-// config from anything else on the clipboard. "Copy without colour model" drops
-// the `model` key, so the axes transfer without dragging the source's model
-// along. A paste merges over the module's current settings and rebuilds its UI.
-
 (function () {
   const reg = (window.Iro = window.Iro || {});
   const KIND = 'iroiroppa-module-settings';
@@ -84,8 +77,7 @@
 
     actions.append(copyBtn, pasteBtn);
     if (opts.actionsHost) {
-      // Inline: the caller already has the action row (module popout). The menu
-      // drops below that row instead of creating a second box.
+
       opts.actionsHost.append(copyBtn, pasteBtn);
       actions.remove();
       (opts.menuHost || opts.root).append(menu, note);

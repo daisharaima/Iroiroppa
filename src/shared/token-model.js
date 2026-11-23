@@ -1,15 +1,4 @@
-/*
- * The token model (docs/STATE.md, §12.2).
- *
- * The DTCG-style shape Iroiroppa shares with other tools: a payload is a list of
- * collections, each a list of modes, each a list of named typed tokens. This is
- * the *interop* shape — the live colour stays OKLab in the renderer and a token
- * carries hex only at the export edge (§12.5).
- *
- * Clean-room reimplementation of the token layer types/format (see the
- * licence boundary in docs/STATE.md). Loads as CommonJS in Node and as the global
- * `IroTokenModel` in the renderer, like capabilities.js.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroTokenModel = factory();

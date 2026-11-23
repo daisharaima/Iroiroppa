@@ -1,9 +1,5 @@
 'use strict';
 
-// Reads the checked-in release note for the running version (the same file the
-// release workflow publishes) for the What's New dialog. Electron-free so the
-// version/URL/shape rules are testable.
-
 const fs = require('node:fs');
 const path = require('node:path');
 

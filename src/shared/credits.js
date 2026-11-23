@@ -1,12 +1,4 @@
-/*
- * The app's credits and outbound-link allowlist, in one place.
- *
- * The About tab renders this list and `src/main/ipc/app.js` only lets the renderer
- * open a URL that is in here (or a page of this repository), so a stray link in a
- * credit cannot turn into an arbitrary browser navigation.
- *
- * Loads as CommonJS in Node and as a global `IroCredits` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroCredits = factory();

@@ -1,19 +1,7 @@
 'use strict';
 
-// The kernel side of the module command bus (docs/MODULES.md, "Module commands").
-//
-// A module that returns a `commands` map from `create(ctx)` exposes callable
-// command names. One module (or main) can call another by *instance id* — a
-// module id may be mounted many times, so the instance is the only unambiguous
-// target. Main owns the routing (src/main/command-router.js): a call to an
-// instance mounted in this window runs here; a call to one mounted elsewhere is
-// relayed through `window.csp` and comes back on `module:command:invoke`.
-//
-// Commands are async and JSON-serializable: arguments and results cross IPC, so
-// no functions or DOM nodes.
-
 (function () {
-  const local = new Map(); // instanceId -> { commands: { name: (...args) => any } }
+  const local = new Map();
 
   let syncTimer = null;
 
@@ -24,7 +12,7 @@
       syncTimer = null;
       const table = {};
       for (const [instanceId, entry] of local) table[instanceId] = Object.keys(entry.commands);
-      try { window.csp.commandRegister(table); } catch { /* preload may not be ready */ }
+      try { window.csp.commandRegister(table); } catch {  }
     }, 60);
   }
 
@@ -52,8 +40,7 @@
   function invokeLocal(entry, command, args) {
     const fn = entry.commands[command];
     if (typeof fn !== 'function') throw new Error(`unknown command "${command}"`);
-    // The function may throw synchronously; normalise to a rejected promise so
-    // every caller sees the same failure shape.
+
     return Promise.resolve().then(() => fn(...asArgs(args)));
   }
 
@@ -84,8 +71,6 @@
     }
   }
 
-  // Main forwards a cross-window call here. One listener per renderer (this file
-  // loads once), so it does not add to the IPC-listener budget (docs/INVARIANTS.md).
   if (window.csp && typeof window.csp.onCommandInvoke === 'function') {
     window.csp.onCommandInvoke((payload) => { handleInvoke(payload); });
   }

@@ -1,8 +1,5 @@
 'use strict';
 
-// The broadcast guard (docs/INVARIANTS.md): sending to a window is racy,
-// and a throw here used to abort the state update that called it.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { canSend, sendTo, sendToWebContents, broadcast } = require('../src/main/broadcast');

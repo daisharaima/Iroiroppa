@@ -1,15 +1,4 @@
-/*
- * Pointer and lightness-guide overlay art for the canvas pickers.
- *
- * The Slices, Wheel and Disc all paint a small local pointer and one clipped
- * guide polyline. Keeping the strokes in one place is what stops the three
- * modules drifting: a "disappeared crosshair" was one module's 5.5 px ring
- * against another's larger marker. The pointer is a quiet ring; the full
- * crosshair (Slices only) and the single lightness guide are separate, thin
- * overlay lines, so none can be mistaken for another.
- *
- * Loads as CommonJS in Node and as a global `IroPickerOverlay` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroPickerOverlay = factory();
@@ -27,7 +16,7 @@
     const s = o.scale || 1;
     const r = (v) => v * s;
     c2d.save();
-    // A soft white edge keeps the thin dark ring legible on dark maps.
+
     c2d.beginPath(); c2d.arc(x, y, r(4.5), 0, Math.PI * 2);
     c2d.lineWidth = r(2.6); c2d.strokeStyle = 'rgba(255,255,255,0.55)'; c2d.stroke();
     c2d.beginPath(); c2d.arc(x, y, r(4.5), 0, Math.PI * 2);

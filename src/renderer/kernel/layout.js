@@ -1,22 +1,14 @@
 'use strict';
 
-// Board: the column/module layout behind the picker. Reads and writes
-// layout.json (through the main process), renders columns of module cards, and
-// lets a module's bottom edge and a column's divider be dragged. Moving modules
-// between columns (drag) arrives in a later phase; for now a module's settings
-// popover carries a Column picker so a second column can be populated.
-
 (function () {
   const MIN_COLUMN = 120;
   const MIN_MODULE = 44;
-  const BOARD_PAD = 2; // #board padding (the outer margin)
-  const DIVIDER_W = 2; // the width of a column divider
-  const MODULE_GAP = 2; // the column gap between stacked modules
-  // The palette's design minimum height (mirrors `windows.js`). A palette whose
-  // modules all fit their own size may drop below it; a filling module may not.
+  const BOARD_PAD = 2;
+  const DIVIDER_W = 2;
+  const MODULE_GAP = 2;
+
   const PALETTE_MIN_H = 340;
-  // A new module's share of its column; the values echo the natural sizes (the
-  // CSP strip is thin), so a fresh column looks much like the horizontal layout.
+
   const DEFAULT_WEIGHT = { 'csp-color': 12, 'color-slices': 420, 'color-slider': 92, 'color-history': 90 };
 
   const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
@@ -25,20 +17,16 @@
     constructor({ root, host, csp, defaultLayout, load, save, resize, float, floatId, subscribe }) {
       this.root = root;
       this.host = host;
-      // Tell main what this board drew, so the drop resolver can prefer the render
-      // over the model (docs/LAYOUT.md, V4). Structural and inline-style changes
-      // only — hover state must not produce traffic — and coalesced below.
+
       if (typeof MutationObserver === 'function') {
         this._metricsObserver = new MutationObserver(() => this._reportMetrics());
         this._metricsObserver.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
       }
-      // The selection is board-local UI state (never in the document): what a drag
-      // carries when it carries more than one module.
+
       this._selection = [];
       this._selAnchor = null;
       this.csp = csp;
-      // A lens edited in the Lens window arrives here, addressed to the instance that owns
-      // it: the board persists it, which notifies the module and repaints its maps.
+
       if (csp && typeof csp.onLensApply === 'function') {
         csp.onLensApply((msg) => {
           if (!msg || !msg.instanceId) return;
@@ -46,20 +34,18 @@
         });
       }
       this.defaultLayout = defaultLayout || { version: 1, columns: [] };
-      // A float board lives in its own window and persists its own columns.
+
       this.float = Boolean(float);
       this.floatId = floatId || null;
-      // When the canonical model drives the board, it must not also listen to the
-      // legacy layout channel (docs/STATE.md, invariants).
+
       this._subscribe = subscribe !== false;
       this._load = load || (() => csp.getLayout());
       this._persist = save || ((layout) => csp.saveLayout(layout));
       this._resize = resize || ((width, height) => csp.resize(width, height));
       this.layout = { version: 1, floats: [], columns: [] };
-      this.columns = new Map(); // id -> { model, el }
-      this.modules = new Map(); // instanceId -> { model, record, el, columnId }
-      // Bumped by every `render()`; an in-flight column pass asks whether it still owns its
-      // element before and after each (async) mount. See `_syncColumn`.
+      this.columns = new Map();
+      this.modules = new Map();
+
       this._renderGen = 0;
       this._saveTimer = null;
       this._dragInstance = null;
@@ -68,30 +54,24 @@
       this._sameCard = null;
       this._dropTarget = null;
       this._dropKey = null;
-      // This window's own palette state (name, snap, followers), pushed beside the
-      // columns; the titlebar's Unsnap icon and its name come from here.
+
       this._palette = null;
       this._unsnapBtn = null;
-      // A module-edge drag changes a ratio; unlike a window resize it must be
-      // followed by a content fit, or the palette keeps its old height.
+
       this._moduleEdgeDrag = false;
       this._fitFrame = 0;
     }
 
     async init() {
       this.host.onLayoutRequest = () => this.refreshSizes();
-      // Register the cross-window listeners before any await: a fresh float can
-      // be told about the palette (snap edges, drops) while the board is still
-      // loading, and those messages must not be missed.
+
       if (this._subscribe && this.csp.onLayoutChanged) this.csp.onLayoutChanged((layout) => this.applyLayout(layout));
       if (this.csp.onModuleChanged) {
         this.csp.onModuleChanged((spec) => {
-          // A lens is per instance and lives in that instance's file, so a change made in
-          // another window (the Lens window or Settings' Lenses row) has to be re-read:
-          // the mounted record's copy is what paints the map.
+
           const changed = spec && spec.id;
           if (changed && this.host && this.host.reloadLens) this.host.reloadLens(changed);
-          // Coalesce the burst of changes from a settings slider.
+
           if (this._modTimer) clearTimeout(this._modTimer);
           this._modTimer = setTimeout(() => {
             this._modTimer = null;
@@ -104,13 +84,10 @@
       let saved = null;
       try { saved = await this._load(); } catch { saved = null; }
       this.layout = this._normalize(saved || this.defaultLayout);
-      // Persist the cleaned-up layout if normalization changed it (e.g. it
-      // dropped columns that had been left empty), or if there was none yet.
+
       if (!saved || JSON.stringify(saved.columns) !== JSON.stringify(this.layout.columns)) this._save();
       await this.render();
 
-      // The chrome (e.g. the connection banner) can change height without a
-      // window resize, so keep re-checking that nothing is clipped.
       if (typeof ResizeObserver === 'function') {
         const ro = new ResizeObserver(() => {
           if (this._minRaf) return;
@@ -132,21 +109,17 @@
 
     /** Adopt a layout pushed from elsewhere (the Settings window). */
     applyLayout(layout) {
-      // The palette's own state is not columns, so it is applied even when the columns
-      // are identical (a snap join changes nothing else).
+
       if (layout && layout.palette) this._setPaletteState(layout.palette);
       const collapsed = ((layout && layout.columns) || []).length > 1;
       const next = this._normalize(layout || this.defaultLayout);
-      // A drag pushes a layout on every commit, and most carry exactly what this board already
-      // shows. Rebuilding for those is what made every card flash while something was dragged —
-      // and each rebuild re-mounted every module, which leaked their subscriptions.
+
       if (JSON.stringify(next) === JSON.stringify(this.layout)) {
-        // A legacy multi-column document collapses to one column; save so the document does too.
+
         if (collapsed) this._save();
         return;
       }
-      // A size-only change (the Module Size slider, a weight) must not tear the board
-      // down: only a structural change (a module added, removed or reordered) does.
+
       const structural = this._structureKey(next) !== this._structureKey(this.layout);
       this.layout = next;
       if (structural) this.render();
@@ -169,9 +142,7 @@
         for (const mod of col.modules) {
           const inst = this.modules.get(mod.instanceId);
           if (inst) {
-            // The document was replaced wholesale: keep the card's model record pointing
-            // at the live object, or a splitter drag edits a detached copy and the save
-            // persists the old weight (docs/INVARIANTS.md).
+
             inst.model = mod;
             this._applyModuleWeight(inst.el, mod, this._moduleWeightOpts(col, mod));
           }
@@ -185,11 +156,8 @@
       return JSON.parse(JSON.stringify(this.layout));
     }
 
-    // --- model ---------------------------------------------------------------
-
     _normalize(input) {
-      // A board owns only its columns; floats are main's business and live in
-      // their own boards.
+
       const out = { version: 1, floats: [], columns: [] };
       const used = new Set();
       const columns = input && Array.isArray(input.columns) ? input.columns : [];
@@ -209,8 +177,7 @@
             instanceId = `i${n}`;
           }
           used.add(instanceId);
-          // `height` was a pixel height; it is now a proportional weight, and an
-          // old value still works as one.
+
           const rawWeight = Number.isFinite(mod.weight) ? mod.weight
             : (Number.isFinite(mod.height) ? mod.height : null);
           const rawRatio = Number.isFinite(mod.ratio) && mod.ratio > 0 ? mod.ratio : null;
@@ -224,9 +191,7 @@
         }
         out.columns.push(column);
       });
-      // One column per palette: side-by-side columns are gone (a legacy document's
-      // columns are concatenated in order and the width dropped). Because the board
-      // also saves what it shows, the document converges to one column on the next save.
+
       if (out.columns.length > 1) {
         out.columns = [{
           id: out.columns[0].id,
@@ -234,16 +199,13 @@
           modules: out.columns.flatMap((c) => c.modules),
         }];
       }
-      // Columns with no modules are transient (drop targets while dragging), so
-      // they are never kept. The board always has at least one column.
+
       const kept = out.columns.filter((col) => col.modules.length > 0);
       out.columns = kept.length
         ? kept
         : [{ id: (out.columns[0] && out.columns[0].id) || 'c1', width: null, modules: [] }];
       return out;
     }
-
-    // --- render --------------------------------------------------------------
 
     async render() {
       this._renderGen += 1;
@@ -253,21 +215,17 @@
         if (i > 0) this.root.append(this._makeDivider(columns[i - 1]));
         await this._renderColumn(columns[i]);
       }
-      // A float holding a single module is shown as one bare card: no board
-      // chrome (the card itself fills the window).
+
       if (this.float) {
         const lone = this.layout.columns.length === 1
           && this.layout.columns[0].modules.length === 1;
         document.body.classList.toggle('float-single', lone);
         this._applyLoneHeader(lone);
       }
-      // A render rebuilds every card, so the previous selection highlight is gone:
-      // prune ids that no longer exist and repaint, or a plain press would drag a
-      // selection the user cannot see.
+
       this._selection = this._selection.filter((id) => this.modules.has(id));
       this._paintSelection();
-      // Nothing should be clipped: grow the palette if it is too small for the
-      // modules' minimum sizes, then shrink it if nothing wants the slack.
+
       requestAnimationFrame(() => this._reconcile());
     }
 
@@ -288,16 +246,14 @@
         : Boolean(force);
       if (on === document.body.classList.contains('float-collapsed')) return on;
       document.body.classList.toggle('float-collapsed', on);
-      // Main must not remember the collapsed size as the float's own.
+
       if (this.csp.floatCollapsed) this.csp.floatCollapsed(this.floatId, on);
       if (on) {
         this._expandedHeight = Math.max(1, window.innerHeight);
-        // A resizable window has a Windows-enforced minimum height, so drop it
-        // while collapsed.
+
         if (this.csp.setMinSizeSelf) this.csp.setMinSizeSelf(90, 1);
         if (this.csp.setResizableSelf) this.csp.setResizableSelf(false);
-        // Ask for a bar-height window; Windows clamps it to ~39 px, which the
-        // grip then fills (see float.css).
+
         this._resize(window.innerWidth, 14);
       } else {
         if (this.csp.setMinSizeSelf) this.csp.setMinSizeSelf(90, 60);
@@ -350,7 +306,7 @@
       if (this.csp.paletteState) {
         this.csp.paletteState().then((state) => {
           if (state) this._setPaletteState(state, { quietName: true });
-        }).catch(() => { /* the push will paint it */ });
+        }).catch(() => {  });
       }
       this._paintUnsnap();
     }
@@ -376,9 +332,7 @@
       const rename = item('#menu-rename');
       const del = item('#menu-delete');
       const close = () => menu.classList.add('hidden');
-      // The layout lock is a setting (and a Session row button); this is the third way in. It is not
-      // a per-module entry: each card's head has its own ⋯ for that, so listing them here as well
-      // only made the menu long enough to overflow a narrow palette window.
+
       const lockItem = item('#menu-lock');
       const settingsItem = item('#menu-settings');
       const labelLock = () => {
@@ -426,8 +380,7 @@
             y: Math.round(window.screenY + rect.bottom + 2),
           },
         };
-        // The helper owns the outside-click close, and it lets the Session profile
-        // picker and this menu coexist without fighting over it.
+
         if (window.Iro && window.Iro.overlayMenu) {
           window.Iro.overlayMenu.show('palette', button, spec);
           return;
@@ -447,12 +400,11 @@
           if (id === 'rename') {
             close();
             if (!nameInput) return;
-            // The field is read-only until this moment; editing it needs the window briefly
-            // focusable, which is what `setEditable` is for (the window is non-activating).
+
             nameInput.readOnly = false;
             nameInput.classList.add('editing');
             if (this.csp.setEditable) this.csp.setEditable(true);
-            try { nameInput.focus(); nameInput.select(); } catch { /* ignore */ }
+            try { nameInput.focus(); nameInput.select(); } catch {  }
             return;
           }
           if (id === 'lock') {
@@ -467,7 +419,7 @@
             return;
           }
           if (id === 'delete') {
-            // Two clicks, like the in-window menu did: the first re-opens the menu saying so.
+
             const now = Date.now();
             if (!this._deleteArmedAt || now - this._deleteArmedAt > 3000) {
               this._deleteArmedAt = now;
@@ -480,10 +432,9 @@
           }
         });
       }
-      // Whether Unsnap is worth offering now lives on the titlebar icon, fed by the palette
-      // state push (`_paintUnsnap`), so the hamburger has no snap entry at all.
+
       if (!this.csp.showPaletteMenu) {
-        // The in-window menu's own handlers, kept for the fallback path only.
+
         document.addEventListener('pointerdown', (e) => {
           if (menu.classList.contains('hidden')) return;
           if (menu.contains(e.target) || button.contains(e.target)) return;
@@ -499,7 +450,7 @@
             nameInput.readOnly = false;
             nameInput.classList.add('editing');
             if (this.csp.setEditable) this.csp.setEditable(true);
-            try { nameInput.focus(); nameInput.select(); } catch { /* ignore */ }
+            try { nameInput.focus(); nameInput.select(); } catch {  }
           });
         }
         if (settingsItem) {
@@ -540,7 +491,7 @@
             this._paletteName = state.name;
             paint();
           })
-          .catch(() => { /* the field keeps its placeholder */ });
+          .catch(() => {  });
       }
       const revert = () => { input.value = this._headerName(); };
       const stopEditing = () => {
@@ -553,7 +504,7 @@
           e.preventDefault();
           input.blur();
         } else if (e.key === 'Escape') {
-          // The document hides the palette on Escape; renaming must not do that.
+
           e.stopPropagation();
           revert();
           input.blur();
@@ -582,28 +533,23 @@
     }
 
     _enforceWindowMin() {
-      // Nothing to measure while the board is collapsed (or not laid out yet).
+
       if (!this.root.clientHeight || document.body.classList.contains('collapsed')
         || document.body.classList.contains('float-collapsed')) return;
-      // An explicit resize just asked for a specific size; its IPC has not
-      // round-tripped yet, so `innerWidth` is still stale here. Don't fight it.
+
       if (Date.now() < (this._resizeGraceUntil || 0)) return;
       const min = this.minWindowSize();
-      // A board whose modules all fit their own size is as tall as its content
-      // (a locked-ratio height is real pixels, not a minimum): grow to that.
+
       const natural = this._naturalHeight();
       const needH = natural ? Math.max(min.height, natural) : min.height;
-      // A one-pixel slack: at a fractional UI scale a rounded-down innerHeight would
-      // otherwise re-request the same grow on every reconcile pass.
+
       if (window.innerWidth < min.width - 1 || window.innerHeight < needH - 1) {
-        // Grow *this* board's window (a float must not resize the palette). Remember
-        // what was asked for so a later pass can tell it apart from a user drag.
+
         const w = Math.max(min.width, window.innerWidth);
         const h = Math.max(needH, window.innerHeight);
         this._appliedW = w;
         this._appliedH = h;
-        // Cover the gap before the window actually changes size, so a pass in between
-        // cannot read this programmatic grow as a user drag.
+
         this._resizeGraceUntil = Date.now() + 150;
         this._resize(w, h);
       }
@@ -657,8 +603,7 @@
       const want = Math.max(floor, Math.round(natural));
       if (Math.abs(want - window.innerHeight) <= 1) return;
       this._fitUntil = Date.now() + 1000;
-      // Lower the OS minimum to the modules' own floors before asking to shrink;
-      // the palette starts at 340 px and would otherwise clamp the request.
+
       if (this.csp.setMinSizeSelf && floor < PALETTE_MIN_H) {
         this.csp.setMinSizeSelf(min.width, Math.max(60, min.height));
         this._fitLoweredMin = true;
@@ -708,10 +653,7 @@
       if (this._handleUserDrag()) return;
       this._enforceWindowMin();
       this._fitToContent();
-      // An all-natural column whose cards now need MORE room than the window has (a ratio
-      // grew, a card was expanded) must grow the window: nothing can absorb that slack any
-      // more, so without this the last card is just clipped. Shrinking stays with
-      // _fitToContent.
+
       if (this._allNatural() && !this._hasCollapsedModule()) {
         const natural = this._naturalHeight();
         if (natural && natural > window.innerHeight + 1) this._fitNaturalWindow();
@@ -733,19 +675,15 @@
       if (Date.now() < (this._resizeGraceUntil || 0)) return false;
       if (!this.layout.columns.length || !this._allNatural()) return false;
       const width = window.innerWidth;
-      // Only a *user* drag: the width must be what this board last asked for, and the
-      // height must differ from that. A programmatic resize must not re-scale anything.
+
       const userWidth = this._appliedW != null && Math.abs(width - this._appliedW) > 3;
       const userHeight = this._appliedH != null && Math.abs(window.innerHeight - this._appliedH) > 3;
       if (userWidth || !userHeight) return false;
-      // An auto-fit is not a user drag. `_fitToContent` moves the height on its own, and a
-      // request below the window's own minimum comes back clamped — a height we never asked
-      // for, which this heuristic then reads as "the user dragged the bottom edge" and answers
-      // by scaling the width (300 wide became 168). Ignore a fit for a moment.
+
       if (Date.now() < (this._fitUntil || 0)) return false;
       const target = this._naturalHeight();
       if (!target || this._fitWidth == null) return false;
-      const perWidth = target / Math.max(1, this._fitWidth); // content height per px of width
+      const perWidth = target / Math.max(1, this._fitWidth);
       if (!(perWidth > 0)) return false;
       const minW = this.minWindowSize().width;
       const avail = window.screen && window.screen.availWidth ? window.screen.availWidth : 4000;
@@ -762,20 +700,16 @@
      * its column. Shrink only; growing is `_enforceWindowMin`'s job.
      */
     _fitToContent() {
-      // Every window fits its content: a float with only natural modules (a ratio
-      // module, a strip, one row) otherwise kept the height it was resized from and
-      // left an empty band under the cards. A float still only resizes itself — its
-      // `resize` callback is `resizeSelf`, never the palette's.
+
       if (document.body.classList.contains('collapsed')
         || document.body.classList.contains('float-collapsed')) return;
-      // The layout lock freezes window sizes as well.
+
       if (this.locked) return;
       if (document.body.classList.contains('dragging')) return;
       if (Date.now() < (this._resizeGraceUntil || 0)) return;
       const cols = this.layout.columns;
       if (!cols.length) return;
-      // A module that fills (not rigid, not natural) wants the space: leave it,
-      // and put the palette's design minimum back if a fit had lowered it.
+
       if (!this._allNatural()) {
         if (this._fitLoweredMin) {
           this._fitLoweredMin = false;
@@ -790,31 +724,21 @@
       if (!target) return;
       this._fitWidth = window.innerWidth;
       this._fitContentH = target - (window.innerHeight - this.root.clientHeight);
-      // The minimum is the modules' own floors, *not* the content: a content floor would
-      // stop the user shrinking the palette at all, and nothing is clipped when an edge
-      // drag scales the width (the height then follows the width).
+
       const min = this.minWindowSize();
       if (this.csp.setMinSizeSelf) {
         this.csp.setMinSizeSelf(min.width, min.height);
         this._fitLoweredMin = true;
       }
-      // Never ask for a height the window itself will refuse: a request below the floor comes
-      // back clamped, and the clamped height then looks like a user drag (see `_handleUserDrag`).
-      // A float's floor is its own modules' floors, not the palette's 340 px design minimum:
-      // otherwise a lone Color Stat stays 340 px tall with an empty band under it.
+
       const floor = this._hasCollapsedModule()
         ? Math.max(60, min.height)
         : (this.float ? Math.max(60, min.height) : PALETTE_MIN_H);
       const wantH = Math.max(floor, Math.round(target));
-      // Fit the *height* only: leave the design width alone. `_handleUserDrag` tells a
-      // bottom-edge user drag apart from a programmatic resize by seeing a height that
-      // differs from the one this board last asked for, so an unrecognized height change
-      // here reads as a user dragging the edge and it "preserves the aspect ratio" by
-      // shrinking the width too (300 wide became 168).
+
       this._fitUntil = Date.now() + 1000;
       if (wantH < window.innerHeight - 1) {
-        // Claim the height only when it is actually requested: a claimed-but-unset
-        // height reads as a user drag in `_handleUserDrag` and rescales the width.
+
         this._appliedH = wantH;
         this._applyWindowSize(window.innerWidth, wantH);
       }
@@ -824,7 +748,7 @@
       for (const entry of this.modules.values()) {
         const instance = entry.record && entry.record.instance;
         if (instance && typeof instance.destroy === 'function') {
-          try { instance.destroy(); } catch { /* ignore */ }
+          try { instance.destroy(); } catch {  }
         }
         if (entry.record && entry.record.ro) entry.record.ro.disconnect();
       }
@@ -854,20 +778,14 @@
       } else if (!placeholder) {
         el.append(this._makePlaceholder());
       }
-      // Mounting is async, so a layout change landing mid-loop runs `_teardown()` and
-      // `root.replaceChildren()` under us: the element this loop holds is then detached and
-      // every card appended afterwards goes into a tree nobody renders — and because the
-      // module is already in `this.modules`, the guard below never retries it, so the column
-      // silently loses a module (Color Slices vanished and left the palette with a band of
-      // empty space). `owns()` is that check: it is re-tested the moment a mount resolves, and
-      // a newer pass takes the column over from then on.
+
       const gen = this._renderGen;
       const owns = () => {
         if (gen !== this._renderGen) return false;
         if (el.isConnected) return true;
         const current = this.columns.get(col.id);
-        if (!current || current.el !== el) return false; // a newer pass is drawing this column
-        this.root.append(el);                           // our own container: put it back
+        if (!current || current.el !== el) return false;
+        this.root.append(el);
         return true;
       };
       for (const mod of col.modules) {
@@ -876,12 +794,12 @@
         try {
           await this._mountModule(col, mod, el, owns);
         } catch (err) {
-          // A module that fails to mount used to disappear without a word.
+
           this.host.log && this.host.log('mount failed', mod.moduleId, err && err.message);
         }
       }
       this._syncSplits(el);
-      // Re-apply now the modules are mounted, so their minimum widths are known.
+
       this._applyColumnWidth(el, col);
     }
 
@@ -892,11 +810,7 @@
       for (let i = 0; i < cards.length - 1; i++) {
         const above = this.modules.get(cards[i].dataset.instance);
         const below = this.modules.get(cards[i + 1].dataset.instance);
-        // A shared edge belongs to the module ABOVE it: dragging it is that module's
-        // bottom edge, and only that module changes (the palette then grows or shrinks to
-        // fit). A module below a handle never moves - it has its own bottom edge for that,
-        // and a split that resized the card underneath read as "resizing both".
-        // Only a pair with no ratio at all falls back to trading fill weights.
+
         const a = above && above.model;
         const b = below && below.model;
         const mineAbove = Boolean(
@@ -909,9 +823,7 @@
         const resizable = mineAbove || weightsOnly;
         if (above && below && resizable) colEl.insertBefore(this._makeSplit(above, below), cards[i + 1]);
       }
-      // The last module's bottom edge is its own resize handle. Its hit area is
-      // INSIDE the card (see `.module-edge` in style.css) so it wins over the OS
-      // window-resize border, which owns the outermost pixels of the window.
+
       const last = cards[cards.length - 1];
       const lastEntry = last && this.modules.get(last.dataset.instance);
       if (lastEntry && this._ratioOf(lastEntry.model)) colEl.append(this._makeEdge(lastEntry));
@@ -982,7 +894,7 @@
         if (ev.button !== 0 || this.locked) return;
         drag = this._ratioDragState(entry, true);
         this._moduleEdgeDrag = true;
-        try { edge.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
+        try { edge.setPointerCapture(ev.pointerId); } catch {  }
         ev.preventDefault();
       });
       edge.addEventListener('pointermove', move);
@@ -992,7 +904,7 @@
     }
 
     async _mountModule(col, mod, colEl, owns) {
-      // A float window may not have loaded this module yet.
+
       await this.host.load([mod.moduleId]).catch(() => {});
       let openSettings = () => {};
       const lone = this.float && this._isLoneModule(mod.instanceId);
@@ -1000,27 +912,21 @@
       const record = await this.host.mount(mod.moduleId, colEl, mod.instanceId, {
         onSettings: () => openSettings(),
         float: this.float,
-        // A module whose own row *is* its card (Session) mounts with no head: one line means one line.
-        // A *lone* module in a window is headless too, but for the opposite reason: the window shows
-        // its own palette header (so it drags like a palette, which is what the user asked for), and
-        // a module head under a palette header is exactly the double header to avoid.
+
         headless: Boolean(def && def.headless) || lone,
-        // One-line modules keep their head in the DOM (it carries the ⋯ and the drag) but the head is
-        // laid *over* the row rather than above it — the "header-only module" the user asked for.
+
         compact: Boolean(def && def.compact),
         lone,
         onCollapse: lone ? () => this.toggleFloatCollapsed() : undefined,
       });
-      // The layout may have been re-applied while the mount was awaiting. If a newer pass owns
-      // the column now, release the instance we just created and leave the DOM alone: the newer
-      // pass mounts this module itself, and keeping ours would register it twice under one id.
+
       if (owns && !owns()) {
         this.host.drop(record);
         return;
       }
       const card = record.el;
       this._applyModuleWeight(card, mod, this._moduleWeightOpts(col, mod));
-      // Open the popout beside the card (right, else left), in screen coordinates.
+
       const cardAnchor = () => {
         const rect = card.getBoundingClientRect();
         return {
@@ -1036,9 +942,7 @@
           anchor: cardAnchor(),
         });
       };
-      // The lens button (left of the collapse arrow) opens the Lens window for this
-      // instance. A lens is not a module: it has no board slot, and its state is part of
-      // the instance's own settings.
+
       const lensBtn = card.querySelector('.module-lens');
       if (lensBtn && typeof this.csp.openLens === 'function') {
         lensBtn.addEventListener('click', (ev) => {
@@ -1055,8 +959,7 @@
           });
         });
       }
-      // Dragging the title bar moves the module; a click on it (or the 3-dot
-      // button) opens the settings.
+
       const head = card.querySelector('.module-head');
       if (head) {
         head.addEventListener('pointerdown', (ev) => {
@@ -1065,20 +968,16 @@
             || ev.target.closest('.module-dock')
             || ev.target.closest('.module-collapse')) return;
           if (this.locked) return;
-          // A press decides the selection first, so an existing multi-selection is
-          // what gets dragged (docs/LAYOUT.md, V4).
+
           const sel = this._selectionFor(ev, mod.instanceId);
           this._selection = sel.ids;
           this._selAnchor = sel.anchor;
           this._paintSelection();
-          // The header drags the module; only the ⋯ opens its settings.
+
           this._beginDrag(ev, mod.instanceId);
         });
       }
-      // The ⋯ is a gripper as well as a button: hold it and the module drags (the same path the
-      // header takes), press and release without moving and its settings open — which is what
-      // `_beginDrag` does when the pointer never passes the drag threshold. It deliberately does not
-      // touch the selection: a press there is about this card, not about a multi-selection.
+
       const dots = card.querySelector('.module-settings');
       if (dots) {
         dots.addEventListener('pointerdown', (ev) => {
@@ -1087,9 +986,7 @@
           this._beginDrag(ev, mod.instanceId, openSettings);
         });
       }
-      // The eye in the card header: collapse to the header only (or expand). The
-      // document stores it, so a minimized module comes back minimized. Compact
-      // and headless modules have no button (they are already one line).
+
       const minBtn = card.querySelector('.module-collapse');
       if (minBtn) {
         const current = () => (this.modules.get(mod.instanceId) || {}).model || mod;
@@ -1105,17 +1002,14 @@
           ev.stopPropagation();
           const item = current();
           const wasCollapsed = Boolean(item.collapsed);
-          // Remember the window before the first module is minimized. If the board
-          // has a fill module, `_naturalHeight` cannot know how tall it should be on
-          // expand; this snapshot restores enough room that nothing is clipped.
+
           if (!wasCollapsed && !this._collapseSnapshot) {
             this._collapseSnapshot = { width: window.innerWidth, height: window.innerHeight };
           }
           item.collapsed = !item.collapsed;
           this._applyModuleWeight(card, item, this._moduleWeightOpts(col, item));
           paint();
-          // The dedicated IPC is the writer for `collapsed`; a v1 `_save()` here
-          // raced it and could broadcast the old expanded column back.
+
           if (this.csp.setModuleCollapsed) {
             const pending = this.csp.setModuleCollapsed(mod.instanceId, item.collapsed);
             if (pending && typeof pending.catch === 'function') pending.catch(() => {});
@@ -1123,8 +1017,7 @@
           requestAnimationFrame(() => this._fitAfterCollapse());
         });
       }
-      // A compact module has no header row of its own to grab, so its *row* drags the card too —
-      // except on the controls inside it (the dot, the gear, the hex zones), which keep their clicks.
+
       const compactDef = window.Iro.modules && window.Iro.modules[mod.moduleId];
       if (compactDef && compactDef.compact) {
         const row = card.querySelector('.module-body');
@@ -1142,10 +1035,7 @@
     }
 
     _applyColumnWidth(el, col) {
-      // The column's width is a *proportion*: growing in proportion to the basis
-      // makes the columns share the window exactly (they always fill it, and
-      // keep their ratios when the window is resized). A column with no width
-      // takes an equal share.
+
       const count = this.layout.columns.length || 1;
       const basis = col.width == null
         ? Math.max(MIN_COLUMN, Math.round((this.root.clientWidth || 0) / count))
@@ -1164,7 +1054,7 @@
     /** Does this module keep its own size rather than taking a column share? */
     _isNatural(mod) {
       if (!mod) return false;
-      // A minimized card is only its header, so it always keeps its content size.
+
       if (mod.collapsed) return true;
       if (mod.weight != null) return false;
       if (this._ratioOf(mod)) return true;
@@ -1203,10 +1093,7 @@
       const mods = col && Array.isArray(col.modules) ? col.modules : [mod];
       return {
         alone: mods.length === 1,
-        // The last module of an all-natural column absorbs the slack so the column does
-        // not end in empty space - but never a module with a locked ratio: its height is
-        // the ratio times the width, and letting it flex made ANY edge drag in the column
-        // resize it instead of the palette fitting its content.
+
         stretchLast: mods.length > 1
           && mods.every((m) => this._isNatural(m))
           && mods[mods.length - 1] === mod
@@ -1231,23 +1118,17 @@
     }
 
     _applyModuleWeight(el, mod, opts = {}) {
-      // A module that sizes to its content (CSP's thin strip, the slider rows)
-      // keeps its own size when it shares its column with something that fills
-      // the rest — but nothing may leave empty space: a module alone in a column,
-      // or the last of a column where everything is content-sized, fills it.
-      // A *rigid* module (Session) is the exception the other way: it keeps its own
-      // height even alone, because its whole point is being one row.
+
       const minimized = Boolean(mod && mod.collapsed);
       el.classList.toggle('module-min', minimized);
       const ratio = this._ratioOf(mod);
       if (minimized) {
-        // The header is the whole card; drop the locked ratio until it expands.
+
         el.style.aspectRatio = '';
         el.style.width = '100%';
         el.style.flex = '0 0 auto';
       } else if (ratio) {
-        // Locked-ratio sizing: the height is the column width times the ratio, so
-        // changing the width re-sizes the module with no second drag axis.
+
         el.style.flex = '0 0 auto';
         el.style.aspectRatio = String(1 / ratio);
         el.style.width = '100%';
@@ -1256,44 +1137,38 @@
         const natural = this._isRigid(mod) || (!opts.alone && !opts.stretchLast && this._isNatural(mod));
         el.style.flex = natural ? '0 0 auto' : `${this._weightOf(mod)} 1 0`;
       }
-      // Flexbox honours this, so a module can never be squeezed past its needs.
+
       el.style.minHeight = `${this._minHeightOf(mod)}px`;
     }
-
-    // --- minimum sizes -------------------------------------------------------
 
     /** The smallest box a module needs to show everything (from its definition). */
     _minSizeOf(mod) {
       const settings = this.host.settingsFor(mod.instanceId);
-      // A mounted module may report an orientation-aware minimum (the slider).
+
       const record = this.host.recordFor ? this.host.recordFor(mod.instanceId) : null;
       const inst = record && record.instance;
       if (inst && typeof inst.minSize === 'function') {
-        try { return inst.minSize(settings) || {}; } catch { /* ignore */ }
+        try { return inst.minSize(settings) || {}; } catch {  }
       }
       const def = window.Iro.modules && window.Iro.modules[mod.moduleId];
       if (def && typeof def.minSize === 'function') {
-        try { return def.minSize(settings) || {}; } catch { /* ignore */ }
+        try { return def.minSize(settings) || {}; } catch {  }
       }
       return {};
     }
 
     _minWidthOf(mod) {
       const size = this._minSizeOf(mod);
-      // 75% of the module's own comfortable width, and half its height (below): the floors were big
-      // enough that a card could not be squeezed at all. A module dragged under its comfortable size
-      // has to shed parts rather than clip — `color-stat` drops its paste button when it is narrow.
+
       return Math.max(48, Math.round((size.width || 80) * 0.75));
     }
 
     _minHeightOf(mod) {
-      // A minimized card is only its header; do not reserve the module body's floor.
+
       if (mod && mod.collapsed) return Math.max(20, this._headHeightOf(mod));
       const size = this._minSizeOf(mod);
       const content = Math.max(40, Number.isFinite(size.height) ? size.height : MIN_MODULE);
-      // A card's head is chrome the *module* never asked for, so the board adds it; a headless module
-      // (a one-row module) has none to add. Then the *whole* floor is halved, because the upright
-      // floor was what made every card feel stuck at a minimum size.
+
       return Math.max(24, Math.round((content + this._headHeightOf(mod)) * 0.5));
     }
 
@@ -1305,7 +1180,7 @@
       const record = this.host.recordFor ? this.host.recordFor(mod.instanceId) : null;
       const head = record && record.el && record.el.querySelector('.module-head');
       const h = head ? Math.round(head.getBoundingClientRect().height) : 0;
-      // Measured when it can be (the head is real chrome); the fallback matches style.css.
+
       return h > 0 ? h : 24;
     }
 
@@ -1335,8 +1210,6 @@
       return { width: minBoardW + chromeW, height: minBoardH + chromeH };
     }
 
-    // --- resize handles ------------------------------------------------------
-
     /**
      * The handle between two stacked modules. Dragging trades weight between
      * them, so the column's total height never changes (no scrollbar).
@@ -1353,9 +1226,7 @@
           return;
         }
         const dy = ev.clientY - drag.startY;
-        // A module whose size comes from its own settings (the slider) is sized
-        // by the split's position: its gap changes, and the rest of the column
-        // fills what is left. The others trade weight as before.
+
         if (drag.unitAbove || drag.unitBelow) {
           const splitY = drag.splitTop + dy;
           if (drag.unitAbove) {
@@ -1384,12 +1255,11 @@
       };
       split.addEventListener('pointerdown', (ev) => {
         if (ev.button !== 0 || this.locked) return;
-        // A ratio-sized module's own bottom edge is the Module Size slider: drag
-        // it directly. The card below never takes the drag - see _syncSplits.
+
         const ratioEntry = this._ratioOf(aboveEntry.model) ? aboveEntry : null;
         if (ratioEntry) {
           drag = this._ratioDragState(ratioEntry, ratioEntry === aboveEntry);
-          try { split.setPointerCapture(ev.pointerId); } catch { /* synthetic pointer */ }
+          try { split.setPointerCapture(ev.pointerId); } catch {  }
           ev.preventDefault();
           return;
         }
@@ -1405,7 +1275,7 @@
         const w2 = this._weightOf(belowEntry.model);
         let minA = this._minHeightOf(aboveEntry.model) * perPx;
         let minB = this._minHeightOf(belowEntry.model) * perPx;
-        // If the pair is already below its combined minimum, do not clamp.
+
         if (w1 + w2 < minA + minB) { minA = 0; minB = 0; }
         drag = {
           startY: ev.clientY,
@@ -1443,12 +1313,11 @@
         if (!drag) return;
         const entry = this.columns.get(leftCol.id);
         drag = null;
-        // Freeze what the user sees: every column keeps the width it shows now,
-        // as a proportion, so a window resize stretches them together.
+
         for (const col of this.columns.values()) {
           col.model.width = Math.max(1, Math.round(col.el.offsetWidth));
           this._applyColumnWidth(col.el, col.model);
-          // A vertical slider's width sets its gap: write it back.
+
           for (const mod of col.model.modules) {
             this._applyModuleUnit({ model: mod, el: col.el }, { width: col.el.offsetWidth, height: col.el.offsetHeight });
           }
@@ -1460,7 +1329,7 @@
         if (this.locked) return;
         const entry = this.columns.get(leftCol.id);
         if (!entry) return;
-        // Every column must keep its own minimum width (multi-column aware).
+
         const boardContent = this.root.clientWidth - BOARD_PAD * 2;
         const dividers = Math.max(0, this.layout.columns.length - 1) * DIVIDER_W;
         const othersMin = this.layout.columns
@@ -1483,21 +1352,16 @@
       return divider;
     }
 
-    // --- dragging modules ----------------------------------------------------
-
     _beginDrag(ev, instanceId, onOpen) {
       if (ev.button !== 0 || this.locked) return;
-      // A previous drag can have lost its pointerup — the OS can take a drag over (PowerToys
-      // FancyZones does it on Shift) — which would leave its card faded and the cursor
-      // grabbing. Starting a drag clears whatever the last one left behind.
+
       this._clearDragState();
       const entry = this.modules.get(instanceId);
       if (!entry) return;
       const card = entry.el;
       const startX = ev.clientX;
       const startY = ev.clientY;
-      // `dataset.name` lives on the card; the drag starts on its head, so look up to
-      // the card. Without this the chip said a generic "Module" (docs/LAYOUT.md, V4).
+
       const label = (card.closest('.module') || card).dataset.name || 'Module';
       let moved = false;
       let started = false;
@@ -1510,19 +1374,14 @@
 
       const move = (e) => {
         if (moved) return;
-        // The threshold is generous so a click is never mistaken for a drag.
+
         if (Math.hypot(e.clientX - startX, e.clientY - startY) < 12) return;
         moved = true;
-        // Capture the pointer for the rest of the drag. The user will very often release
-        // outside this window — that is what a cross-palette drop *is* — and without
-        // capture the pointerup never arrives, so the drag never ends and the next drag
-        // commits a stale plan. The splitter and the column divider already do this.
-        try { ev.target.setPointerCapture(ev.pointerId); } catch { /* drag still works in-window */ }
+
+        try { ev.target.setPointerCapture(ev.pointerId); } catch {  }
         this._dragInstance = instanceId;
         document.body.classList.add('dragging');
-        // The card hides only once the pointer leaves this window: a drag that stays inside the
-        // palette is a reorder, and hiding the card for it looks like the module vanished. A
-        // lone-module window is never hidden — its window is what you are moving.
+
         const loneWindow = this.float && document.body.classList.contains('float-single');
         const trackOutside = (e) => {
           if (loneWindow) return;
@@ -1532,9 +1391,7 @@
         };
         document.addEventListener('pointermove', trackOutside);
         this._trackOutside = trackOutside;
-        // Main owns the drag from here: it polls the cursor, resolves the target
-        // and draws both the chip and the indicator in the overlay, then commits
-        // exactly the plan it drew (docs/LAYOUT.md, V4).
+
         started = true;
         const items = this._selection.includes(instanceId) ? [...this._selection] : [instanceId];
         this.csp.dragBegin({
@@ -1546,7 +1403,7 @@
       };
 
       const finish = (cancelled) => {
-        try { ev.target.releasePointerCapture(ev.pointerId); } catch { /* already gone */ }
+        try { ev.target.releasePointerCapture(ev.pointerId); } catch {  }
         if (this._trackOutside) {
           document.removeEventListener('pointermove', this._trackOutside);
           this._trackOutside = null;
@@ -1563,7 +1420,7 @@
           else this.csp.dragDrop();
           started = false;
         } else if (!cancelled && onOpen) {
-          // A plain click on the title bar opens the settings too.
+
           onOpen();
         }
         if (moved) this._suppressClick = Date.now() + 400;
@@ -1571,8 +1428,7 @@
       };
       const onUp = () => finish(false);
       const onCancel = () => finish(true);
-      // Losing the capture mid-drag means the pointer is gone (the OS took it, or the
-      // element went away): end the drag rather than leave a live session behind.
+
       const onLost = () => finish(true);
       const onKey = (e) => {
         if (e.key === 'Escape') finish(true);
@@ -1667,23 +1523,18 @@
       let started = false;
 
       const move = (e) => {
-        if (started) return; // the session owns the pointer from here
+        if (started) return;
         if (!moved) {
           if (Math.hypot(e.screenX - startX, e.screenY - startY) < 4) return;
           moved = true;
         }
-        // Inside this window the header drags the window; once the pointer leaves
-        // it, the module is handed to the drag session, which resolves whatever
-        // pane is under it (this window, another float, the palette, or nothing —
-        // a new window). Nothing is hidden for it: the overlay draws the indicator
-        // above every window, so hiding the source was never needed.
+
         const outside = e.clientX < 0 || e.clientY < 0
           || e.clientX > window.innerWidth || e.clientY > window.innerHeight;
         if (outside) {
           started = true;
-          // Same capture as a normal module drag: from here the pointer will leave this
-          // window, and without it the pointerup never arrives.
-          try { ev.target.setPointerCapture(ev.pointerId); } catch { /* in-window only */ }
+
+          try { ev.target.setPointerCapture(ev.pointerId); } catch {  }
           this.csp.dragBegin({ items: [mod.instanceId], text: label, width: Math.round(mod.el ? mod.el.offsetWidth : 0), height: Math.round(mod.el ? mod.el.offsetHeight : 0) });
           return;
         }
@@ -1698,7 +1549,7 @@
         }
       };
       const finish = (cancelled) => {
-        try { ev.target.releasePointerCapture(ev.pointerId); } catch { /* already gone */ }
+        try { ev.target.releasePointerCapture(ev.pointerId); } catch {  }
         document.removeEventListener('pointermove', move);
         document.removeEventListener('pointerup', onUp);
         document.removeEventListener('pointercancel', onCancel);
@@ -1717,8 +1568,7 @@
       };
       const onUp = () => finish(false);
       const onCancel = () => finish(true);
-      // Losing the capture mid-drag means the pointer is gone (the OS took it, or the
-      // element went away): end the drag rather than leave a live session behind.
+
       const onLost = () => finish(true);
       const onKey = (e) => {
         if (e.key === 'Escape') finish(true);
@@ -1730,7 +1580,6 @@
       document.addEventListener('keydown', onKey);
       ev.target.addEventListener('lostpointercapture', onLost);
     }
-
 
     /**
      * The column/index a point maps to (window-relative CSS pixels). A point in
@@ -1788,16 +1637,14 @@
         return;
       }
       if (target.kind === 'divider') {
-        // A whole float dropped on the seam between two columns: a vertical
-        // line where its columns will be inserted.
+
         this._drawDivider(target.index);
         return;
       }
       const entry = this.columns.get(target.columnId);
       if (!entry) return;
       if (target.noop) {
-        // Dropping a module back where it already is: highlight its card rather
-        // than drawing a line through it.
+
         const dragged = this.modules.get(this._dragInstance);
         if (dragged) {
           dragged.el.classList.add('drop-same');
@@ -1819,9 +1666,7 @@
             + cards[target.index].getBoundingClientRect().top) / 2 - colTop;
         }
       }
-      // An absolutely positioned line, so it sits clearly over the cards. Clamp
-      // it inside the column: the column clips its overflow, and an insert at
-      // the very top used to be half hidden (looked like a razor-thin line).
+
       const line = document.createElement('div');
       line.className = 'drop-line';
       const lineH = 4;
@@ -1882,7 +1727,6 @@
       return id;
     }
 
-
     /** Grow (or shrink) this board's window by a number of CSS pixels. */
     _nudgeWindowWidth(delta) {
       const min = this.minWindowSize();
@@ -1896,14 +1740,10 @@
       this._appliedW = width;
       this._appliedH = height;
       this._resize(width, height);
-      // The grace above mutes every pass until the IPC round-trips; schedule one after
-      // it so the height is re-fitted to the new width's content (a bottom-edge drag
-      // scales the width, and the height has to catch up afterwards).
+
       clearTimeout(this._reconcileTimer);
       this._reconcileTimer = setTimeout(() => this._reconcile(), 200);
     }
-
-    // --- selection (board-local UI state; never in the document) ---------------
 
     /** The instances this board has selected, in document order. */
     selection() {
@@ -1921,8 +1761,7 @@
     }
 
     _documentOrder() {
-      // layout-model owns the order rule (columns, then modules down each) and it
-      // is tested there; the fallback keeps a board usable if the script is missing.
+
       return window.IroLayoutModel
         ? window.IroLayoutModel.documentOrder(this.layout, this._paletteId)
         : [...this.modules.keys()];
@@ -1977,8 +1816,7 @@
         };
       }
       if (!this.csp || typeof this.csp.dragPlace !== 'function') return false;
-      // Carry the card's width so a column inserted at an edge can grow the window
-      // by exactly that much (main applies it — the board owns no geometry now).
+
       const card = this.modules.get(instanceId);
       const width = card && card.el ? Math.round(card.el.offsetWidth) : null;
       return this._place({ items: [instanceId], target, width });
@@ -1996,8 +1834,6 @@
           return { ok: false };
         });
     }
-
-    // --- columns -------------------------------------------------------------
 
     _makePlaceholder() {
       const el = document.createElement('div');
@@ -2028,11 +1864,8 @@
       }
     }
 
-    // --- moving a module between columns -------------------------------------
-
     moveModule(instanceId, targetColumnId) {
-      // The board no longer mutates its own layout: ask main, and re-render when
-      // the change comes back (docs/LAYOUT.md, V4).
+
       const entry = this.modules.get(instanceId);
       const to = this.columns.get(targetColumnId);
       if (!entry || !to) return;
@@ -2041,8 +1874,6 @@
       if (!this.csp || typeof this.csp.dragPlace !== 'function') return;
       this._place({ items: [instanceId], target: { kind: 'column', columnId: targetColumnId, index } });
     }
-
-    // --- module actions (from the module settings window) --------------------
 
     _moduleAction(payload) {
       if (!payload) return;
@@ -2053,16 +1884,11 @@
       }
     }
 
-    // --- floating / cross-window ---------------------------------------------
-
-
     /** Lift a module off the board into its own window. */
     async floatModule(instanceId) {
       const entry = this.modules.get(instanceId);
       if (!entry) return;
-      // The document decides: a desktop drop opens a window from the `palette.open`
-      // effect, so the module keeps its instance (and its settings with it) instead
-      // of being re-created in the new window.
+
       await this._place({ items: [instanceId], target: { kind: 'desktop' } });
     }
 
@@ -2070,7 +1896,7 @@
     async dockModuleOut(mod) {
       try {
         this.csp.floatDock({ floatId: this.floatId, moduleId: mod.moduleId, instanceId: mod.instanceId });
-      } catch { /* main will clean up when the board saves */ }
+      } catch {  }
       const entry = this.modules.get(mod.instanceId);
       const from = entry && this.columns.get(entry.columnId);
       if (from) from.model.modules = from.model.modules.filter((m) => m.instanceId !== mod.instanceId);
@@ -2086,7 +1912,7 @@
     resize(id, px) {
       const column = this.columns.get(id);
       if (column) {
-        // Never narrower than the widest module it holds.
+
         const minW = this._columnMinWidth(column.model);
         column.model.width = Math.max(minW, Math.round(px));
         this._applyColumnWidth(column.el, column.model);
@@ -2100,8 +1926,7 @@
       if (mod) {
         const colEntry = [...this.columns.values()].find((c) => c.el === mod.el.parentElement);
         const colModel = colEntry && colEntry.model;
-        // A ratio-sized module's height is width x ratio; the dev flag sets the
-        // ratio so it exercises the same path the edge drag and slider use.
+
         if (this._ratioOf(mod.model)) {
           const width = Math.max(1, mod.el.offsetWidth);
           const LM = window.IroLayoutModel;
@@ -2115,7 +1940,7 @@
           this._save();
           return true;
         }
-        // A settings-sized module (the slider) gets its gap from the size.
+
         if (this._isUnitSized(mod.model)) {
           this._applyModuleUnit(mod, { height: Math.max(1, Math.round(px)) });
           return true;
@@ -2143,8 +1968,6 @@
       this._enforceWindowMin();
     }
 
-    // --- persistence ---------------------------------------------------------
-
     /**
      * What this board actually drew, in window-local CSS pixels. The drop
      * resolver prefers this over re-computing from the document, because the model
@@ -2168,8 +1991,7 @@
       }
       return {
         pad: BOARD_PAD,
-        // The window size constraints main needs to fit a window legally, so the
-        // board's minimum lives in one place (docs/LAYOUT.md, V6).
+
         minWidth: this.minWindowSize().width,
         minHeight: this.minWindowSize().height,
         boxes: { columns },
@@ -2184,7 +2006,7 @@
         if (!this.csp || typeof this.csp.boardMetrics !== 'function') return;
         try {
           this.csp.boardMetrics(this.boardMetrics());
-        } catch { /* a report is best-effort */ }
+        } catch {  }
       }, 80);
     }
 
@@ -2194,7 +2016,7 @@
         this._saveTimer = null;
         try {
           Promise.resolve(this._persist(this.getLayout())).catch(() => {});
-        } catch { /* the layout is still usable this session */ }
+        } catch {  }
       }, 250);
     }
   }

@@ -1,13 +1,5 @@
 'use strict';
 
-// The compute host (docs/STATE.md, §6).
-//
-// A supervised utilityProcess that runs work off the main thread, so a hung child
-// or a slow QR decode cannot stall the UI. It is stateless — the worker owns no
-// state — and every request is correlated by id with its own timeout. Electron is
-// only needed for the default `fork`, which is injected, so the supervisor is
-// unit-tested (test/compute-host.test.js).
-
 const Compute = require('../shared/compute-protocol');
 
 /**
@@ -19,7 +11,7 @@ const Compute = require('../shared/compute-protocol');
  */
 function createComputeHost({ workerPath, fork, timeoutMs = 15000, serviceName = 'iroiroppa-compute', onEvent } = {}) {
   let child = null;
-  const pending = new Map(); // id -> { resolve, reject, timer }
+  const pending = new Map();
   let seq = 0;
 
   function ensure() {
@@ -63,7 +55,7 @@ function createComputeHost({ workerPath, fork, timeoutMs = 15000, serviceName = 
   function dispose() {
     const p = child;
     child = null;
-    if (p) { try { p.kill(); } catch { /* already gone */ } }
+    if (p) { try { p.kill(); } catch {  } }
     for (const [, e] of pending) { clearTimeout(e.timer); e.reject(new Error('compute host disposed')); }
     pending.clear();
   }

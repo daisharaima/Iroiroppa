@@ -1,10 +1,5 @@
 'use strict';
 
-// The user guide in `wiki/` is published documentation, aimed at people who do
-// not program the app. These tests keep it navigable and keep developer
-// vocabulary out of it; `scripts/wiki.js` holds the checks themselves so the same
-// gates can be run by hand (`npm run wiki:check`).
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -35,8 +30,7 @@ test('the entry page links to the four things a beginner needs', () => {
 });
 
 test('the guide does not promise a GitHub wiki the repo cannot have', () => {
-  // A wiki needs a public repo (or a paid plan); the pages themselves are the
-  // published form. Keep the guide honest about where it lives.
+
   for (const page of pagesOnDisk()) {
     assert.ok(!/github\.com\/[^)\s]+\/wiki/.test(read(page)), `${page} links to a wiki page`);
   }

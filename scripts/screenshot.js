@@ -1,34 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-// Regenerate docs/screenshot.png with the project's standard capture recipe.
-//
-//   npm run screenshot
-//
-// The user guide's images use the same recipe, with two extra flags:
-//
-//   npm run wiki:images          # wiki/images/palette.png + the Settings tab captures
-//   node scripts/screenshot.js --out <file>    # the palette, to another path
-//   node scripts/screenshot.js --settings --settings-tab general --out <file>
-//
-// `--settings` captures the Settings window instead of the palette (through the
-// `--open-settings` / `--settings-shot` dev flags). Both paths seed the same
-// throwaway profile, so every capture stays inside the Adobe RGB rule.
-//
-// The recipe (this script is the source of truth; AGENTS.md → "Screenshots"):
-//
-//   * 300 px wide (height follows from the modules below)
-//   * CSP slots: foreground #B1DAD1, background #E9BFDB
-//   * module sizes match the Settings preview defaults: CSP Color ~40 px, OKLCH
-//     Slider ~90 px, Color History three rows, OKLCH Slice all three panels
-//   * slider thickness 50%
-//   * the only colour profile ever shown is Adobe RGB (1998) — the script seeds
-//     a throwaway userData with exactly that profile, so nothing personal (or
-//     any other profile) can reach the capture
-//
-// It talks to scripts/fake-host.js instead of Clip Studio Paint, so it is
-// deterministic and needs no CSP (and no other profile can leak into the shot).
-
 const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -60,7 +32,7 @@ function adobeRgbProfile() {
   const dir = path.join(process.env.WINDIR || 'C:\\Windows', 'System32', 'spool', 'drivers', 'color');
   let names = [];
   try { names = fs.readdirSync(dir); } catch { return ''; }
-  // Use the app's own picker, so the recipe matches what a first run resolves.
+
   const name = typeof Proof.pickAdobeRgbProfileName === 'function'
     ? Proof.pickAdobeRgbProfileName(names)
     : names.find((n) => /adobe\s*rgb\s*\(?1998\)?/i.test(n));
@@ -80,7 +52,7 @@ function pastelHistory(count = 33) {
       b: Math.round(rgb.b * 255),
     });
   }
-  // Newest first: reverse so the wheel reads left-to-right when drawn.
+
   return out.reverse();
 }
 
@@ -101,8 +73,6 @@ function main() {
   const userData = path.join(tmp, 'user-data');
   fs.mkdirSync(path.join(userData, 'modules'), { recursive: true });
 
-  // settings.json first, so the legacy-data migration cannot copy a user's real
-  // settings (and their profile choice) in.
   write(userData, 'settings.json', {
     liveSync: true,
     autoHide: true,
@@ -110,7 +80,7 @@ function main() {
     showModebar: true,
     hideModuleNames: false,
     locked: false,
-    proofProfile: adobe, // Adobe RGB (1998) — the only profile this recipe shows
+    proofProfile: adobe,
     proofProfiles: [adobe],
     proofModel: 'working',
     proofMode: 'proof',
@@ -134,13 +104,7 @@ function main() {
     columns: [{
       id: 'c1',
       width: null,
-      // Ratios, not weights: a locked-ratio module's height is its column width
-      // times the ratio (docs/LAYOUT.md, "Height modes"), and the palette fits its
-      // content, so the column adds up to the 900px the recipe asks for at 300 wide.
-      // The shipped template order (module-manifest DEFAULT_IDS): Session first, then
-      // CSP Color, Color Wheel (OKHSV), Color Slices (OKLCH), Color Slider (OKLCH),
-      // Color History and Color Stat. Measured at 294px of content width; changing a
-      // module or ratio here changes the captured height, so re-measure.
+
       modules: [
         { instanceId: 'i0', moduleId: 'session' },
         { instanceId: 'i1', moduleId: 'csp-color' },
@@ -159,14 +123,11 @@ function main() {
   });
   write(userData, 'modules/color-history.json', { version: 2, settings: { tile: TILE } });
 
-  // A host that reports exactly the colours the recipe asks for.
   const host = spawn(process.execPath, [
     path.join(ROOT, 'scripts', 'fake-host.js'), 'main', String(PORT),
     '--main', '#B1DAD1', '--sub', '#E9BFDB',
   ], { cwd: ROOT, stdio: 'ignore' });
 
-  // Run Electron's binary directly (no shell): the repo path contains spaces,
-  // and `shell: true` would split it.
   const electron = process.platform === 'win32'
     ? path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')
     : path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron');
@@ -179,9 +140,7 @@ function main() {
   if (SETTINGS_MODE) {
     args.push('--open-settings', '--settings-tab', SETTINGS_TAB || 'general', '--settings-shot', settingsShot);
   }
-  // Some shells (an agent harness, an IDE) export ELECTRON_RUN_AS_NODE, which makes
-  // electron.exe behave as plain Node — no `electron` module, no window, no capture.
-  // Strip it for the child so the app actually starts.
+
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
   try {
@@ -195,7 +154,7 @@ function main() {
     console.log(`wrote ${path.relative(ROOT, OUT)} (${SETTINGS_MODE ? 'settings' : `${WIDTH}x${HEIGHT}`})`);
   } finally {
     host.kill();
-    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {  }
   }
 }
 

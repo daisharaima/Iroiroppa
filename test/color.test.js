@@ -22,7 +22,7 @@ test('known OKLCH values for sRGB primaries', () => {
 
 test('OKLCH -> sRGB -> OKLCH round-trips', () => {
   const samples = [
-    [0.82, 0.12, 217.2], // the reference image swatch
+    [0.82, 0.12, 217.2],
     [0.5, 0.15, 30],
     [0.7, 0.05, 120],
     [0.3, 0.1, 300],
@@ -56,9 +56,7 @@ test('gamutMap reduces out-of-gamut chroma', () => {
 });
 
 test('the gamut silhouette contains the sRGB primaries', () => {
-  // Near the blue corner the in-gamut chroma is not a single interval: the body
-  // ends well before the primary and the primary sits on a thin fin. The drawn
-  // boundary must still reach it, or the primary looks unreachable.
+
   for (const rgb of [[1, 0, 0], [0, 1, 0], [0, 0, 1]]) {
     const p = Color.rgbToOklch(rgb[0], rgb[1], rgb[2]);
     assert.ok(Color.inGamut(p.L, p.C, p.H), `primary ${rgb} is in gamut`);
@@ -97,7 +95,7 @@ test('hex parsing and formatting', () => {
   assert.equal(Color.hexToRgb('nope'), null);
   assert.equal(Color.rgb01ToHex(0x4d / 255, 0xf7 / 255, 0xf8 / 255), '#4DF7F8');
   assert.equal(Color.rgbToHex(0x4d, 0xf7, 0xf8), '#4DF7F8');
-  // Channels of exactly 0/1 must not be mistaken for 0..1 floats.
+
   assert.equal(Color.rgbToHex(0, 255, 1), '#00FF01');
   assert.equal(Color.rgbToHex(0, 255, 255), '#00FFFF');
 });
@@ -117,15 +115,13 @@ test('uint32 helpers match the protocol scaling', () => {
   assert.ok(Math.abs(Color.u32ToHue(Math.round(180 / 360 * 4294967295)) - 180) < 0.001);
 });
 
-// --- regressions found by the code review (2026-10) --------------------------------
-
 test('gamutMap clamps lightness even at zero chroma', () => {
   assert.equal(Color.gamutMap(1.2, 0, 30).L, 1);
   assert.equal(Color.gamutMap(-0.4, 0, 30).L, 0);
 });
 
 test('inGamut agrees with chromaIntervals at the lightness ends', () => {
-  // The gamut is a point at L=0 and L=1: a hair of chroma there is not displayable.
+
   assert.equal(Color.inGamut(0, 1e-5, 30), false);
   assert.deepEqual(Color.chromaIntervals(0, 30), []);
   assert.equal(Color.inGamut(1, 0, 30), true);
@@ -144,8 +140,6 @@ test('an RGB grey stays under the store hue-anchor threshold', () => {
   assert.ok(grey.C < 1e-6, `grey chroma ${grey.C} must stay under the store's 1e-6 gate`);
 });
 
-// --- fitToSrgb: the display stand-in for a colour the screen cannot show --------
-
 test('fitToSrgb leaves a displayable colour exactly alone', () => {
   const a = Color.oklchToRgb(0.6, 0.1, 200);
   const b = Color.fitToSrgb(0.6, 0.1, 200);
@@ -155,7 +149,7 @@ test('fitToSrgb leaves a displayable colour exactly alone', () => {
 });
 
 test('fitToSrgb keeps the lightness of a colour outside sRGB', () => {
-  // Inside Adobe RGB, outside sRGB at this lightness and hue.
+
   const L = 0.65, H = 150, C = 0.22;
   assert.equal(Color.inGamut(L, C, H), false, 'the sample must start out of sRGB');
   const f = Color.fitToSrgb(L, C, H);
@@ -166,8 +160,7 @@ test('fitToSrgb keeps the lightness of a colour outside sRGB', () => {
 });
 
 test('a fixed-lightness hue edge is continuous at the sRGB blue primary', () => {
-  // The wheel's hue ring uses this edge. The OKHSV S=1/V=1 path instead follows
-  // the blue fin and jumps (green 61 -> 0) in a fraction of a degree.
+
   let prev = null;
   let maxStep = 0;
   for (let h = 250; h <= 290; h += 0.25) {

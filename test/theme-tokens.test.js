@@ -1,10 +1,5 @@
 'use strict';
 
-// Guards the theme contract: the manifest (src/shared/theme-tokens.js), the
-// bundled theme files, the renderer's CSS variables and docs/THEMES.md must all
-// agree. This is what makes "vibecoding" a theme safe — a wrong or missing token
-// fails here instead of silently rendering.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

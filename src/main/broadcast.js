@@ -1,13 +1,5 @@
 'use strict';
 
-// Sending to a window is racy: between the `getAllWindows()` scan and the `send`
-// the window — or only its webContents — can be destroyed. A throw here used to
-// abort the whole operation that broadcast (docs/INVARIANTS.md), so these helpers
-// never throw: a dropped frame is always better than a broken state update.
-//
-// Electron-free (window-like objects are passed in), so the guard is unit-tested
-// without a browser: test/broadcast.test.js.
-
 function canSend(win) {
   if (!win || typeof win.isDestroyed !== 'function' || win.isDestroyed()) return false;
   const wc = win.webContents;
@@ -23,7 +15,7 @@ function sendTo(win, channel, payload) {
     win.webContents.send(channel, payload);
     return true;
   } catch {
-    return false; // a destroy landed between the check and the send
+    return false;
   }
 }
 

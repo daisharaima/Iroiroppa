@@ -8,7 +8,7 @@ const { encodeFrame, splitFrames, parseFrame, TYPE } = require('../src/main/comp
 test('encodeFrame has the documented byte shape', () => {
   const frame = encodeFrame(TYPE.CLIENT, 'TellHeartbeat', 0, null);
   assert.equal(frame[0], 0x01);
-  assert.equal(frame[1], 0x24); // '$'
+  assert.equal(frame[1], 0x24);
   assert.equal(frame[frame.length - 1], 0x00);
   assert.equal(frame[frame.length - 2], 0x1e);
   const text = frame.toString('latin1');

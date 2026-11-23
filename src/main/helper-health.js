@@ -1,14 +1,5 @@
 'use strict';
 
-// One place that knows which implementation is serving each native capability.
-//
-// Four capabilities (band, foreground, pointer, keys) can each run on the native host
-// or on the PowerShell fallback. Independent fallbacks are fine, but two
-// implementations of one capability must never run together, and a capability must not
-// silently die — a failed keyboard hook looks exactly like "the user is not typing".
-//
-// States per capability: 'host' (native), 'ps' (PowerShell fallback), 'down' (neither).
-
 const { EventEmitter } = require('node:events');
 
 const CAPABILITIES = ['band', 'foreground', 'pointer', 'keys'];

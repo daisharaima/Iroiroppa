@@ -1,23 +1,15 @@
 'use strict';
 
-// Colour-profile discovery for proofing: the configured profile, the machine's
-// Adobe RGB (1998), and the synthetic ICC the repo ships. Electron-free — the
-// caller injects the app-data directory and the settings store — so the
-// discovery and the parses are testable headlessly.
-
 const fs = require('node:fs');
 const path = require('node:path');
 
 const Proof = require('../shared/proof');
 
-// The CMYK engine is heavy and only needed for a non-matrix/TRC profile, so it is
-// loaded on first use — a matrix-only install never pays for it.
 let cmykEngine = null;
 const cmyk = () => { if (!cmykEngine) cmykEngine = require('./cmyk'); return cmykEngine; };
 
 const COLOUR_DIR = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'spool', 'drivers', 'color');
-// The bundled synthetic profile; relative to this file so it resolves inside
-// app.asar too (package.json ships `src/**`).
+
 const BUNDLED_PROFILE = path.join(__dirname, '..', 'assets', 'synthetic.icc');
 
 /** Describe one profile file for the picker (name, support, error). */
@@ -37,7 +29,7 @@ function describeProfileFile(file) {
         kind: 'matrix',
       };
     }
-    // No colorant matrix: hand it to the CMYK engine.
+
     const loaded = cmyk().loadProfile(bytes);
     return {
       path: file,
@@ -69,7 +61,7 @@ function createProofStore({ settings, colourDir = COLOUR_DIR, bundledProfile = B
       const bytes = fs.readFileSync(p);
       const profile = Proof.parseIcc(bytes);
       if (profile.colorants) return { ok: true, path: p, profile };
-      // A LUT/CMYK profile: bake the grids the renderer interpolates.
+
       return {
         ok: true,
         path: p,
@@ -80,11 +72,10 @@ function createProofStore({ settings, colourDir = COLOUR_DIR, bundledProfile = B
     }
   }
 
-  // Bake (and cache) a profile's sRGB<->CMYK grids, keyed by path + mtime.
   let cmykCache = null;
   function bakeCmyk(file, bytes) {
     let stamp = '';
-    try { stamp = String(fs.statSync(file).mtimeMs); } catch { /* no stat */ }
+    try { stamp = String(fs.statSync(file).mtimeMs); } catch {  }
     const key = `${file}:${stamp}`;
     if (cmykCache && cmykCache.key === key) return cmykCache.grids;
     const grids = cmyk().bakeGrids(bytes);
@@ -144,7 +135,7 @@ function createProofStore({ settings, colourDir = COLOUR_DIR, bundledProfile = B
       for (const f of fs.readdirSync(colourDir)) {
         if (/\.(icc|icm)$/i.test(f)) add(path.join(colourDir, f));
       }
-    } catch { /* the colour directory may not exist */ }
+    } catch {  }
 
     proofListCache = out;
     return out;

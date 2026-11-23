@@ -61,7 +61,6 @@ test('nothing on and something disabled is reported busy, and clears again', asy
   await qs.poll();
   assert.equal(qs.isBusy(), false);
 
-  // A text layer: nothing checked, everything refused.
   answer = { ok: true, on: [], disabled: ['toolpressuretosize'] };
   await qs.poll();
   assert.equal(qs.isBusy(), true);

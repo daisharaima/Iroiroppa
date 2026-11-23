@@ -1,19 +1,5 @@
 'use strict';
 
-// The plane rasteriser, off the main thread (docs/PERF.md).
-//
-// A colour plane is a per-pixel conversion chain; on a heavy model it costs 44-53 ms
-// and it ran on the main thread, so every rebuild cost up to three dropped frames
-// (measured: 50-63 ms long tasks, one per ~150 ms of a drag). This worker runs the
-// same shared code — `src/shared/raster-plane.js` is loaded verbatim — and returns the
-// pixels, so the build costs wall time but no frames.
-//
-// A job carries only data: model id, plane index, fixed axes, ranges and the size.
-// A predicate (the working-gamut test) cannot cross `postMessage`, so the client keeps
-// those builds on the main thread.
-
-/* global importScripts, self */
-
 importScripts(
   '../../shared/color.js',
   '../../shared/color-models.js',

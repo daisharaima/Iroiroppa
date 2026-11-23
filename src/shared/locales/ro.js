@@ -1,4 +1,4 @@
-// Română.
+
 (function (root) {
   'use strict';
 

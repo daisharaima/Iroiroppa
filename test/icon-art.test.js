@@ -24,8 +24,7 @@ test('the centre is the big I, not a hue wheel', () => {
   assert.equal(centre[0], 126);
   assert.equal(centre[1], 107);
   assert.equal(centre[2], 142);
-  // A pastel background pixel near the top-left is low-chroma (R≈G≈B-ish),
-  // unlike the old saturated hue ring.
+
   const bg = at(rgba, size, size / 2, 9);
   assert.ok(Math.max(...bg.slice(0, 3)) - Math.min(...bg.slice(0, 3)) < 40);
 });

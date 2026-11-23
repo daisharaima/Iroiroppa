@@ -1,15 +1,5 @@
 'use strict';
 
-// End-to-end tests for the native host binary itself (src/main/native/irohost.cs).
-//
-// The supervisor has unit tests against a fake child; this file exercises the real
-// process: it starts it, speaks the protocol, and checks the replies and the exit.
-// It skips (visibly) when the binary has not been built, so a checkout without the
-// in-box C# compiler still passes the suite.
-//
-// Nothing here installs a global hook on purpose: `key <vk>` with a valid key would
-// take over that key system-wide for the duration of the test run.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { spawn } = require('node:child_process');
@@ -18,13 +8,9 @@ const { outFile } = require('../scripts/build-host.js');
 
 const available = fs.existsSync(outFile);
 
-// The host reports its own start-up in the ready payload (irohost.cs:1151). That is the
-// number to bound: the wall clock also contains CreateProcess, the .NET loader and any
-// antivirus scan, which costs seconds on a cold machine and none of it is ours to fix
-// (docs/adr/0004-native-helper-host.md — "the host starts in ~1 ms").
-const HOST_START_LIMIT_MS = 200; // measured 2-29 ms, the high end under the full suite; a regression detector, not a budget
-const WALL_HANG_LIMIT_MS = 30000; // measured cold 10,221 ms; a hang guard, not a target
-const READY_WAIT_MS = 35000; // must outlast the guard so the guard can report numbers
+const HOST_START_LIMIT_MS = 200;
+const WALL_HANG_LIMIT_MS = 30000;
+const READY_WAIT_MS = 35000;
 
 /** Print one timing line whether or not this Node honours `t.diagnostic` (added in 18.17). */
 const report = (t, message) => (
@@ -62,8 +48,8 @@ function startHost(args = []) {
   });
   const stop = () => new Promise((resolve) => {
     child.once('exit', () => resolve());
-    try { send('quit'); } catch { /* already gone */ }
-    setTimeout(() => { try { child.kill(); } catch { /* gone */ } resolve(); }, 1500);
+    try { send('quit'); } catch {  }
+    setTimeout(() => { try { child.kill(); } catch {  } resolve(); }, 1500);
   });
   return { child, lines, send, waitFor, stop };
 }
@@ -72,7 +58,7 @@ test('the host answers the protocol end to end', { skip: !available && 'irohost.
   const started = Date.now();
   const host = startHost();
   try {
-    // A slow cold launch still emits `ready`; a stuck host emits nothing and this rejects.
+
     const ready = await host.waitFor((line) => line.ready !== undefined, READY_WAIT_MS);
     const wallMs = Date.now() - started;
     report(t, `host start ${ready.ready} ms (wall ${wallMs} ms)`);
@@ -90,7 +76,6 @@ test('the host answers the protocol end to end', { skip: !available && 'irohost.
     const version = await host.waitFor((line) => line.version !== undefined);
     assert.equal(version.version, '1.0.0');
 
-    // `topmost` / `state` against a handle that is not a window must report, not throw.
     host.send('topmost 0');
     const topmost = await host.waitFor((line) => line.topmost !== undefined);
     assert.equal(topmost.topmost, 0);
@@ -100,7 +85,6 @@ test('the host answers the protocol end to end', { skip: !available && 'irohost.
     const state = await host.waitFor((line) => line.state !== undefined);
     assert.equal(state.state, 0);
 
-    // An invalid vk is refused before any hook is installed.
     host.send('key 0');
     const badKey = await host.waitFor((line) => typeof line.error === 'string' && line.error.includes('vk'));
     assert.match(String(badKey.error), /vk/);
@@ -121,8 +105,7 @@ test('the host exits on quit and reports bye', { skip: !available && 'irohost.ex
 });
 
 test('the host exits when its parent is gone', { skip: !available && 'irohost.exe not built' }, async () => {
-  // The parent handle is the second signal after stdin EOF; this exercises the case
-  // where the pipe outlives the parent (a child elsewhere inherited it).
+
   const parent = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], { stdio: 'ignore' });
   const child = spawn(outFile, ['--parent', String(parent.pid)], {
     stdio: ['pipe', 'pipe', 'pipe'],
@@ -137,6 +120,6 @@ test('the host exits when its parent is gone', { skip: !available && 'irohost.ex
     const timer = setTimeout(() => resolve(false), 3000);
     child.once('exit', () => { clearTimeout(timer); resolve(true); });
   });
-  try { child.kill(); } catch { /* already gone */ }
+  try { child.kill(); } catch {  }
   assert.ok(exited, 'host exited after its parent died');
 });

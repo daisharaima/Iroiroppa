@@ -1,16 +1,5 @@
 'use strict';
 
-// Frame-gap recorder for a gesture (docs/PERF.md, `--perf-gaps`).
-//
-// It answers one question the other tools cannot: while the user drags a control,
-// does the palette keep painting every frame, or does a heavy panel block the main
-// thread? A gap above the refresh interval is a visible stutter; a run of them is a
-// stall.
-//
-// The recorder is passive: it samples `requestAnimationFrame` timestamps, keeps the
-// deltas of the current gesture, and on release reports the distribution to main,
-// which appends one line to `perf-trace.log`. Nothing is drawn or changed.
-
 (function installPerfGaps() {
   const bridge = window.csp;
   if (!bridge || !bridge.perfGaps || !bridge.perfGapsReport) return;
@@ -20,9 +9,7 @@
   let samples = [];
   let last = 0;
   let frame = 0;
-  // Long tasks (a single callback over 50 ms) tell a different story from a burst of
-  // short frames: one long task is a blocking function, many short ones are death by
-  // a thousand layout/GC cuts. Recorded so the fix targets the right thing.
+
   let longTasks = [];
 
   if (typeof PerformanceObserver === 'function') {
@@ -36,7 +23,7 @@
           });
         }
       }).observe({ entryTypes: ['longtask'] });
-    } catch { /* the entry type is optional */ }
+    } catch {  }
   }
   let gestureStart = 0;
   let workerAtStart = null;
@@ -75,8 +62,7 @@
     sampling = false;
     if (frame) cancelAnimationFrame(frame);
     const sorted = samples.slice().sort((a, b) => a - b);
-    // A percentile over a handful of frames *is* the maximum; printing it as p95
-    // invites a conclusion the sample cannot support.
+
     const enough = samples.length >= 30;
     const summary = {
       gesture: window.__perfGesture || 'gesture',
@@ -108,8 +94,6 @@
     return summary;
   }
 
-  // A gesture is a press on the palette's own surface: that is where a drag sends a
-  // colour write per move and where a heavy panel would stall the paint.
   window.addEventListener('pointerdown', (event) => {
     if (event.button !== 0) return;
     begin(event.target && event.target.id ? event.target.id : 'palette');

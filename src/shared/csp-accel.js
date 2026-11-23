@@ -1,16 +1,5 @@
 'use strict';
 
-// Comparing an accelerator Iroiroppa wants to own against Clip Studio Paint's own
-// shortcuts.
-//
-// Why this exists: a module or reveal key is a *real* global shortcut, so a chord
-// CSP already uses is swallowed before CSP sees it (Ctrl+G stops making layers),
-// and a bare letter can collide with one of CSP's tool keys (E = Soft 2). CSP's
-// command list and its tool list are different tables, so both have to be checked.
-//
-// Pure and Electron-free: main hands it `{commands, tools}` from csp-shortcuts.js.
-// See docs/PROTOCOL.md (CSP shortcuts) and docs/MODULES.md (module commands).
-
 /** Different spellings of one physical key, as CSP and Electron name them. */
 const KEY_ALIASES = {
   space: ' ', spacebar: ' ', ' ': ' ',

@@ -1,20 +1,5 @@
 'use strict';
 
-// Regression: the `peer:hello` listener answers through the guarded helper
-// (`broadcast.js#sendToWebContents`), never a raw `webContents.send`.
-//
-// A window can be destroyed between its hello arriving and those two replies (an app
-// quit, a float closing), and a raw send on a dead — or merely throwing — webContents
-// raises inside an `ipcMain.on` listener, which is an uncaught exception in the main
-// process. `broadcast.js` promises never to throw (`AGENTS.md`, "Never send to a
-// destroyed `webContents`"), so this path has to go through it.
-//
-// How it loads: `ipc/app.js` pulls `app`, `ipcMain`, `dialog` and `shell` out of
-// Electron at module scope, so the test swaps `Module._load` for the duration of the
-// require only. The swap is restored in a `finally` — before any assertion runs — and
-// the module is dropped from `require.cache` afterwards, so a failing assertion cannot
-// leave the stub in place for another test file.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -60,7 +45,7 @@ function loadApp() {
     mod = require(APP_MODULE);
   } finally {
     Module._load = original;
-    // Never leave this module cached: its Electron members are the stub.
+
     delete require.cache[require.resolve(APP_MODULE)];
   }
   return { register: mod.register, stub };

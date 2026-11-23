@@ -1,20 +1,11 @@
 'use strict';
 
-// The colour-model adapter contract (docs/COLOR.md). A model is a view over the
-// canonical OKLab value; it must round-trip through OKLab. This test covers every
-// registered model automatically, so a new model is covered the moment it is
-// registered.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const Models = require('../src/shared/color-models');
 const Color = require('../src/shared/color');
 
-// The user-visible rule: a model whose own light axis is a perceptual lightness
-// (CIELAB L*, HelmGen L) guides, locks and prints that axis; an sRGB-referenced
-// picker space (OKHSV/OKHSL/OKHWB) guides in OKLab L, because one V is a whole
-// range of perceived lightness. `usesNativeLight` is the one place that decides it.
 test('every model declares whether its light axis carries the lightness', () => {
   const expected = {
     oklch: true, oklab: true, cielab: true, cielch: true,
@@ -28,15 +19,13 @@ test('every model declares whether its light axis carries the lightness', () => 
   }
 });
 
-// A grey has no hue of its own; the pointer still has to land on the hue the ring
-// was turned to, and each model spells that hue in its own units.
 test('at zero chroma every hue model points at the anchored hue', () => {
   for (const id of ['oklch', 'cielch', 'helmgenlch', 'okhsv']) {
     const model = Models.get(id);
     if (!model) continue;
     const store = { L: 0.6, H: 210, lab: () => ({ L: 0.6, a: 0, b: 0 }) };
     const axes = Models.axesFor(model, store);
-    // Raise the chroma a little: the colour must come out at the anchor's hue.
+
     axes[1] = model.dense ? 0.05 : model.axes[1].max * 0.1;
     const lab = model.toLab(axes);
     const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
@@ -94,12 +83,9 @@ test('the lineup is the OK family plus the two GenSpace views', () => {
   }
 });
 
-// The generic round-trip above is gated to sRGB (`domain`). GenSpace is also
-// used for wide-gamut appearances, so pin the conditioning away from the
-// near-black high-chroma corner no RGB gamut contains (`docs/COLOR.md`).
 test('the GenSpace models round-trip high-chroma colours', () => {
   const samples = [
-    Color.oklchToOklab(0.60, 0.30, 145), // the wide green an Adobe RGB document holds
+    Color.oklchToOklab(0.60, 0.30, 145),
     Color.oklchToOklab(0.55, 0.30, 265),
     Color.oklchToOklab(0.70, 0.25, 30),
     Color.oklchToOklab(0.45, 0.25, 300),

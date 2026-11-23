@@ -1,10 +1,5 @@
 'use strict';
 
-// The modules IPC group (docs/STATE.md).
-//
-// Moved out of ipc.js verbatim: it uses only `ctx` plus the sender guard `trusted`.
-// `wireIpc` calls `register(ctx, trusted)`.
-
 const { ipcMain } = require('electron');
 const { sendTo } = require('../broadcast');
 const LayoutModel = require('../../shared/layout-model');
@@ -29,8 +24,7 @@ function register(ctx, trusted) {
     const removed = ctx.moduleStore.purgeUnused(workspaceInstanceIds());
     return { removed: removed.length, ids: removed };
   });
-  // Trash preview + restore: a settings file whose instance is gone. Restoring puts
-  // the settings back by re-adding an instance of the module the file records.
+
   ipcMain.handle('modules:trash:preview', (_e, { id } = {}) => {
     const file = ctx.moduleStore.readSettingsFileFull(id);
     if (!file) return { ok: false, error: 'unreadable' };
@@ -51,11 +45,9 @@ function register(ctx, trusted) {
     if (!trusted(event)) return false;
     if (typeof id !== 'string' || !settings || typeof settings !== 'object') return false;
     const ok = ctx.writeModuleSettings(id, settings, version, moduleId);
-    // A change made in one window must reach every other window's copy: the
-    // palette's board, a float, and the Settings window's live preview.
+
     if (ok) {
-      // paletteWindows() already includes the floats; pushing them again sent
-      // module:changed twice to every float.
+
       const targets = [...ctx.paletteWindows(), ctx.settingsWin];
       for (const win of targets) {
         if (win && !win.isDestroyed() && win.webContents !== event.sender) {

@@ -29,7 +29,7 @@ test('a plaintext file is read, then upgraded to the encrypted shape on write', 
   const onDisk = JSON.parse(fs.readFileSync(file, 'utf8'));
   assert.equal(onDisk.__secret, true);
   assert.equal(onDisk.v, 2);
-  assert.equal(onDisk.data.password, undefined); // not in plaintext
+  assert.equal(onDisk.data.password, undefined);
   assert.equal(typeof onDisk.secrets.password, 'string');
   assert.equal(store.isEncrypted(), true);
 });

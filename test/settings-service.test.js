@@ -1,7 +1,5 @@
 'use strict';
 
-// The settings service owns settings.json and its side effects.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -68,8 +66,7 @@ test('commit runs the side effects a changed setting calls for', () => {
 });
 
 test('the bare-key switches take effect live, without a restart', () => {
-  // A setting a running watcher has to learn about is useless if it only lands on the
-  // next apply: the hook would keep its old behaviour for the whole session.
+
   const calls = [];
   const svc = createSettingsService({
     file: tmpFile(),

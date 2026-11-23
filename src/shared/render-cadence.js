@@ -1,22 +1,4 @@
-/*
- * Interactive render cadence — which panels a gesture rebuilds this frame.
- *
- * While a gesture is in flight (a local drag or a sibling palette's preview stream)
- * the Slices rebuild only as many panels as fit the frame. `choosePanels` takes every
- * panel whose measured build cost fits the budget — for the analytic OKLCH planes that
- * is normally all of them, so the sibling maps move with the pointer instead of
- * stepping. `pickPanel` is the older one-per-frame rule, kept for the rasterised
- * models, whose planes are an order of magnitude dearer.
- *
- * The budget has to come from the *interactive* build (a native-pixel raster), never
- * from the trailing full-quality rebuild: a 30-45 ms dpr-2 plane would otherwise mark
- * the model "expensive" and freeze every map for the whole next gesture, leaving only
- * the guide moving.
- *
- * Pure and injected so it is unit-tested without a DOM or a display.
- *
- * Loads as CommonJS in Node and as a global `IroRenderCadence` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroRenderCadence = factory();

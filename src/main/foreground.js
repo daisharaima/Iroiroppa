@@ -1,15 +1,9 @@
 'use strict';
 
-// Tracks the Windows foreground process so the palette can appear only while
-// Clip Studio Paint is active. One long-lived PowerShell process polls the
-// foreground window and streams the process name; we never respawn per poll.
-
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { spawn } = require('node:child_process');
 
-// PowerShell cannot read inside app.asar; asarUnpack puts the script in
-// app.asar.unpacked, and the child must be launched from that real path.
 function foregroundScript() {
   const dir = __dirname.includes('app.asar')
     ? __dirname.replace('app.asar', 'app.asar.unpacked')
@@ -61,7 +55,7 @@ class ForegroundWatcher extends EventEmitter {
     if (this.proc) return;
     this.stopped = false;
     if (this.host) {
-      // One IPC line, no process; the hook reports the current app immediately.
+
       this.host.setForeground(true).catch(() => {});
       return;
     }
@@ -78,7 +72,7 @@ class ForegroundWatcher extends EventEmitter {
 
   _spawn() {
     if (this.stopped || this.proc) return;
-    // Never run two implementations of one capability.
+
     if (this.hostRef && this.hostRef.available) this.hostRef.setForeground(false).catch(() => {});
     const proc = spawn('powershell.exe', this._args(), {
       windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'],
@@ -98,8 +92,7 @@ class ForegroundWatcher extends EventEmitter {
    * Concurrent calls share one query and a 250 ms cache; failures resolve ''.
    */
   refresh() {
-    // The host answers in ~1 ms and cannot be stale in the way a stream is: it
-    // reads GetForegroundWindow on demand.
+
     if (this.host && this.host.available) {
       return this.host.foreground()
         .then((reply) => (reply && reply.fgname) || '')
@@ -126,7 +119,7 @@ class ForegroundWatcher extends EventEmitter {
         resolve(name);
       };
       timer = setTimeout(() => {
-        try { proc.kill(); } catch { /* already gone */ }
+        try { proc.kill(); } catch {  }
         finish('');
       }, 3000);
       timer.unref?.();
@@ -146,7 +139,7 @@ class ForegroundWatcher extends EventEmitter {
     if (!this.hostRef || !this.hostRef.available) return false;
     const proc = this.proc;
     this.proc = null;
-    if (proc) { try { proc.kill(); } catch { /* gone */ } }
+    if (proc) { try { proc.kill(); } catch {  } }
     this.host = this.hostRef;
     this.hostRef.setForeground(true).catch(() => {});
     if (this.health) this.health.set('foreground', 'host');
@@ -157,8 +150,7 @@ class ForegroundWatcher extends EventEmitter {
   _onProcGone(proc) {
     if (this.proc !== proc) return;
     this.proc = null;
-    // The watcher is not authoritative while it is down: the visibility policy
-    // must keep the palette rather than fall back to blur-hiding.
+
     this.emit('down');
     if (this.stopped || this._restartTimer) return;
     const delay = this.restartDelay;
@@ -171,7 +163,7 @@ class ForegroundWatcher extends EventEmitter {
   }
 
   _onData(chunk) {
-    this.restartDelay = 1000; // the watcher is healthy again
+    this.restartDelay = 1000;
     this.buffer += chunk;
     let nl;
     while ((nl = this.buffer.indexOf('\n')) >= 0) {
@@ -196,10 +188,10 @@ class ForegroundWatcher extends EventEmitter {
     this.buffer = '';
     this.current = null;
     if (proc) {
-      try { proc.kill(); } catch { /* already gone */ }
+      try { proc.kill(); } catch {  }
     }
     if (this._refreshProc) {
-      try { this._refreshProc.kill(); } catch { /* already gone */ }
+      try { this._refreshProc.kill(); } catch {  }
       this._refreshProc = null;
     }
     this._refreshPromise = null;

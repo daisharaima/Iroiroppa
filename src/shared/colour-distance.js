@@ -1,16 +1,5 @@
 'use strict';
 
-// Helmlab's MetricSpace distance (docs/COLOR.md, "Distance").
-//
-// MetricSpace is Helmlab's trained colour-difference space — STRESS 22.48 on
-// COMBVD against CIEDE2000's 29.20. Iroiroppa's canonical colour is OKLab, so
-// these helpers take OKLab and convert through XYZ (D65) once per call.
-//
-// Nothing in the picker uses this yet: it exists so a future module (palette
-// matching, nearest-colour ranking, a history dup-check that tolerates rounding)
-// calls one documented function instead of inventing a ΔE. Never let it throw
-// into a UI path — every entry point returns null on bad input.
-
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(
@@ -21,7 +10,7 @@
     root.IroColourDistance = factory(root.Color, root.helmlab);
   }
 })(typeof self !== 'undefined' ? self : this, function (Color, Helm) {
-  // One JND = the pair the median observer calls at least "moderately different".
+
   const JND = 0.035633;
 
   const metric = Helm && Helm.Helmlab ? new Helm.Helmlab().metric : null;

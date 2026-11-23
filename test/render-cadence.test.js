@@ -1,8 +1,5 @@
 'use strict';
 
-// The interactive cadence (src/shared/render-cadence.js): a budget measured in the
-// interactive build, every panel that fits it, and never a panel starved forever.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const Cadence = require('../src/shared/render-cadence');
@@ -49,8 +46,6 @@ test('a stale cursor is normalised', () => {
   assert.equal(pick.cursor, 2);
 });
 
-// --- choosePanels: every panel that fits the frame (the analytic Slices planes) ---
-
 test('every panel that fits the frame rebuilds, in round-robin order', () => {
   const pick = Cadence.choosePanels({ visible: [0, 1, 2], cursor: 0, costs: [2, 2, 3], budget: 8 });
   assert.deepEqual(pick.panels, [0, 1, 2]);
@@ -67,8 +62,7 @@ test('an expensive panel is spaced out, never starved', () => {
     for (const p of pick.panels) turns[p].push(frame);
     cursor = pick.cursor;
   }
-  // The cheap pair shares every frame it is first in; the heavy one still gets its
-  // own turn alone, once every third frame.
+
   assert.deepEqual(turns[0], [0, 1, 3, 4]);
   assert.deepEqual(turns[1], [0, 1, 3, 4]);
   assert.deepEqual(turns[2], [2, 5]);

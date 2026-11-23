@@ -1,7 +1,5 @@
 'use strict';
 
-// The window-capture channel's main-side service.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

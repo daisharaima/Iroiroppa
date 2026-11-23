@@ -1,14 +1,5 @@
 'use strict';
 
-// Two pointer-driven history paths, both fed by src/main/pointer-watch.js:
-//
-// - `createPointerHistory` (gate OFF): a release over CSP ends a pick; take a
-//   fresh SyncColorCircleUIState read and commit that colour.
-// - `createContactHistory` (gate ON): a non-Alt left-button down on the CSP
-//   canvas is the only thing that records. It takes a fresh read too, because the
-//   cached colour can be one poll old (the PPC lesson). A pending pick is the
-//   fallback when the host still reports the previous colour.
-
 /**
  * @param {object} opts
  * @param {() => Promise<object|null>} opts.readColor a fresh Companion read
@@ -26,7 +17,7 @@ function createPointerHistory({ readColor, commit, hasPending = () => true }) {
       const rgb = activeRgb(color);
       if (rgb) commit(rgb);
     } catch {
-      /* transient; the recorder's settle still covers the pick */
+
     } finally {
       busy = false;
     }
@@ -63,7 +54,7 @@ function createContactHistory({
           rgb = activeRgb(color);
         }
       } catch {
-        /* fall back to the pending pick below */
+
       }
       if (transparent) {
         drop();
@@ -71,8 +62,8 @@ function createContactHistory({
       }
       if (!rgb) rgb = pendingRgb;
       if (!rgb) return;
-      if (!isOn()) return; // the gate may have been switched off while reading
-      // A lagging host read that still shows the head must not beat a newer pick.
+      if (!isOn()) return;
+
       const headRgb = head();
       if (headRgb && sameRgb(rgb, headRgb) && pendingRgb && !sameRgb(pendingRgb, headRgb)) {
         rgb = pendingRgb;

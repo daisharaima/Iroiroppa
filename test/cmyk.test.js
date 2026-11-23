@@ -1,8 +1,5 @@
 'use strict';
 
-// The CMYK proof path. It needs a real CMYK profile
-// and the engine, so the tests skip on a machine without one.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -37,7 +34,6 @@ test('a baked profile soft-proofs through CMYK and back', { skip: !hasFogra }, (
   assert.ok(shown[0] > shown[1] && shown[0] > shown[2], 'red stays red');
   assert.ok(shown[1] < 0.6, 'and is desaturated by the print round trip');
 
-  // A neutral is in gamut; a very saturated green is not.
   assert.equal(proof.inGamut({ L: 0.5, C: 0.01, H: 120 }), true);
   assert.equal(proof.inGamut({ L: 0.5, C: 0.5, H: 145 }), false);
   assert.ok(proof.maxChroma(0.5, 120) > 0.02, 'a grey has some headroom');

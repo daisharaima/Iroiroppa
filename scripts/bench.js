@@ -1,9 +1,5 @@
 'use strict';
 
-// Headless micro-benchmarks for the drag and poll hot paths. Run with
-// `npm run bench`. It is a rough guide, not a pass/fail gate; the numbers are
-// recorded in docs/PERF.md.
-
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -15,14 +11,13 @@ const MAX_U32 = Color.MAX_U32;
 const ICC = path.join(__dirname, '..', 'src', 'assets', 'synthetic.icc');
 
 function time(label, iters, fn) {
-  for (let i = 0; i < Math.min(iters, 200); i++) fn(i); // warm up
+  for (let i = 0; i < Math.min(iters, 200); i++) fn(i);
   const start = process.hrtime.bigint();
   for (let i = 0; i < iters; i++) fn(i);
   const ns = Number(process.hrtime.bigint() - start);
   console.log(`${label.padEnd(32)} ${(ns / iters / 1000).toFixed(2).padStart(8)} µs/op   ${Math.round(iters / (ns / 1e9)).toString().padStart(8)} op/s`);
 }
 
-// --- colour maths (the drag hot path) ---------------------------------------
 time('Color.inGamut', 200000, (i) => Color.inGamut(0.2 + (i % 60) / 100, 0.1, (i * 7) % 360));
 time('Color.maxChroma', 20000, (i) => Color.maxChroma(0.2 + (i % 60) / 100, (i * 7) % 360));
 time('Color.chromaIntervals', 20000, (i) => Color.chromaIntervals(0.2 + (i % 60) / 100, (i * 7) % 360));
@@ -30,13 +25,10 @@ time('Color.reduceChroma', 20000, (i) => Color.reduceChroma(0.5, 0.3, (i * 7) % 
 time('Color.oklchToRgb', 200000, (i) => Color.oklchToRgb(0.6, 0.15, (i * 3) % 360));
 time('Color.rgbToOklch', 200000, (i) => Color.rgbToOklch((i % 255) / 255, 0.4, 0.8));
 
-// One silhouette rebuild (a plot-cache miss): 254 columns of intervals.
 time('plot silhouette (254 cols)', 50, () => {
   for (let x = 0; x < 254; x++) Color.chromaIntervals(x / 253, 264.05);
 });
 
-// One supersampled raster plane for a non-OKLCH model (the phase's new path):
-// each pixel is axes -> OKLab -> OKLCH (for the gamut test) -> RGB.
 time('model raster plane (500²)', 3, () => {
   const inG = Color.inGamut;
   for (let y = 0; y < 500; y++) {
@@ -49,11 +41,6 @@ time('model raster plane (500²)', 3, () => {
   }
 });
 
-// One Color Wheel ring rebuild (300², the mid-drag device-pixel size): the
-// saturation table then the per-pixel gamut test, the shape the wheel draw loop
-// uses (`src/renderer/selector_module/color-wheel.js`). The old version asked
-// the gamut for its max chroma once per ring pixel (~100 ms here); the
-// 0.5 deg table keeps it well below that.
 time('wheel ring rebuild (300²)', 5, () => {
   const L = 0.6, C_MAX = 0.4;
   const tab = new Float64Array(721);
@@ -71,7 +58,6 @@ time('wheel ring rebuild (300²)', 5, () => {
   }
 });
 
-// --- proof (the working-gamut path) -----------------------------------------
 const profile = Proof.parseIcc(fs.readFileSync(ICC));
 time('Proof.createProof', 500, () => Proof.createProof(profile, 'working'));
 const proof = Proof.createProof(profile, 'working');
@@ -79,7 +65,6 @@ time('Proof.inGamut', 200000, (i) => proof.inGamut({ L: 0.5, C: 0.1, H: (i * 7) 
 time('Proof.maxChroma', 20000, (i) => proof.maxChroma(0.2 + (i % 60) / 100, (i * 7) % 360));
 time('Proof.maxChromaBound (cached)', 200000, () => proof.maxChromaBound());
 
-// The one-off stall when a working proof is first activated.
 {
   const p = Proof.createProof(profile, 'working');
   const start = process.hrtime.bigint();
@@ -88,9 +73,6 @@ time('Proof.maxChromaBound (cached)', 200000, () => proof.maxChromaBound());
   console.log(`${'Proof.maxChromaBound (cold)'.padEnd(32)} ${ms.toFixed(1).padStart(8)} ms  (once per profile/model change)`);
 }
 
-// --- the real plane rasteriser (src/shared/raster-plane.js) -------------------
-// One panel-sized plane (205 x 170 CSS px, a 200 px palette's slice) through the
-// path the Slices module uses: axes -> OKLab -> sRGB, with the sRGB bounds test.
 const Raster = require('../src/shared/raster-plane');
 const Models = require('../src/shared/color-models');
 for (const id of ['cielab', 'cielch', 'helmgen', 'helmgenlch']) {
@@ -109,7 +91,6 @@ for (const id of ['cielab', 'cielch', 'helmgen', 'helmgenlch']) {
   console.log(`${''.padEnd(32)} ${first.toFixed(1).padStart(8)} ms  (first build, JIT cold)`);
 }
 
-// --- poll (one SyncColorCircleUIState read) ---------------------------------
 const payload = {
   ColorSelectionModel: 'HSV',
   CurrentColorIndex: 0,

@@ -1,23 +1,4 @@
-/*
- * Slice projections — how a 2D slice of the colour space is laid out on screen.
- *
- * A slice has two free axes: `u` runs along the horizontal axis (left -> right),
- * `v` along the vertical one (bottom -> top). The panel is the drawn box in
- * normalized coordinates (`x`,`y`, y down). A projection is a pure, invertible
- * map between the two — display-only, exactly like slice-view.js#rotate/flip:
- * the raster is drawn through `toScreen` and a press is mapped back through
- * `fromScreen`, so what is under the pointer is what gets picked.
- *
- *   flat     u -> x, v -> 1-y. Every slice.
- *   polar    angle = u (hue, clockwise from +x), radius = v (chroma). Needs a
- *            hue axis on `u` and a chroma-like axis on `v`.
- *   triangle the cusp frame: black, white and the hue's *cusp* are the three
- *            corners, so the apex slides with the hue (blue's cusp is dark,
- *            yellow's is light) and the gamut's own edge shows its curve. Needs
- *            the same axes as `polar`, and a cusp from findCusp().
- *
- * Loads as CommonJS in Node and as a global `IroProjection` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroProjection = factory();
@@ -60,23 +41,16 @@
       const dx = x - 0.5;
       const dy = y - 0.5;
       const r = 2 * Math.hypot(dx, dy);
-      // A pixel exactly on the rim lands at r = 1 +/- a float ulp: accept that
-      // rather than punching a one-pixel hole at the edge.
+
       if (r > 1 + 1e-9) return null;
       return { u: mod1(Math.atan2(dy, dx) / TAU), v: Math.min(1, r) };
     },
   };
 
-  // The cusp frame's black/white side is the square mode's left edge: the two
-  // left corners of the inscribed square (both on the ring's inner circle). The
-  // moving cusp slides on the vertical line x = 0.9, so every hue's apex shares
-  // that line while the black-white side stays put.
-  const TRI_K = { x: 0.1464466094, y: 0.8535533906 }; // black, bottom-left
-  const TRI_W = { x: 0.1464466094, y: 0.1464466094 }; // white, top-left
-  const TRI_APEX_X = 0.90; // the cusp; its height follows the cusp's lightness
-  // Okhsv's fixed triangle is equilateral and inscribed in the ring: all three
-  // corners are on the circle, so its black/white side is that triangle's base
-  // (not the square mode's edge; the user asked for square parity on Okhsl).
+  const TRI_K = { x: 0.1464466094, y: 0.8535533906 };
+  const TRI_W = { x: 0.1464466094, y: 0.1464466094 };
+  const TRI_APEX_X = 0.90;
+
   const TRI_FIXED_K = { x: 0.25, y: 0.9330127019 };
   const TRI_FIXED_W = { x: 0.25, y: 0.0669872981 };
   const TRI_FIXED_APEX = { x: 1, y: 0.5 };
@@ -96,7 +70,7 @@
     const ac = clamp01(cusp.a);
     const bc = clamp01(cusp.b);
     if (!(bc > 1e-3)) return null;
-    const a = Math.min(0.999, Math.max(0.001, ac)); // keep the pieces non-singular
+    const a = Math.min(0.999, Math.max(0.001, ac));
     const K = TRI_K;
     const W = TRI_W;
     const apex = { x: TRI_APEX_X, y: K.y + (W.y - K.y) * a };
@@ -122,7 +96,7 @@
         return p(clamp01(u), clamp01(v));
       },
       fromScreen(x, y) {
-        // Barycentric weights (white, cusp, black) of the triangle.
+
         const dx = x - K.x, dy = y - K.y;
         const det = gx * ay - gy * ax;
         if (!det) return null;
@@ -130,13 +104,13 @@
         const wA = (gx * dy - gy * dx) / det;
         const wK = 1 - wW - wA;
         const inside = wW >= -1e-9 && wA >= -1e-9 && wK >= -1e-9;
-        // Piece 1 (v <= a): v = wW + wA*a, s = wA*a / v.
+
         const v1 = wW + wA * a;
         const s1 = v1 > 1e-9 ? (wA * a) / v1 : 0;
         if (v1 >= -1e-9 && v1 <= a + 1e-9 && s1 >= -1e-9 && s1 <= 1 + 1e-9) {
           return { u: clamp01(v1), v: clamp01(s1), inside };
         }
-        // Piece 2 (v >= a): q = 1 - wA - wK/(1-a), v = a + q(1-a), s = wA/(1-q).
+
         const q = 1 - wA - wK / (1 - a);
         const v2 = a + q * (1 - a);
         const s2 = 1 - q > 1e-9 ? wA / (1 - q) : 1;
@@ -145,10 +119,6 @@
     };
   }
 
-  // The fixed (barycentric) triangle: the saturated corner never moves, because
-  // in Okhsv the slice square *is* the gamut. Its vertices are the largest
-  // equilateral triangle inscribed in the ring's inner circle, so all three
-  // corners touch it.
   const FIXED_APEX = TRI_FIXED_APEX;
 
   /**
@@ -209,7 +179,7 @@
       if (!best || s.chroma > best.chroma) best = { a, b: s.b, chroma: s.chroma };
     }
     if (!best) return null;
-    // Golden-section refine on the chroma (the b at the refined a is resampled).
+
     let lo = Math.max(0, best.a - 1 / steps);
     let hi = Math.min(1, best.a + 1 / steps);
     const phi = (Math.sqrt(5) - 1) / 2;

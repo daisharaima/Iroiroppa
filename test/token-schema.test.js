@@ -44,7 +44,7 @@ test('filterPayloadByType drops other types and now-empty modes', () => {
   const onlyColors = Schema.filterPayloadByType(payload, ['color']);
   assert.equal(onlyColors.collections[0].modes[0].tokens.length, 1);
   assert.equal(onlyColors.collections[0].modes[0].tokens[0].value, '#111111');
-  // a filter that matches nothing yields no collections
+
   assert.deepEqual(Schema.filterPayloadByType(payload, ['boolean']), { collections: [] });
 });
 

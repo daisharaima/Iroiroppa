@@ -61,8 +61,8 @@ test('list reports command names per instance', () => {
 test('a stale unregister must not drop an instance another window re-registered', () => {
   const r = createCommandRouter({ send: () => {} });
   r.register(1, { i1: ['a'] });
-  r.register(2, { i1: ['b'] });   // the float took it over
-  r.unregister(1);                // the old window's teardown arrives late
+  r.register(2, { i1: ['b'] });
+  r.unregister(1);
   assert.deepEqual(r.list(), { i1: ['b'] }, 'the live owner keeps the instance');
   r.unregister(2);
   assert.deepEqual(r.list(), {});

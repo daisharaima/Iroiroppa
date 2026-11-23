@@ -1,17 +1,5 @@
 'use strict';
 
-// The Lens window: the lenses over one selector instance.
-//
-// A lens is not a module — it has no board slot and no manifest entry. It latches onto
-// the instance that opened this window, and what it edits is that instance's own stored
-// settings (`lens` inside `modules/<id>.json`), so duplicating the instance duplicates
-// its lens and unmounting it takes the lens away.
-//
-// v1 has one lens (Quantize) and one source of bands (a per-channel bit grid over the
-// document's channels). The pick half is not optional: `src/shared/lens.js` is the same
-// function the map paints with, so nothing here can show a colour the pick would not
-// record (docs/INVARIANTS.md, "a lens is one function").
-
 (function () {
   const csp = window.csp;
   const Lens = window.IroLens;
@@ -24,9 +12,6 @@
 
   const t = (key, vars) => window.Iro.t(key, vars);
 
-  // The document's channel labels. The grid is always three channels: a LUT/CMYK profile
-  // in this app is a soft proof over an sRGB document, so it has no ink channels of its
-  // own (`.scratch/color-lens/DECISIONS.md`, B1).
   const CHANNEL_LABELS = ['R', 'G', 'B'];
 
   const state = {
@@ -44,8 +29,7 @@
     if (body) body.style.overflow = 'visible';
     const content = Math.ceil(Math.max(app.offsetHeight, app.scrollHeight, document.body.scrollHeight));
     if (body) body.style.overflow = prev;
-    // Only when it really changed: an unnecessary setContentSize on every keystroke of a
-    // stepper blurred the window and closed it.
+
     if (content === lastHeight) return;
     lastHeight = content;
     csp.resizeLens(content);
@@ -58,8 +42,6 @@
       quantize: { bits: state.bits.slice() },
     });
   }
-
-  // --- rows -------------------------------------------------------------------
 
   function statusLine() {
     const line = document.createElement('p');
@@ -170,7 +152,7 @@
 
     const list = document.createElement('div');
     list.className = 'lens-list';
-    // "None" is a row of its own, so clearing a lens is one click in the list.
+
     const none = document.createElement('button');
     none.type = 'button';
     none.className = 'lens-row';
@@ -197,8 +179,6 @@
     requestAnimationFrame(fitWindow);
   }
 
-  // The instance persists the lens; this window must show what it actually stored (a
-  // re-fitted bit depth, or a lens cleared from the canvas side).
   function apply(lens) {
     state.active = lens && lens.active === 'quantize' ? 'quantize' : null;
     if (lens && lens.quantize && Array.isArray(lens.quantize.bits)) {
@@ -216,14 +196,13 @@
     if (e.key === 'Escape') { e.preventDefault(); csp.closeLens(); }
   });
 
-  // The window follows the palette's language, like the settings popout.
   csp.snapshot()
     .then((s) => window.Iro.i18n.use(((s && s.settings) || {}).language || navigator.language || 'en'))
-    .catch(() => { /* keep English */ })
+    .catch(() => {  })
     .then(() => {
       const theme = new window.Iro.ThemeRegistry();
       return theme.init(csp).catch(() => {});
     })
-    .catch(() => { /* the default theme still applies */ })
+    .catch(() => {  })
     .then(render);
 })();

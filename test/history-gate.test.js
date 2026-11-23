@@ -1,9 +1,5 @@
 'use strict';
 
-// The drawing-only gate routes picks to `note` (pending) while ON and to the
-// normal settle/commit paths while OFF. It is the only place that decides, so
-// every window is subject to the same rule (docs/INVARIANTS.md).
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { createHistoryGate } = require('../src/main/history-gate');

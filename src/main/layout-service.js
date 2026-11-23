@@ -1,21 +1,5 @@
 'use strict';
 
-// The workspace document, owned by main.
-//
-// Everything that touches layout.json goes through one service, which holds the
-// document in memory and is the only thing that writes it — atomically, debounced,
-// from a single place. That is what removes the read-modify-write races: two
-// writers used to each read the file, change one part of it and write the whole
-// thing back, so one of the two changes was regularly lost.
-//
-// The service speaks both v2 (the document, docs/LAYOUT.md) and v1 (the board and
-// the float layer, via `layout-view.js`). `apply()` runs a real intent through the
-// reducer; the v1 writers go through `writeV1()`, which is transitional and is
-// deleted as each caller becomes an intent.
-//
-// Electron-free: the store, the id factory and the timer are injected, so the
-// whole thing is headless-testable.
-
 const Model = require('../shared/layout-model');
 const View = require('./layout-view');
 const Codec = require('../shared/layout-codec');
@@ -25,7 +9,7 @@ const WRITE_DELAY_MS = 250;
 
 function defaultSchedule(fn, ms) {
   const timer = setTimeout(fn, ms);
-  // Never hold the process open just to save the layout.
+
   if (timer && typeof timer.unref === 'function') timer.unref();
   return () => clearTimeout(timer);
 }
@@ -150,8 +134,7 @@ function createLayoutService(options) {
    */
   function writeV1(v1doc) {
     const next = View.applyV1Doc(ensure(), v1doc, writeCtx());
-    // A float drag writes the document back on every move; an unchanged one must
-    // not bump the revision or schedule a save.
+
     if (JSON.stringify(next) === JSON.stringify(doc)) return { ok: true, rev, noop: true };
     return commit(next, 'v1');
   }
@@ -199,8 +182,7 @@ function createLayoutService(options) {
     flush,
     dispose,
     on,
-    // Exposed so main can mint the id for a *duplicate* before the module is mounted (it
-    // has to copy that instance's settings file first).
+
     newId,
   };
 }

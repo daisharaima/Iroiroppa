@@ -43,8 +43,6 @@ const fill = (weight) => ({ mode: 'fill', weight });
 /** A v1 module: the shape the board and the float layer send. */
 const vmod = (instanceId, moduleId, weight) => ({ instanceId, moduleId, weight });
 
-// --- the weight <-> height mapping ----------------------------------------
-
 test('a v1 weight is a fill share, and a null weight is the module default', () => {
   assert.deepEqual(View.heightFromV1(5, undefined, REGISTRY, 'color-slices'), fill(5));
   assert.equal(View.heightToV1(fill(5)), 5);
@@ -76,8 +74,6 @@ test('a locked ratio round-trips through the v1 view', () => {
   assert.deepEqual(back[0].modules[0].height, { mode: 'ratio', ratio: 1.4 });
 });
 
-// --- the v1 view ----------------------------------------------------------
-
 test('docToV1 reads the primary palette and the floats', () => {
   const d = doc([
     palette([col('c1', [mod('i1', 'color-slices', fill(3)), mod('i2', 'csp-color', { mode: 'auto' })])]),
@@ -101,8 +97,6 @@ test('docToV1 reads the primary palette and the floats', () => {
   assert.deepEqual(v1.floats[0].columns[0].modules.map((m) => m.weight), [2]);
 });
 
-// --- applying a v1 write --------------------------------------------------
-
 test('a columns-only write leaves the floats alone', () => {
   const before = doc([
     palette([col('c1', [mod('i1', 'color-slices', fill(1))])]),
@@ -120,12 +114,10 @@ test('a floats-only write leaves the palette columns alone', () => {
   ]);
   const after = View.applyV1Doc(before, { floats: [{ floatId: 'f1', x: 5, y: 6, width: 200, height: 300, snap: 'right', columns: [] }] }, CTX);
   assert.deepEqual(after.palettes[0].columns[0].modules[0].height, fill(4));
-  // A v1 write carries *columns only*: the workspace owns position, size, snap and collapsed, so a
-  // window's own save can never push a stale position over a move the drag session just committed,
-  // nor drop a join it just recorded.
+
   assert.equal(after.palettes[1].pos.x, before.palettes[1].pos.x);
   assert.equal(after.palettes[1].snap, before.palettes[1].snap);
-  // A float the workspace has never seen is created from the v1 record — the upgrade path.
+
   const fresh = View.applyV1Doc(before, { floats: [{ floatId: 'f9', x: 5, y: 6, width: 200, height: 300, snap: 'right', columns: [] }] }, CTX);
   const created = fresh.palettes.find((p) => p.id === 'f9');
   assert.equal(created.pos.x, 5);
@@ -134,10 +126,7 @@ test('a floats-only write leaves the palette columns alone', () => {
 });
 
 test('a palette the v1 doc does not mention is kept, not dropped', () => {
-  // The reverse of the old rule. It used to be authoritative so that closing a float
-  // through the v1 path removed it; floats close through `palette.close` now, and the
-  // old rule lost a palette the moment one was created after the view was read (a
-  // duplicate with a live window, for instance).
+
   const before = doc([
     palette([col('c1', [mod('i1', 'color-slices', fill(1))])]),
     palette([col('d1', [mod('i2', 'color-slices', fill(1))])], { id: 'f1' }),
@@ -145,7 +134,7 @@ test('a palette the v1 doc does not mention is kept, not dropped', () => {
   ]);
   const after = View.applyV1Doc(before, { floats: [{ floatId: 'f2', x: 1, y: 2, width: 260, height: 260, snap: null, columns: [{ id: 'e1', width: null, modules: [{ instanceId: 'i3', moduleId: 'color-slices', weight: 1 }] }] }] }, CTX);
   assert.deepEqual(after.palettes.map((p) => p.id), ['p1', 'f2', 'f1']);
-  // f1 is untouched, not blanked.
+
   assert.equal(after.palettes[2].columns[0].modules[0].instanceId, 'i2');
 });
 
@@ -188,14 +177,12 @@ test('a v1 write never mutates the document it was given', () => {
 test('a v1 write keeps the collapse state, which v1 cannot express', () => {
   const before = doc([palette([col('c1', [mod('i1', 'color-slices', fill(1))])]), palette([col('d1', [mod('i2', 'color-slices', fill(1))])], { id: 'f1', collapsed: true })]);
   assert.equal(before.palettes[1].collapsed, true);
-  // The float layer reads this to reopen a window in the state it was left.
+
   assert.equal(View.docToV1(before).floats[0].collapsed, true);
-  // Exactly what floats.js does on a geometry change or a dock.
+
   const after = View.applyV1Doc(before, View.docToV1(before), CTX);
   assert.equal(after.palettes[1].collapsed, true);
 });
-
-// --- the property the whole bridge rests on -------------------------------
 
 test('a full v1 round trip keeps a px height, an auto height and a share', () => {
   const before = doc([palette([col('c1', [

@@ -1,27 +1,9 @@
-/*
- * Model dropdowns, grouped by colour-model family — and drawn *inside the page*.
- *
- * Two things this has to get right:
- *
- * 1. The model list is one long row of names (OKLCH, OKLab, CIELAB, CIELCH, OKHSV,
- *    OKHSL, OKHWB, HelmGen LCH, HelmGen). Every module's Model control groups them
- *    under their family — OKLab first, then CIELAB, then HelmGen — using the existing
- *    `settings.family.*` labels. A module filters the list to what it can draw;
- *    grouping never reorders within a family.
- *
- * 2. A native <select> opens its list in a separate OS window, which is *not* in the
- *    topmost band the palette and its tool windows live in — so inside the module
- *    settings popup and the Settings window the dropdown was drawn *behind* the page.
- *    `menu()` builds the same control as a button plus an in-page list instead.
- *
- * Loads as a global `IroModelOptions` (classic script, before the modules).
- */
+
 (function () {
   'use strict';
 
-  // The user-facing order: the OK family first, then CIELAB, then HelmGen.
   const ORDER = ['oklab', 'cielab', 'helmgen', 'hct'];
-  // Used only if the active locale has no `settings.family.<id>` label.
+
   const FALLBACK = { oklab: 'OKLab', cielab: 'CIELAB', helmgen: 'HelmGen', hct: 'HCT' };
 
   const labelFor = (family) => {
@@ -88,7 +70,7 @@
     host.append(wrap);
 
     let current = opts.value;
-    let markList = null; // the fallback list's active row, set once the list exists
+    let markList = null;
     const setValue = (value) => {
       current = value;
       const hit = flat.find((it) => it.value === value);
@@ -107,25 +89,18 @@
     const hasOverlay = Boolean(overlay && typeof overlay.show === 'function'
       && window.csp && typeof window.csp.showPaletteMenu === 'function');
 
-    // The overlay item list: one heading per family, every model a row. A heading is
-    // only useful when there are several families — one family's heading alone (the Disc
-    // filters to the OKLab spaces) reads as a stray title.
     const overlayItems = [];
     const families = source.filter((g) => g.items && g.items.length);
     const showHeadings = families.length > 1;
     for (const g of families) {
-      // A family with a single model named exactly like the family (CIELAB, HelmGen)
-      // needs no heading — it would just repeat the item line.
+
       const repeat = g.items.length === 1 && g.items[0].label === g.label;
       if (showHeadings && g.label && !repeat) overlayItems.push({ kind: 'heading', label: g.label });
       for (const it of g.items) overlayItems.push({ id: it.value, label: it.label });
     }
 
     if (hasOverlay) {
-      // Every widget gets its own menu id and registers its pick handler *on open*:
-      // registering them all as 'model' at build time made the last-built menu win, so
-      // the Slices' model menu and the Slider's other dropdowns stole each other's picks
-      // ("switching colour model is impossible").
+
       const menuId = `model:${(menuSeq += 1)}`;
       btn.addEventListener('click', (ev) => {
         ev.preventDefault();
@@ -149,8 +124,7 @@
     list.hidden = true;
     for (const g of source) {
       if (!g.items || !g.items.length) continue;
-      // A family with a single model named exactly like the family (CIELAB, HelmGen)
-      // needs no heading — it would just repeat the item line.
+
       const repeat = g.items.length === 1 && g.items[0].label === g.label;
       if (g.label && !repeat) {
         const head = document.createElement('div');
@@ -175,13 +149,9 @@
     }
     wrap.append(btn);
     host.append(wrap);
-    // The list goes *after* the row, in the page flow, and is placed on first open —
-    // the caller appends the row to its settings body only after building it, so
-    // host.parentElement is still null here. Positioned absolutely it was clipped by the
-    // content-fitted popup window and by the Settings tab's column.
+
     const listHost = () => host.parentElement || host;
 
-    // The fallback list mirrors the value too (the overlay path never builds one).
     markList = (value) => {
       if (!list || !list.children) return;
       for (const item of list.children) {
@@ -192,9 +162,6 @@
     };
     markList(opts.value);
 
-    // The list is a sibling of the row, so an outside click has to clear *both* — and a
-    // click on an item must not close the menu on its own pointerdown, or the click that
-    // follows lands on nothing and the model never changes.
     const onDocDown = (ev) => { if (!wrap.contains(ev.target) && !list.contains(ev.target)) close(); };
     const onKey = (ev) => { if (ev.key === 'Escape') close(); };
     function close() {

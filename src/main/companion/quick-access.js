@@ -1,30 +1,8 @@
 'use strict';
 
-// Quick Access: CSP's name-addressed namespace for its own commands.
-//
-// CSP has no "set this tool flag" command. The only wire mechanism that reads or
-// writes a brush sub-tool toggle is the Quick Access namespace, which addresses a
-// command by name:
-//
-//   read   SyncQuickAccessUIState { UpdateTargetSetIndex, UpdateTargetItemIDs }
-//          → the reply's CheckedItemIDs names the items that are ON (an item that
-//            is off is simply absent), and DisabledItemIDs names the ones the host
-//            will not toggle right now.
-//   write  DoQuickAccess { ItemType:'Command', ItemCommandType:'advancedcommand',
-//                          ItemCommandName }  — a *click*, not a set.
-//
-// Both work whether or not the command is on the user's Quick Access palette, so
-// the palette's layout is irrelevant. The host answers success even for a name it
-// does not know, so a write must be confirmed by reading the state back.
-//
-// This module is pure and Electron-free: the service calls it, and the tests cover
-// it without a socket. See docs/PROTOCOL.md, "Quick Access".
-
 const COMMAND = 'advancedcommand';
 const ITEM_TYPE = 'Command';
 
-// A read is one small request; 64 names is well past the 40 a recipe needs and
-// keeps a renderer from turning the channel into a bulk pump.
 const MAX_NAMES = 64;
 
 /** One `UpdateTargetItemIDs` entry for a command name. */

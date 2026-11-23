@@ -1,10 +1,5 @@
 'use strict';
 
-// The generalised Ottosson conversions (src/shared/ottosson.js): one set of formulas,
-// the cusp and the boundary taken from the cube they are given. The sRGB cube is the
-// gate — the generalised code must reproduce the app's sRGB implementation — and the
-// Adobe RGB cube is the reason it exists (colours sRGB cannot name).
-
 const test = require('node:test');
 const assert = require('node:assert');
 
@@ -51,8 +46,7 @@ test('the sRGB cube reproduces the app\'s Okhsv (the generalisation gate)', () =
       }
     }
   }
-  // Ottosson's `computeMaxSaturation` is itself a fit of the sRGB wall, so the exact
-  // cusp differs from it by a few 1e-4 — the shapes agree, the numbers are sharper.
+
   assert.ok(worst < 3e-3, `worst Okhsv delta ${worst}`);
 });
 
@@ -103,9 +97,7 @@ test('the Adobe RGB cube reaches its own primaries (outside sRGB)', () => {
       const a = cube[toAxes](lab.L, lab.a, lab.b);
       const p0 = a[keys[0]];
       const p1 = a[keys[1]];
-      // A cube corner lands a few 1e-4 past the s=1 wall (the triangle approximation);
-      // the axis clamps there, so judge the *reach* (S in 0..1) and that the other axis
-      // (V for Okhsv, L for Okhsl) is a lightness inside 0..1.
+
       assert.ok(p0 > 0.99 && p0 < 1.01, `${name} ${toAxes}: ${keys[0]}=${p0}`);
       assert.ok(p1 >= 0 && p1 <= 1, `${name} ${toAxes}: ${keys[1]}=${p1}`);
       const back = cube[fromAxes](a.h, p0, p1);
@@ -126,7 +118,7 @@ test('the Adobe RGB cusp is the profile gamut boundary', () => {
 });
 
 test('gamut-relative mode: S=1 is the document boundary, S=0.5 half of it', () => {
-  // A stand-in for a LUT/CMYK proof: a smooth, hue-dependent boundary.
+
   const maxChroma = (L, H) => (L > 0 && L < 1 ? 0.25 * Math.sin(Math.PI * L) * (0.7 + 0.3 * Math.cos((H * Math.PI) / 180)) : 0);
   const g = Ottosson.gamutRelative({ maxChroma });
   for (const h of [0, 45, 120, 250, 330]) {
@@ -134,14 +126,13 @@ test('gamut-relative mode: S=1 is the document boundary, S=0.5 half of it', () =
       const wall = maxChroma(L, h);
       const lab = g.okhsvToOklab(h, 1, L);
       const C = Math.hypot(lab.a, lab.b);
-      // The boundary is cached on a 1 deg x 1/96 grid and interpolated, so S=1 lands on
-      // the interpolated wall (about 1e-4 of the boundary, 0.01%).
+
       assert.ok(Math.abs(C - wall) <= Math.max(1e-6, wall * 1.5e-3), `h${h} L${L}: S=1 chroma ${C} vs wall ${wall}`);
       const half = g.okhsvToOklab(h, 0.5, L);
       assert.ok(Math.abs(Math.hypot(half.a, half.b) - wall / 2) <= Math.max(1e-6, wall * 1.5e-3), 'S=0.5 is half the boundary');
     }
   }
-  // Round-trip and the black/white ends.
+
   for (const h of [10, 170, 300]) {
     const lab = g.okhsvToOklab(h, 0.6, 0.4);
     const a = g.oklabToOkhsv(lab.L, lab.a, lab.b);

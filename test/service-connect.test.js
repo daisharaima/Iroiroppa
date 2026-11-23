@@ -1,8 +1,5 @@
 'use strict';
 
-// Connection-lifecycle regression tests. They inject a fake CompanionClient so
-// no socket is needed; each test file runs in its own process, so the patch
-// cannot leak into service.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -55,10 +52,9 @@ test('a late stale reconnect failure cannot kill a newer connection', async () =
   connectImpl = function () { return new Promise((_, reject) => { rejectStale = reject; }); };
 
   const svc = makeService();
-  const stale = svc.connectSaved(); // dialling the saved host, still pending
+  const stale = svc.connectSaved();
   await tick();
 
-  // A manual pair wins while the stale dial is in flight.
   const manual = new FakeClient({ password: 'new' });
   manual.alive = true;
   svc.client = manual;
@@ -109,8 +105,7 @@ test('a transient reconnect failure stays reconnecting and is not scanned over',
 });
 
 test('a newer pair supersedes an in-flight one without a disconnect', async () => {
-  // The first pair never finishes; the second must own the connection and the
-  // first's late failure must not clear it.
+
   let failFirst;
   let calls = 0;
   connectImpl = function () {

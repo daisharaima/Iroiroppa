@@ -1,14 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-// Preview a theme without touching real settings and without CSP.
-//
-//   npm run theme:preview -- blender-dark [out.png]
-//
-// It runs a throwaway profile (own user-data dir), renders the standard layout at
-// 300x900 and prints where the PNG landed (temp by default). Proofing is off, so
-// no ICC profile appears.
-
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -60,9 +52,7 @@ const electron = process.platform === 'win32'
   ? path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron.exe')
   : path.join(ROOT, 'node_modules', 'electron', 'dist', 'electron');
 const shot = path.join(tmp, 'shot.png');
-// Strip ELECTRON_RUN_AS_NODE (an agent harness or IDE may export it), which would
-// make electron.exe run as plain Node — no window, no capture — and put the app
-// path before --user-data-dir, which Electron's own CLI accepts.
+
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
 try {
@@ -75,5 +65,5 @@ try {
   fs.copyFileSync(shot, out);
   console.log('wrote ' + out);
 } finally {
-  try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* best effort */ }
+  try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {  }
 }

@@ -1,11 +1,5 @@
 'use strict';
 
-// The pane layer: the palette window and every float, their snapping, docking,
-// cross-window drops and the transient edge hints — one lifecycle for every window
-// (docs/LAYOUT.md, V6). It takes the app context (main.js), so it drives the live
-// palette and reads/writes the shared layout through accessors rather than a
-// startup snapshot.
-
 const path = require('node:path');
 const { app, BrowserWindow, screen } = require('electron');
 const { resolveWindowBounds } = require('./window-bounds');
@@ -14,11 +8,7 @@ const { ensureBand } = require('./topmost');
 
 function createPanes(ctx) {
 
-  // --- floated modules ---------------------------------------------------------
-
-  // Floats currently collapsed by the eye: their size is not persisted.
   const collapsedFloats = new Set();
-
 
 /** How close an edge has to be before it snaps flush. */
 const SNAP_TOL = 8;
@@ -61,8 +51,7 @@ function openFloatWindow(entry) {
   const size = clampFloatSize(entry.width, entry.height);
   const w = size.width;
   const h = size.height;
-  // Sizes in layout.json are CSS pixels; the window is the zoomed physical
-  // size, so the UI scale does not compound across launches.
+
   const zoom = ctx.uiScaleValue();
   const pal = ctx.popup && !ctx.popup.isDestroyed() ? ctx.popup.getBounds() : null;
   let px = Number.isFinite(entry.x) ? Math.round(entry.x) : (pal ? pal.x + pal.width + 6 : NaN);
@@ -94,9 +83,7 @@ function openFloatWindow(entry) {
     resizable: true,
     minWidth: 90,
     minHeight: 60,
-    // Activatable on purpose — the window is kept out of the activation path
-    // natively instead (WS_EX_NOACTIVATE, topmost.js): on Windows 26300 a press on
-    // a non-activatable window never reaches the page.
+
     focusable: true,
     maximizable: false,
     minimizable: false,
@@ -115,7 +102,7 @@ function openFloatWindow(entry) {
   });
   win.setAlwaysOnTop(true, 'floating');
   attachRendererRecovery(win, `float:${entry.floatId}`);
-  // This window is not in ctx.floatWins yet, so set its own locked state.
+
   win.setResizable(ctx.settings.get().locked !== true);
   win.loadFile(path.join(__dirname, '..', 'renderer', 'float.html'), {
     query: { floatId: entry.floatId },
@@ -124,9 +111,7 @@ function openFloatWindow(entry) {
     ctx.applyZoom(win);
     win.showInactive();
     ensureBand(win, { noActivate: true }).catch(() => {});
-    // A window is not "moved onto the palette" by being opened: the placement below
-    // emits 'move', and the dock-armed timer would otherwise dock a float the instant
-    // it appears (over the palette, which is where duplicates land).
+
     win.__boardLoaded = true;
   });
   if (ctx.isDev || ctx.shotPath || process.argv.includes('--log')) {
@@ -135,13 +120,8 @@ function openFloatWindow(entry) {
     });
   }
 
-  // The snap relationship itself lives in the document (`snap`/`snapTo`); main derives
-  // group membership from it, so there is no parallel map to keep in step here.
-  // A collapsed float is marked *before* the window exists, so `report` cannot
-  // overwrite its saved size with the bar's height.
   if (entry.collapsed) collapsedFloats.add(entry.floatId);
 
-  // Remember the float's geometry directly (main owns layout.json).
   let geo = null;
   const report = () => {
     if (geo) clearTimeout(geo);
@@ -151,9 +131,7 @@ function openFloatWindow(entry) {
       if (typeof ctx.isShortcutPlacement === 'function' && ctx.isShortcutPlacement(entry.floatId)) return;
       const b = win.getBounds();
       const z = ctx.uiScaleValue();
-      // Geometry is document state, written as one intent (the layout service is
-      // the only writer). A collapsed float shows only its bar, so its real size
-      // is preserved: `size: null` leaves it alone.
+
       ctx.dispatchLayout({
         type: 'palette.setBounds',
         paletteId: entry.floatId,
@@ -166,55 +144,40 @@ function openFloatWindow(entry) {
     geo.unref?.();
   };
 
-  let moveSettleTimer = null; // fires `afterMoveEnd` once a move has stopped
+  let moveSettleTimer = null;
   let lastBounds = win.getBounds();
 
   win.on('move', () => {
-    // Follow the document's snap graph: this pane may be an anchor for another. The
-    // drag session moves a whole group itself, so `followSnapGroup` no-ops then.
-    // A corner/edge resize also fires `move`; leave the pre-resize rect for the resize
-    // handler (which needs it to know which edge moved).
+
     const moved = win.getBounds();
     if (moved.width === lastBounds.width && moved.height === lastBounds.height) {
       ctx.followSnapGroup(entry.floatId, lastBounds, moved);
       lastBounds = moved;
     }
-    // A palette being moved turns into its name chip: the chip follows the pointer while the
-    // window is in motion, and goes away when the move ends. (The window itself stays visible —
-    // hiding a window mid-move makes Windows drop the move.) The old "hide the contents while
-    // it overlaps something" dance is gone: the overlay draws above every window anyway.
+
     if (win.__boardLoaded) {
-      // A palette in motion shows its name chip — but only when *it* is the drag. A lone
-      // module's header drags the module, not the window, and that drag's chip (the module's
-      // name) is drawn by the drag session; drawing a palette chip here would fight it.
+
       if (!ctx.dragSession.state()) {
         const at = screen.getCursorScreenPoint();
         const pal = ctx.currentWorkspace().palettes.find((p) => p.id === entry.floatId);
         ctx.showOverlay(null, { text: pal ? pal.name : '', x: at.x, y: at.y, line: null });
       }
-      // Main's own placements (a restored position, a fit) also fire 'move'; the quiet timer
-      // below is what decides whether the move has ended.
+
       if (moveSettleTimer) clearTimeout(moveSettleTimer);
       moveSettleTimer = setTimeout(() => { moveSettleTimer = null; afterMoveEnd(); }, 300);
       moveSettleTimer.unref?.();
     }
-    // Show which edges are joined while the window is near the palette, but never move
-    // it. This used to `setPosition` the window flush on every move, so a float that
-    // came near the palette could not be dragged away again ("a strong magnetic
-    // force"). Snapping is a constraint you set, not something a move does to you.
+
     report();
   });
-  // A palette drag belongs to the drag session: it moves the windows while the pointer moves and
-  // decides move-or-dock on release. So there is nothing to do here but drop a stale hint — this
-  // used to dock and join on a timer, which fought the session and could put a window back.
+
   const afterMoveEnd = () => {
     ctx.hideOverlay();
   };
   win.on('moved', afterMoveEnd);
   win.on('resize', () => {
     const next = win.getBounds();
-    // A board's own content fit (`window:resize-self`) already keeps a shared edge
-    // pinned in main; don't treat it as a user resize and resize the neighbour.
+
     const selfResize = Date.now() - (win.__selfResizeAt || 0) < 300;
     if (!selfResize) ctx.reflowSnapResize(entry.floatId, lastBounds, next);
     lastBounds = win.getBounds();
@@ -227,9 +190,7 @@ function openFloatWindow(entry) {
   });
 
   ctx.floatWins.set(entry.floatId, win);
-  // A new palette is *not* automatically joined to the palette it happens to land beside —
-  // joining is an explicit gesture now: drop it in a snap zone (docs/LAYOUT.md, "Snap zones").
-  // The old proximity snap (`snapEdge`) and this open-time detection are both gone with it.
+
   return win.getBounds();
 }
 /** Close a float window without touching layout.json. */
@@ -238,8 +199,7 @@ function closeFloatWin(floatId) {
   ctx.floatWins.delete(floatId);
   collapsedFloats.delete(floatId);
   if (win && !win.isDestroyed()) win.close();
-  // A float can be closed while one of its modules is being dragged (a lone
-  // module dragged onto the palette); the chip would otherwise stay on screen.
+
   ctx.hideOverlay();
 }
 
@@ -281,7 +241,7 @@ function isFloatCollapsed(floatId) {
  */
 function openPane(paletteId, size) {
   if (!paletteId) return null;
-  if (paletteId === ctx.primaryPaletteId()) return ctx.popup || null; // the palette is already up
+  if (paletteId === ctx.primaryPaletteId()) return ctx.popup || null;
   const existing = ctx.floatWins.get(paletteId);
   if (existing && !existing.isDestroyed()) return existing;
   const doc = ctx.readLayoutDoc();
@@ -321,8 +281,7 @@ function removeFloat(floatId) {
 function addFloat(spec = {}) {
   const { moduleId, instanceId } = spec;
   if (!moduleId) return null;
-  // No `|| { columns: [] }` fallback: the read is never null now (the layout
-  // service always has a document), and writing an empty one would wipe the board.
+
   const doc = ctx.readLayoutDoc();
   const floatId = nextFloatId(doc);
   const size = clampFloatSize(spec.width, spec.height);
@@ -388,9 +347,7 @@ function dockThroughIntent(floatId, targetPaletteId, side, onlyInstanceId) {
   const all = from.columns.flatMap((c) => c.modules.map((m) => m.instanceId));
   const items = onlyInstanceId ? all.filter((id) => id === onlyInstanceId) : all;
   if (!items.length) return false;
-  // A docked palette brings its own window size with it (docs/LAYOUT.md, "Snapping"): docking
-  // whole, it grows the destination by its width (rows beside) or its height (a column of rows).
-  // A single module has no window of its own to measure, so let the card's measurement stand.
+
   let grown;
   const win = floatWinFor(floatId);
   if (win && !win.isDestroyed() && !onlyInstanceId) {
@@ -463,8 +420,7 @@ function showFloats(show, { force = false } = {}) {
     if (win.isDestroyed()) continue;
     if (show) {
       if (!force && typeof ctx.isPaletteSuppressed === 'function' && ctx.isPaletteSuppressed(floatId)) continue;
-      // A focus-follow show calls this even when the float is already up. Calling
-      // showInactive/ensureBand again made every float blink on each palette show.
+
       if (!win.isVisible()) {
         win.showInactive();
         ensureBand(win, { noActivate: true }).catch(() => {});

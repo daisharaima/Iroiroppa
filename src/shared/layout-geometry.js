@@ -1,22 +1,4 @@
-/*
- * Board geometry, pure. Given a palette document and a map of measured content
- * heights it answers three questions, and nothing else:
- *
- *   - how wide is each column?          `columnWidths`
- *   - how tall is each module?          `moduleRects`
- *   - how big should the window be?     `contentSize` / `minSize` / `grownSize`
- *
- * The invariants live here, once:
- *   - a column always fills its window height and never scrolls;
- *   - nothing may leave empty space: leftover height goes to the `fill`
- *     modules (shared by weight), and if a column has none the *last* module
- *     absorbs it (so a module alone in a column always fills it);
- *   - a module's `px` height and an `auto` module's measured height are never
- *     traded away.
- *
- * Loads as CommonJS in Node and as a global `IroLayoutGeometry` in the renderer,
- * so the board and main size the same things the same way.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroLayoutGeometry = factory();
@@ -25,20 +7,17 @@
 
   /** Board padding, the divider between columns, and the gap between modules.
    *  These mirror the CSS in src/renderer/style.css. */
-  // These must match the board's CSS (src/renderer/style.css: `#board` padding,
-  // the divider and the module gap are all 2 px). A board that reports its own
-  // `boxes`/`pad` wins over these anyway (see resolveDrop).
+
   const DEFAULTS = {
-    pad: 2,           // the board's inset inside the window, CSS px
-    divider: 2,       // the gap between columns, CSS px
-    gap: 2,           // the gap between modules, CSS px
+    pad: 2,
+    divider: 2,
+    gap: 2,
     minColumn: 10,
     minModule: 11,
     defaultColumnWidth: 260,
     defaultModuleHeight: 60,
     minPalette: { width: 200, height: 340 },
-    // The palette's own chrome (titlebar, status bar) that surrounds the board.
-    // Zero here because the board measures itself; main injects the real box.
+
     chrome: { width: 0, height: 0 },
   };
 
@@ -101,9 +80,7 @@
     const list = Array.isArray(columns) ? columns : [];
     if (!list.length) return [];
     const inner = Math.max(0, totalWidth - o.pad * 2 - o.divider * (list.length - 1));
-    // A lone column always fills the board: with nothing to trade against, a
-    // stored width could only leave a gap beside it (the v1 file has exactly
-    // that — a 133 px column inside a 200 px palette).
+
     if (list.length === 1) {
       return [{ columnId: list[0].id, width: Math.max(o.minColumn, inner), fill: true }];
     }
@@ -153,8 +130,7 @@
     const inner = Math.max(0, totalHeight - o.gap * (modules.length - 1));
 
     const fills = modules.filter(isFill);
-    // No fill module: the last one absorbs the leftover, so a lone module (or a
-    // column of only natural modules) still fills its box.
+
     const stretchLast = fills.length === 0 ? modules.length - 1 : -1;
 
     const fixedSum = modules.reduce(
@@ -318,10 +294,10 @@
     const sizeKey = horizontal ? 'width' : 'height';
     const startOf = (r) => r[key];
     const endOf = (r) => r[key] + r[sizeKey];
-    // The touching edge of each window on the shared axis.
+
     const anchorEdge = (r) => (side === 'right' || side === 'bottom' ? endOf(r) : startOf(r));
     const followerEdge = (r) => (side === 'right' || side === 'bottom' ? startOf(r) : endOf(r));
-    // The far (outer) edge of each window: it must stay fixed.
+
     const anchorFar = (r) => (side === 'right' || side === 'bottom' ? startOf(r) : endOf(r));
     const followerFar = (r) => (side === 'right' || side === 'bottom' ? endOf(r) : startOf(r));
     const sharedMoved = resizedRole === 'follower'
@@ -329,11 +305,10 @@
       : anchorEdge(anchor) !== anchorEdge(prevAnchor);
     if (!sharedMoved) return { anchor: s.anchor, follower: s.follower, changed: false };
 
-    // The shared position the pointer asked for.
     let shared = resizedRole === 'follower' ? followerEdge(follower) : anchorEdge(anchor);
 
     if (resizedRole === 'follower') {
-      // Move the anchor's touching edge to the new shared position.
+
       const anchorFarEdge = anchorFar(anchor);
       let size;
       if (side === 'right' || side === 'bottom') {
@@ -346,8 +321,7 @@
         anchor[key] = shared;
         anchor[sizeKey] = size;
       }
-      // Keep the follower's outer edge fixed and put its touching edge back on the
-      // (possibly clamped) shared position.
+
       const far = followerFar(follower);
       if (side === 'right' || side === 'bottom') {
         follower[key] = shared;
@@ -358,7 +332,6 @@
       return { anchor, follower, changed: true };
     }
 
-    // The anchor is the one resized: move the follower's touching edge.
     const followerFarEdge = followerFar(follower);
     let size;
     if (side === 'right' || side === 'bottom') {
@@ -371,8 +344,7 @@
       if (size < minFollower) { size = minFollower; shared = startOf(follower) + minFollower; }
       follower[sizeKey] = size;
     }
-    // Keep the anchor's own outer edge fixed when a follower minimum stopped the
-    // splitter: pull the anchor's touching edge back to the clamped position.
+
     const anchorFarEdge = anchorFar(anchor);
     if (side === 'right' || side === 'bottom') {
       anchor[sizeKey] = Math.max(minAnchor, shared - anchorFarEdge);

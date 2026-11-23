@@ -1,11 +1,5 @@
 'use strict';
 
-// The sample user module (docs/USER-MODULES.md). It is deliberately tiny, but it
-// exercises every part of the contract a user module can use: settings, the
-// shared colour store, and a command another module (or a hotkey) can call.
-//
-// Copy this folder into %APPDATA%\Iroiroppa\user-modules\hello-module and restart.
-
 (function () {
   const reg = (window.Iro = window.Iro || {});
   reg.modules = reg.modules || {};

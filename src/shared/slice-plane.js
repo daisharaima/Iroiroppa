@@ -1,33 +1,4 @@
-/*
- * The analytic OKLCH slice plane — the per-pixel colour of one Slices panel.
- *
- * The three Color Slices panels are exact silhouettes: the painted region is the
- * in-gamut set at the plane's fixed axis, found from the channel cubics
- * (`Color#chromaIntervals`), not from a per-pixel gamut test. That is what keeps a
- * primary's thin fin visible.
- *
- * This module exists because the old per-pixel loop called `Color#fitToSrgb`, which
- * converts the colour, re-tests the gamut and converts it *again*: two full
- * OKLCH -> sRGB chains for every painted pixel, 7-18 ms for a panel-sized plane. Two
- * of those cannot share a frame, so a drag had to rebuild one panel per frame and the
- * other two maps visibly stepped (docs/PERF.md).
- *
- * The maths is the same, arranged so nothing is recomputed per pixel:
- *
- *   l_ = L + C * A(H)          A is a per-plane constant when the hue is fixed, or a
- *                              per-column constant when the hue is an axis
- *   linear = cube(l_, m_, s_)  one matrix, in scalars
- *   sRGB   = gamma(linear)     the 4096-entry LUT the raster plane already uses
- *   in gamut?                  the same magnitude-relative predicate, on values we
- *                              already have
- *
- * That is ~3-4 ms per panel-sized plane instead of 7-18 ms (plus a millisecond of
- * per-column constants, `prepare`), so every visible panel can rebuild on every frame of
- * a drag.
- *
- * Loads as CommonJS in Node and as a global `IroSlicePlane` in the renderer.
- * Unit-tested against the reference chain in `test/slice-plane.test.js`.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(require('./color'), require('./raster-plane'));
@@ -37,15 +8,10 @@
 })(typeof self !== 'undefined' ? self : this, function (Color, Raster) {
   'use strict';
 
-  // Linear light -> gamma sRGB, from the shared rasteriser: a LUT, exact at the ends.
   const gamma = Raster.gamma;
 
-  // The tolerance `Color#inGamut` applies (magnitude-relative), so a silhouette edge
-  // lands on the same pixel it did through the reference chain.
   const GAMUT_REL_TOL = 1e-5;
 
-  // `oklabToLinearRgb`'s matrix and the l_/m_/s_ coefficients, as scalars: these run
-  // per pixel, and an array-of-arrays lookup per channel was a measurable share.
   const R0 = 4.0767416621, R1 = -3.3077115913, R2 = 0.2309699292;
   const G0 = -1.2684380046, G1 = 2.6097574011, G2 = -0.3413193965;
   const B0 = -0.0041960863, B1 = -0.7034186147, B2 = 1.707614701;
@@ -88,9 +54,6 @@
     const g = gamma(G0 * l + G1 * m + G2 * s);
     const b = gamma(B0 * l + B1 * m + B2 * s);
 
-    // A lens replaces the display decision below: its band is a real colour the document
-    // holds, so it is painted at full strength as clipped bytes — never a hole, never the
-    // fitted stand-in (docs/INVARIANTS.md, D11 in the lens requirement).
     const lens = prep && prep.lens;
     if (lens) {
       const c = lens.applySrgb(r, g, b, LENSED);
@@ -106,8 +69,7 @@
     const outside = r < -eps || r > 1 + eps || g < -eps || g > 1 + eps || b < -eps || b > 1 + eps;
     if (outside) {
       if (!fit) return false;
-      // Inside the document but past the sRGB window: keep the lightness and hue and
-      // pull the chroma to the display edge (docs/COLOR.md).
+
       const f = Color.fitToSrgb(L, C, H);
       data[i] = b255(f.r * 255);
       data[i + 1] = b255(f.g * 255);
@@ -149,17 +111,16 @@
       intervalsAt: spec.intervalsAt || null,
       inDocument: spec.inDocument || null,
       cols: null,
-      // The lens over this plane (a band grid), or null. A lens keeps the silhouette
-      // mask and replaces only the display decision (docs/COLOR.md).
+
       lens: spec.lens || null,
-      // `flat` is the fixed-hue coefficient triple (lc); `k0..k2` are per column (hc/hue).
+
       flat: null,
       k0: null, k1: null, k2: null,
       light: null,
     };
 
     if (kind === 'lc') {
-      // Lightness is the x axis, chroma the y axis, the hue fixed for the whole plane.
+
       prep.flat = coefficients(fixed[2] || 0);
       prep.light = new Float64Array(w);
       prep.cols = new Array(w);
@@ -168,7 +129,7 @@
         prep.cols[x] = prep.intervalsAt(x / wDen);
       }
     } else if (kind === 'hc') {
-      // Hue is the x axis, chroma the y axis, the lightness fixed.
+
       prep.k0 = new Float64Array(w);
       prep.k1 = new Float64Array(w);
       prep.k2 = new Float64Array(w);
@@ -179,7 +140,7 @@
         prep.cols[x] = prep.intervalsAt(x / wDen);
       }
     } else if (kind === 'hue') {
-      // Hue is the x axis, lightness the y axis, the chroma fixed: fold the chroma in.
+
       const C = fixed[1] || 0;
       prep.k0 = new Float64Array(w);
       prep.k1 = new Float64Array(w);
@@ -212,7 +173,7 @@
       const hue = fixed[2];
       for (let y = from; y < to; y += 1) {
         const C = (1 - y / hDen) * cmax;
-        // The row's chroma is constant, so its offsets are computed once for the row.
+
         const o0 = C * a0, o1 = C * a1, o2 = C * a2;
         let i = y * w * 4;
         for (let x = 0; x < w; x += 1, i += 4) {
@@ -248,22 +209,19 @@
       return;
     }
 
-    // hue x lightness at a fixed chroma: a per-pixel gamut mask, no intervals.
     const C = fixed[1];
     const k0 = prep.k0, k1 = prep.k1, k2 = prep.k2;
     const inDocument = prep.inDocument;
     for (let y = from; y < to; y += 1) {
       const L = 1 - y / hDen;
-      // The gamut collapses to a point at both ends of the lightness axis: the rows the
-      // reference chain reports as empty.
+
       const edge = L <= 0 || L >= 1;
       let i = y * w * 4;
       for (let x = 0; x < w; x += 1, i += 4) {
         if (edge) { data[i + 3] = 0; continue; }
         const H = (x / wDen) * 360;
         if (inDocument) {
-          // A document gamut wider than the screen decides the mask; a colour it holds
-          // but the screen cannot show is painted as the fitted stand-in, never a hole.
+
           if (inDocument(L, C, H)) {
             encode(prep, data, i, L, k0[x], k1[x], k2[x], C, H, true, luma, y * w + x, L);
           } else {
@@ -271,8 +229,7 @@
           }
           continue;
         }
-        // Plain sRGB: the mask *is* the screen test, and a pixel outside it is a hole
-        // (the Slices show only what they can pick).
+
         encode(prep, data, i, L, k0[x], k1[x], k2[x], C, H, false, luma, y * w + x, L);
       }
     }

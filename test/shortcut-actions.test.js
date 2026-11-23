@@ -289,8 +289,6 @@ test('a bare key bound to a module command uses the hook, not globalShortcut', (
   watcher.emit('down');
   assert.equal(ran, 1);
 
-  // Foreground and typing are pushed to command watchers too: the hook must not
-  // fire a recipe while the user types a letter into a CSP text field.
   h.actions.setBareActive(false);
   assert.deepEqual(watcher.commands.at(-1), ['active', false]);
   h.ctx.isShortcutActive = () => false;
@@ -300,7 +298,7 @@ test('a bare key bound to a module command uses the hook, not globalShortcut', (
 
   h.actions.clearCommandBare('i_1:apply_r1');
   assert.equal(watcher.stopped, true);
-  // Re-registering the same key starts a fresh watcher (the old one is gone).
+
   assert.equal(h.actions.registerCommandBare({ key: 'i_1:apply_r1', accel: 'S', run() {} }).ok, true);
   assert.equal(h.bareWatchers.length, 2);
 });
@@ -322,8 +320,7 @@ test('stop() releases every bare command binding', () => {
 });
 
 test('the canvas gate reaches both bare-key paths', () => {
-  // When on, the hook only claims a bare key while the pointer is over CSP's canvas,
-  // so a letter cannot fire with the cursor parked on a text field.
+
   const h = harness({
     visible: [],
     shortcuts: Model.normalise({ app: { mode: 'toggle', toggle: 'H' } }),
@@ -342,8 +339,7 @@ test('the canvas gate reaches both bare-key paths', () => {
 });
 
 test('CSP refusing a command mutes bare keys, and observer mode still reports them', () => {
-  // Measured on CSP: while a text layer is edited the Quick Access reply reports no flag
-  // on and everything requested as disabled, so the hook must pass the key through.
+
   const h = harness({
     visible: [],
     shortcuts: Model.normalise({ app: { mode: 'toggle', toggle: 'H' } }),

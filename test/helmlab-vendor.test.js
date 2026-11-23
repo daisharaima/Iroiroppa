@@ -1,9 +1,5 @@
 'use strict';
 
-// The vendored Helmlab bundle (scripts/vendor-helmlab.js) must load in Node and
-// stay in step with the devDependency it is generated from, or the models would
-// silently test against a different transform than the app ships.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -30,9 +26,6 @@ test('the vendor folder carries its licence', () => {
   assert.ok(fs.existsSync(licence), 'MIT licence next to the bundle');
 });
 
-// The registry lives on a shared UMD file loaded by four pages; a page that
-// forgets the bundle silently loses the GenSpace models (that is exactly how
-// the settings window first shipped without them).
 test('every page that loads the model registry loads the bundle first', () => {
   const dir = path.join(__dirname, '..', 'src', 'renderer');
   const pages = fs.readdirSync(dir).filter((name) => name.endsWith('.html'));

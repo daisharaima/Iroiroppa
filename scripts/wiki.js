@@ -1,23 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-// Tooling for the user guide in `wiki/`.
-//
-//   node scripts/wiki.js check     # offline gates; also run by test/wiki.test.js
-//   node scripts/wiki.js fix       # normalise internal links to `Page.md`
-//   node scripts/wiki.js publish   # copy the pages into the GitHub wiki, if it exists
-//
-// Why the pages live in this repository rather than only in a wiki: a GitHub wiki
-// is a separate git repository with no pull requests, no review and no history in
-// this repo, and on a free plan it does not exist at all for a private repository
-// (the repo's `has_wiki` cannot be turned on). So `wiki/` is the source of truth —
-// it renders in the repository's own file view, which is where the README points —
-// and `publish` is the ready path for the day the repo is public or the wiki is
-// enabled: it rewrites `Page.md` links to the wiki's `Page` form and pushes.
-//
-// The guide is written for people who do not program the app, so `check` also
-// fails on developer vocabulary that would mean nothing to them.
-
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -82,7 +65,6 @@ function check() {
     if (!stems.has(stem)) problems.push(`_Sidebar.md links ${stem}.md, which does not exist`);
   }
 
-  // Every module the app ships needs a place in the guide.
   const { MODULES } = require('../src/shared/module-manifest');
   const allText = pages.map((p) => read(p)).join('\n');
   for (const mod of MODULES) {
@@ -149,7 +131,7 @@ function wikiRemote() {
   try {
     origin = execFileSync('git', ['remote', 'get-url', 'origin'], { cwd: ROOT, encoding: 'utf8' }).trim();
   } catch (err) {
-    // A confined shell can block the child process outright; say which it was.
+
     throw new Error(`could not read git remote "origin" (${err.code || err.message})`);
   }
   return origin.replace(/\.git$/, '') + '.wiki.git';
@@ -192,8 +174,7 @@ function publish() {
       console.error('  cd /tmp/iroiroppa.wiki && git add -A && git commit -m "docs(wiki): publish user guide" && git push');
       return false;
     }
-    // A wiki git repository starts with its own home page; replace the lot, but
-    // keep `.git` so the history stays continuous.
+
     for (const entry of fs.readdirSync(tmp)) {
       if (entry !== '.git') fs.rmSync(path.join(tmp, entry), { recursive: true, force: true });
     }
@@ -202,7 +183,7 @@ function publish() {
       if (fs.statSync(from).isDirectory()) {
         fs.cpSync(from, path.join(tmp, entry), { recursive: true });
       } else {
-        // Wiki pages link by page name, not by file name.
+
         const body = fs.readFileSync(from, 'utf8').replace(/\]\(([A-Za-z0-9_-]+)\.md\)/g, ']($1)');
         fs.writeFileSync(path.join(tmp, entry), body);
       }

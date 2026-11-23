@@ -1,24 +1,10 @@
-/*
- * The capability model (docs/ARCHITECTURE.md).
- *
- * The app reaches Clip Studio Paint over more than one channel — the Companion
- * protocol, a live window capture, native senders — and a selector module may
- * use any combination of them, each as *required* or *optional*. This file is
- * the pure model of that: the live set of channels and the availability a module
- * derives from it. Main owns the set; every window mirrors it (the protocol can
- * drop mid-session, so it is live state, never a boot-time probe).
- *
- * Loads as CommonJS in Node and as a global `IroCapabilities` in the renderer,
- * like module-manifest.js.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroCapabilities = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // The channels a module may declare. `stub` is always available: it makes a
-  // two-channel module testable (and `--shot`-renderable) with only one.
   const CHANNELS = ['companion', 'capture', 'sender', 'stub'];
 
   /** One adapter per channel; `available`/`reason` are live. */
@@ -55,7 +41,7 @@
       if (prev.available === next.available && prev.reason === next.reason) return false;
       adapters.set(id, next);
       const snapshot = state();
-      for (const fn of listeners) { try { fn(snapshot); } catch { /* keep going */ } }
+      for (const fn of listeners) { try { fn(snapshot); } catch {  } }
       return true;
     }
 

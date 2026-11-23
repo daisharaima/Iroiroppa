@@ -33,7 +33,7 @@ test('a writable folder is usable and gets created', () => {
   try {
     assert.equal(usableDataDir(dir), true);
     assert.equal(fs.existsSync(dir), true);
-    // Nothing is left behind by the write probe.
+
     assert.deepEqual(fs.readdirSync(dir), []);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

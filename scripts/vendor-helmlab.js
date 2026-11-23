@@ -1,12 +1,5 @@
 'use strict';
 
-// Regenerates the vendored Helmlab bundle (docs/COLOR.md, THIRD_PARTY.md).
-//
-// helmlab is MIT. The npm package is a devDependency — only the browser bundle
-// this writes is shipped, wrapped so the same file loads as `window.helmlab` in
-// the renderer and as a CommonJS module in Node (the tests and the models both
-// need it there).
-
 const fs = require('fs');
 const path = require('path');
 

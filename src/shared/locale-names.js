@@ -1,7 +1,4 @@
-/*
- * Endonyms for the language picker: every language is written in its own
- * language, as Photoshop does. Codes match src/shared/locales/<code>.js.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroLocaleNames = factory();

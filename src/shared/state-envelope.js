@@ -1,10 +1,4 @@
-/*
- * The state envelope (docs/STATE.md, §4.3).
- *
- * One versioned, serialisable snapshot of every domain: `{ version, domains }`,
- * where each domain is `{ rev, value }`. It is the single shape that crosses IPC
- * and, later, a peer port — so any consumer can be validated the same way.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroState = factory();

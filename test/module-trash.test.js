@@ -1,9 +1,5 @@
 'use strict';
 
-// The Trash: settings files nothing uses. Deleting a palette or an instance keeps the file that
-// holds an instance's settings (a mis-click stays recoverable), so the leftovers have to be cleared
-// somewhere — the Trash section does it on request, and startup sweeps the ones older than 30 days.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -27,10 +23,10 @@ const daysAgo = (n) => new Date(Date.now() - n * 86400000);
 
 test('a module default and a live instance are never unused', () => {
   const s = sandbox();
-  s.write('color-slices');            // a module's defaults: the manifest keeps it
-  s.write('i1');                     // placed in the workspace
-  s.write('i2');                     // hidden in the workspace
-  s.write('i_dead');                 // nothing knows this one
+  s.write('color-slices');
+  s.write('i1');
+  s.write('i2');
+  s.write('i_dead');
   const unused = s.store.listUnused(['i1', 'i2']).map((f) => f.id);
   assert.deepEqual(unused, ['i_dead']);
 });
@@ -43,7 +39,7 @@ test('the startup sweep takes only what is older than the window, the button tak
   assert.deepEqual(swept, ['i_old']);
   assert.equal(fs.existsSync(s.file('i_old')), false);
   assert.equal(fs.existsSync(s.file('i_new')), true);
-  // The Trash section's own button removes everything unused, however recent.
+
   const all = s.store.purgeUnused([]);
   assert.deepEqual(all, ['i_new']);
   assert.equal(fs.existsSync(s.file('i_new')), false);

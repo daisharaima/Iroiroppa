@@ -1,14 +1,5 @@
 'use strict';
 
-// Release notes are user-facing and must stay consistent. Each release file is
-// published verbatim by the release workflow, so this test guards the shape that
-// the workflow promises:
-//
-//   ## Highlights  (first)
-//   ## Added / Changed / Fixed / Removed / Internal (optional)
-//   ## Install
-//   ## Requirements
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

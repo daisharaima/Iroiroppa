@@ -1,12 +1,5 @@
 'use strict';
 
-// Frame-gap trace for a gesture (docs/PERF.md, `--perf-gaps`).
-//
-// The renderer samples its own animation frames while a control is dragged and
-// reports the distribution on release; this module is the writer. One JSON line per
-// gesture in `<userData>/perf-trace.log`, so a measurement can be compared across
-// runs without screenshots or a stopwatch.
-
 const fs = require('node:fs');
 const path = require('node:path');
 const { app } = require('electron');
@@ -25,7 +18,7 @@ function createPerfTrace({ limit = LIMIT } = {}) {
       }
       count += 1;
       fs.appendFileSync(file, `${count} ${JSON.stringify(summary)}\n`);
-    } catch { /* tracing must never break the app */ }
+    } catch {  }
   };
 }
 

@@ -1,21 +1,4 @@
-/*
- * The wheel's hue rings, as data (shared so a Node test can check them).
- *
- * A hue ring has to answer two questions at every angle: "what is the most colourful
- * colour this *document* can hold at this hue?" (the outer band) and "what is the same
- * hue at the currently selected lightness?" (the inner band).
- *
- * The old ring drew the document's max chroma at a fixed lightness and **clipped** it
- * to sRGB. On a wide-gamut document long arcs of different hues all clipped to the same
- * sRGB primary (a huge flat red band), and every profile clipped to that same edge, so
- * the ring never changed. Here the outer band uses the hue's **cusp** (the lightness
- * where the document's gamut is widest, found by a tiny scan) and both bands map with
- * `Color.fitToSrgb` — hue and lightness kept, chroma reduced to the display edge — so
- * neighbouring hues always differ and the profile shows through (cusp lightness,
- * saturation of a narrow print gamut).
- *
- * Loads as CommonJS in Node and as a global `IroRing` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(require('./color'));
@@ -29,8 +12,7 @@
   const CUSP_MIN_L = 0.08;
   const CUSP_MAX_L = 0.92;
   const FALLBACK_L = 0.7;
-  // The cusp's lightness jumps where the gamut's supporting face changes (at a primary),
-  // so sample it coarsely and interpolate: a 1° ring then has no seam at the primaries.
+
   const CUSP_ANCHORS = 24;
 
   /** A store's document gamut: the proof when one is active, else sRGB. */

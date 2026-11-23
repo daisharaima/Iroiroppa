@@ -1,8 +1,6 @@
 'use strict';
 
-// Selector module: CSP Color — Clip Studio Paint's three selectable colours
-// (foreground, background, transparent). Phase 0 renders the classic full-width
-// strip; a later phase turns it into a row/column depending on its box.
+
 
 (function () {
   const reg = (window.Iro = window.Iro || {});
@@ -57,9 +55,7 @@
       ctx.el.append(slots);
 
       const paint = (node, slot, isActive, label) => {
-        // `slot.rgb` is the value CSP records; what we draw is how it *appears*
-        // (through the proof). The recorded hex is what you would type back in,
-        // so the tooltip leads with it, like the palette's hex field does.
+
         const stored = slot && slot.rgb ? { r: slot.rgb.r, g: slot.rgb.g, b: slot.rgb.b } : null;
         let shown = stored;
         if (stored && ctx.color.proofOn()) {

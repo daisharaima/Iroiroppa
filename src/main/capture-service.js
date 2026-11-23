@@ -1,16 +1,5 @@
 'use strict';
 
-// The window-capture *channel*: enumerate real windows
-// so a module can pick one and read its pixels. This is separate from the QR scan
-// (capture.js) — that is a one-shot screenshot for pairing; this is a live source
-// a renderer holds.
-//
-// Electron's desktopCapturer is main-only under context isolation: main lists the
-// sources (id + name), and the renderer opens the chosen one with getUserMedia
-// using its id. `getSources` is injected so the service is Electron-free and
-// testable; `--capture-fake <name>` lists one synthetic source, so a `--shot` can
-// render the picker without a desktop.
-
 function createCaptureService({ getSources, fake } = {}) {
   const listeners = new Set();
   let lastKey = null;
@@ -50,7 +39,7 @@ function createCaptureService({ getSources, fake } = {}) {
   }
 
   function emit(list) {
-    for (const fn of listeners) { try { fn(list); } catch { /* keep going */ } }
+    for (const fn of listeners) { try { fn(list); } catch {  } }
   }
 
   /** Called when the source list changes (a window opened/closed). */

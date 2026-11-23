@@ -1,4 +1,4 @@
-// Suomi.
+
 (function (root) {
   'use strict';
 

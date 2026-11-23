@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const { decodeConfig, encodeConfig, isShareUrl, QrDecodeError } = require('../src/main/companion/qr');
 
 test('decodes the reference config values', () => {
-  // Values from chocolatkey/clipremote's TestDecodeConfig.
+
   const cfg = encodeConfig({
     ips: ['192.168.0.5', '10.0.0.2'],
     port: 6789,
@@ -40,7 +40,7 @@ test('rejects wrong host, bad hex and bad field counts', () => {
   assert.throws(() => decodeConfig('https://companion.clip-studio.com/rc/en-us?s=zz'), QrDecodeError);
   assert.throws(() => decodeConfig('https://companion.clip-studio.com/rc/en-us'), QrDecodeError);
   assert.throws(() => decodeConfig(''), QrDecodeError);
-  // Valid hex that does not decode to four tab-separated fields.
+
   assert.throws(() => decodeConfig('00'), QrDecodeError);
 });
 

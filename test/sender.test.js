@@ -1,9 +1,5 @@
 'use strict';
 
-// The native sender. `toSendKeys` is the pure part;
-// the PowerShell round trip is not exercised here (it needs Windows + a focused
-// window).
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

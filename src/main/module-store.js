@@ -1,10 +1,5 @@
 'use strict';
 
-// Per-module settings, one file per module id (`modules/<id>.json`). The list of
-// module ids comes from the shared module manifest
-// (src/shared/module-manifest.js). Electron-free — the caller injects the
-// app-data directory — so it is testable headlessly.
-
 const fs = require('node:fs');
 const path = require('node:path');
 const ModuleManifest = require('../shared/module-manifest');
@@ -35,7 +30,7 @@ function createModuleStore(userData) {
   function copySettings(fromId, toId, moduleId) {
     if (!MODULE_ID_RE.test(String(fromId || '')) || !MODULE_ID_RE.test(String(toId || ''))) return false;
     const from = readSettingsFile(fromId);
-    if (from == null) return false; // the source has no file of its own to copy
+    if (from == null) return false;
     try {
       fs.mkdirSync(path.dirname(moduleSettingsFile(toId)), { recursive: true });
       const body = { settings: from };
@@ -77,7 +72,7 @@ function createModuleStore(userData) {
     if (fallbackId && fallbackId !== id) {
       const fallback = readSettingsFile(fallbackId);
       if (fallback !== null) return fallback;
-      // A module id renamed in Oct 2026: inherit the settings under the old id.
+
       const legacy = legacyIdFor(fallbackId);
       if (legacy) {
         const old = readSettingsFile(legacy);
@@ -100,8 +95,7 @@ function createModuleStore(userData) {
         settings: settings && typeof settings === 'object' ? settings : {},
       };
       if (moduleId && MODULE_ID_RE.test(String(moduleId))) body.moduleId = moduleId;
-      // Temp file then rename: a crash mid-write must not leave a truncated file,
-      // which a reader takes for "no settings" and silently resets the module.
+
       const tmp = `${file}.tmp`;
       fs.writeFileSync(tmp, JSON.stringify(body, null, 2), 'utf8');
       fs.renameSync(tmp, file);
@@ -148,7 +142,7 @@ function createModuleStore(userData) {
     try {
       names = fs.readdirSync(path.join(dir(), 'modules'));
     } catch {
-      return []; // no folder yet: nothing to sweep
+      return [];
     }
     const out = [];
     for (const name of names) {
@@ -159,7 +153,7 @@ function createModuleStore(userData) {
       try {
         const stat = fs.statSync(file);
         out.push({ id, file, mtime: stat.mtimeMs, ageDays: Math.floor((now - stat.mtimeMs) / 86400000) });
-      } catch { /* vanished between readdir and stat */ }
+      } catch {  }
     }
     return out.sort((a, b) => a.mtime - b.mtime);
   }
@@ -176,7 +170,7 @@ function createModuleStore(userData) {
       try {
         fs.unlinkSync(f.file);
         removed.push(f.id);
-      } catch { /* leave a file we cannot delete */ }
+      } catch {  }
     }
     return removed;
   }

@@ -1,9 +1,5 @@
 'use strict';
 
-// The spelling guard for the user-facing surfaces: American "color"/"license" in
-// the English catalog, README, Settings markup and the user guide. Internal docs
-// and code comments keep the maintainer's British spelling and are not scanned.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -22,8 +18,7 @@ test('the English catalog values are American', () => {
 
 test('README and Settings markup are American', () => {
   for (const rel of ['README.md', 'src/renderer/settings.html']) {
-    // Attributes carry i18n keys and element ids, which are internal names and may
-    // keep the British spelling; only the visible text is part of the rule.
+
     const text = read(rel).replace(/\s(?:data-i18n[\w-]*|id|class|for)="[^"]*"/g, '');
     assert.doesNotMatch(text, BRITISH, `${rel} still has a British spelling`);
   }

@@ -1,14 +1,4 @@
-/*
- * Per-slice display orientation: rotate by quarter turns and/or flip a finished
- * slice plot. This is a *display* transform only: the colour maths and the plot
- * generation stay canonical, and picking applies the inverse before the existing
- * axis mapping, so what is under the pointer is what gets picked.
- *
- * Normalized coordinates: (0,0) is top-left. A positive rotation is clockwise.
- * Flips are applied after the rotation, in display space.
- *
- * Loads as CommonJS in Node and as a global `IroSliceView` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroSliceView = factory();

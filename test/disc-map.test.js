@@ -1,9 +1,5 @@
 'use strict';
 
-// The Color Disc's mapping (src/shared/disc-map.js). The pointer is drawn with
-// `pointFromAxes` and the pick is made with `axesAt`, so they must be inverses; and a
-// coloured value must never collapse to the centre (that was a visible snap).
-
 const test = require('node:test');
 const assert = require('node:assert');
 const Models = require('../src/shared/color-models');
@@ -23,9 +19,7 @@ const store = {
 const mid = (model) => model.axes.map((a) => (a.min + a.max) / 2);
 
 test('the disc plane is the one whose fixed axis is the light axis', () => {
-  // planesFor puts the fixed-hue plane first, so the hue x chroma plane (fixed light)
-  // is plane 1 for every registered model — the helper exists so a model with a
-  // different role order cannot silently use the wrong slice.
+
   for (const id of ['okhsv', 'okhsl', 'oklch', 'cielch', 'helmgenlch']) {
     const model = Models.get(id);
     if (!model) continue;
@@ -62,7 +56,7 @@ test('past the rim the pointer is pinned to the edge and flagged', () => {
   const model = Models.get('oklch');
   const scale = Disc.rimFor(model, store);
   const base = model.axes.map((a) => (a.min + a.max) / 2);
-  base[1] = scale * 2; // chroma twice the rim
+  base[1] = scale * 2;
   const p = Disc.pointFromAxes(model, base, scale, store);
   assert.equal(p.r, 1);
   assert.equal(p.clamped, true);
@@ -73,7 +67,7 @@ test('a rectangular model and its polar twin land on the same circle', () => {
   const polar = Models.get('cielch');
   if (!rect || !polar) return;
   const scale = Disc.rimFor(polar, store);
-  // CIELAB at (L*, a, b) and CIELCH at (L*, C, H) describe the same colour.
+
   const L = 60;
   const C = 30;
   const H = 40;

@@ -1,15 +1,5 @@
 'use strict';
 
-// The session/peer layer (docs/STATE.md, §12.3). Main is the source/hub; every
-// window is a peer. It tracks who is connected and speaks the typed event
-// vocabulary, so "who is open" is a first-class, observable fact rather than an
-// incidental side-effect of the window list.
-//
-// Free of Electron: `send(wcId, channel, payload)` and `allocatePort(wcId)` are
-// injected (no port is allocated until needed; a MessagePort pair can be
-// returned), so the
-// peer bookkeeping is unit-tested (test/peer-hub.test.js).
-
 const PeerEvents = require('../shared/peer-events');
 
 /**
@@ -19,7 +9,7 @@ const PeerEvents = require('../shared/peer-events');
  * @param {object} [opts.events] defaults to the shared vocabulary
  */
 function createPeerHub({ send, allocatePort = () => null, events = PeerEvents } = {}) {
-  const peers = new Map(); // wcId -> peer
+  const peers = new Map();
   const emitter = events.createTypedEmitter();
   let state = 'idle';
   let seq = 0;
@@ -65,11 +55,9 @@ function createPeerHub({ send, allocatePort = () => null, events = PeerEvents } 
   function closeWindow(wcId) {
     const peer = peers.get(wcId);
     if (!peer) return false;
-    // Close the peer's transport end if it has one, so a destroyed window does not
-    // leak the main-side port (docs/STATE.md). The hub stays Electron-free — it
-    // only calls `close` when the injected port provides it.
+
     if (peer.port && typeof peer.port.close === 'function') {
-      try { peer.port.close(); } catch { /* already gone */ }
+      try { peer.port.close(); } catch {  }
     }
     peers.delete(wcId);
     emitter.emit('peer-disconnected', { peer: { ...peer } });

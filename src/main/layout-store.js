@@ -1,18 +1,5 @@
 'use strict';
 
-// layout.json, schema v2: the workspace document (a list of palettes).
-//
-// Electron-free — the caller injects the app-data directory — so the v1 -> v2
-// migration and the read/write round-trip are testable headlessly. The only
-// writer is `layout-service.js`, which holds the document in memory and calls
-// `write` on a short debounce (see docs/LAYOUT.md).
-//
-// v1 was `{ columns, floats }` with the palette's placement in settings.json and
-// a module `weight` (null = the module's own default). A v1 weight maps
-// losslessly onto the new height model: a stored weight is a `fill` share, and a
-// null weight is `auto` for a module that declares `autoHeight` (the registry
-// says which) and otherwise v1's default share.
-
 const fs = require('node:fs');
 const path = require('node:path');
 const Model = require('../shared/layout-model');
@@ -103,7 +90,7 @@ function migrateV1(rawV1, settingsV1, opts) {
   floats.forEach((f, i) => {
     if (!f || typeof f !== 'object') return;
     const floatId = f.floatId != null ? String(f.floatId) : `f${i + 1}`;
-    // Before float boards existed a float held one module; keep that path.
+
     const columns = Array.isArray(f.columns) && f.columns.length
       ? v1Columns(f.columns, registry, floatId)
       : (f.moduleId

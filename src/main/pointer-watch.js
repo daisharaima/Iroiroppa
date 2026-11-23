@@ -1,18 +1,9 @@
 'use strict';
 
-// Runs pointer.ps1, which reports left-button down/up over Clip Studio Paint
-// (pen and mouse). `down` carries whether the point is CSP's canvas and whether
-// Alt was held; History uses it for the drawing-only gate. `up` is the pick end.
-//
-// If the helper cannot start or dies, it is retried; meanwhile history falls back
-// to the recorder's settle, so a pick is still recorded, just on the timer.
-
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { spawn } = require('node:child_process');
 
-// PowerShell cannot read inside app.asar; `asarUnpack` puts the helper in
-// app.asar.unpacked, and the child must be given that real path.
 function pointerScript() {
   const dir = __dirname.includes('app.asar')
     ? __dirname.replace('app.asar', 'app.asar.unpacked')
@@ -41,8 +32,7 @@ class PointerWatcher extends EventEmitter {
     this.hostRef = host;
     this.health = health;
     host.on('hook', (message) => {
-      // A hook that failed to install looks exactly like "the user is not clicking",
-      // so a refusal has to be surfaced: the caller then falls back to PowerShell.
+
       if (!message || message.hook !== 0) return;
       this.host = null;
       this.emit('host-lost');
@@ -66,8 +56,6 @@ class PointerWatcher extends EventEmitter {
     if (this.proc || this.stopped === false) return;
     this.stopped = false;
 
-    // A host that is still starting must win the race: spawning PowerShell here would
-    // leave a 57 MB helper alive for the session even after the host came up.
     if (this.host) {
       const host = this.host;
       host.whenReady(600).then((ok) => {
@@ -87,7 +75,7 @@ class PointerWatcher extends EventEmitter {
 
   _spawnPowerShell() {
     if (this.stopped || this.proc) return;
-    // Two implementations of one capability must never run together.
+
     if (this.hostRef && this.hostRef.available) this.hostRef.setMouse(false).catch(() => {});
     let proc;
     try {
@@ -146,7 +134,7 @@ class PointerWatcher extends EventEmitter {
     this.host = this.hostRef;
     const proc = this.proc;
     this.proc = null;
-    if (proc) { try { proc.kill(); } catch { /* gone */ } }
+    if (proc) { try { proc.kill(); } catch {  } }
     this.hostRef.setMouse(true).catch(() => {});
     if (this.health) this.health.set('pointer', 'host');
     return true;
@@ -160,7 +148,7 @@ class PointerWatcher extends EventEmitter {
     this.proc = null;
     this.buffer = '';
     if (proc) {
-      try { proc.kill(); } catch { /* already gone */ }
+      try { proc.kill(); } catch {  }
     }
   }
 }

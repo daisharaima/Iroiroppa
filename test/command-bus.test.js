@@ -1,10 +1,5 @@
 'use strict';
 
-// The kernel command bus (src/renderer/kernel/command-bus.js) is browser code: it
-// reads `window` and `window.csp`. Node gives it a minimal global `window` so the
-// local-dispatch half is unit-tested headlessly; the cross-window half is the
-// router's (test/command-router.test.js).
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');

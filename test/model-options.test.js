@@ -1,10 +1,5 @@
 'use strict';
 
-// The model dropdown is an in-page menu (kernel/model-options.js): a button in the
-// settings row plus a grouped list rendered *after* that row. It exists because a
-// native <select>'s list is an OS window outside our topmost band. These tests run the
-// real file against a small DOM stub — no Electron, no jsdom.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -139,7 +134,7 @@ const MODELS = [
 
 test('groups() orders the families OKLab, CIELAB, HelmGen and keeps within-family order', () => {
   const { api } = load();
-  // The file runs in its own vm realm; copy the result before deep-comparing it.
+
   const groups = JSON.parse(JSON.stringify(api.groups(MODELS)));
   assert.deepStrictEqual(groups.map((g) => g.label), ['OKLab', 'CIELAB', 'HelmGen']);
   assert.deepStrictEqual(groups[0].items.map((i) => i.value), ['oklch', 'okhsv']);
@@ -160,8 +155,7 @@ test('menu() puts the button in the row and the grouped list after it', () => {
   assert.ok(wrap, 'the button wrap lives in the settings row');
   const btnInRow = wrap.children.find((c) => c.className.includes('menu-btn'));
   assert.ok(btnInRow, 'with a button');
-  // The row is appended to its body *after* the widget is built, so the list is placed
-  // on first open, right after the row.
+
   btnInRow.fire('click');
   const at = root.children.indexOf(row);
   const list = root.children[at + 1];
@@ -183,7 +177,7 @@ const parts = (root, row) => {
   const wrap = row.children[0];
   const btn = wrap.children.find((c) => c.className.includes('menu-btn'));
   const value = btn.children.find((c) => c.className === 'menu-value');
-  // The list is placed on first open; open and close so the test starts from closed.
+
   btn.fire('click');
   btn.fire('click');
   const list = root.children[root.children.indexOf(row) + 1];
@@ -225,7 +219,6 @@ test('a pointerdown inside the list does not close it, and the pick still lands'
   assert.strictEqual(guards.length, 1);
   const item = list.children.filter((c) => c.className === 'menu-item')[1];
 
-  // A press on an item must not count as "outside" (the list is a sibling of the row).
   guards[0]({ target: item });
   assert.strictEqual(list.hidden, false, 'still open');
   item.fire('click');
@@ -304,7 +297,7 @@ test('two menus on one page route the pick to the one that was opened', () => {
   const second = [];
   const a = api.menu(host, { groups: api.groups(MODELS), value: 'oklch', onChange: (v) => first.push(v) });
   const b = api.menu(host, { groups: api.groups(MODELS), value: 'cielch', onChange: (v) => second.push(v) });
-  // Both buttons exist; open the *first* one (the last-built handler used to win).
+
   a.el.children[0].fire('click');
   assert.strictEqual(shown.length, 1);
   const idA = shown[0].kind;

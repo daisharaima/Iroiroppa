@@ -1,13 +1,4 @@
-/*
- * Canonical accelerator comparison between Iroiroppa and CSP.
- *
- * CSP stores its modifiers as a Windows bitfield (Ctrl/Shift/Alt) and the key as a
- * loose string (`N`, `F12`, `DELETE`, `NUM+`). Electron accelerators use names like
- * `CommandOrControl+Shift+N`. This module normalizes both to one form so the
- * Shortcut Library module can warn about a real collision instead of a spelling one.
- *
- * Loads as CommonJS in Node and as a global `IroShortcutMatch` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroShortcutMatch = factory();
@@ -36,11 +27,7 @@
   };
   for (let i = 0; i <= 9; i++) KEY_ALIAS[`num${i}`] = `Num${i}`;
   for (let i = 1; i <= 24; i++) KEY_ALIAS[`f${i}`] = `F${i}`;
-  // Windows virtual-key codes for the keys a *hold* shortcut can own. A hold
-  // binding has to be registered by the PowerShell helper (RegisterHotKey) rather
-  // than Electron's globalShortcut, because only the helper can see the release.
-  // Punctuation is included for completeness; the settings capture only offers
-  // the keys it can name.
+
   const VK = {
     Backspace: 0x08, Tab: 0x09, Enter: 0x0d, Pause: 0x13, CapsLock: 0x14,
     Escape: 0x1b, Space: 0x20, PageUp: 0x21, PageDown: 0x22, End: 0x23, Home: 0x24,
@@ -96,8 +83,7 @@
     const hasMod = out.ctrl || out.alt || out.shift || out.super;
     out.bare = Boolean(out.vk && !hasMod);
     const fKey = /^F\d{1,2}$/.test(key);
-    // A bare key is only safe through the keyboard hook; F-keys have no typing
-    // downside and stay on globalShortcut like every chord.
+
     out.hook = Boolean(out.bare && !fKey);
     out.ok = Boolean(out.vk && (hasMod || fKey));
     return out;
@@ -118,7 +104,7 @@
 
   /** Normalize an Electron accelerator or a CSP `describeAccel()` string. */
   function normalizeAccel(accel) {
-    // `NUM+` and `NUM-` are single keys, not a separator plus an empty part.
+
     const source = String(accel == null ? '' : accel)
       .replace(/NUM\+/gi, 'NUMPlus')
       .replace(/NUM-/gi, 'NUMMinus')

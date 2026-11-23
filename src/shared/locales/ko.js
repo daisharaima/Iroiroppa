@@ -1,4 +1,4 @@
-// 한국어.
+
 (function (root) {
   'use strict';
 

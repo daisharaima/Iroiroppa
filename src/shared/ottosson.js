@@ -1,27 +1,4 @@
-/*
- * Ottosson's Okhsv / Okhsl / Okhwb, generalised to an arbitrary RGB cube.
- *
- * The sRGB versions live in color.js. They are the same FORMS — the cusp triangle, the
- * toe, the piecewise S curve — evaluated with sRGB's numbers: `computeMaxSaturation`
- * hard-codes sRGB's channel rows, `findGamutIntersection` hard-codes the same rows, and
- * `getStMid` is a polynomial fitted to sRGB's boundary. That is why they stop at sRGB.
- *
- * Here the numbers come from the cube the caller supplies:
- *   gamut = {
- *     toLinear(lab) -> [r, g, b],       // OKLab -> LINEAR document RGB (may leave the cube)
- *     fromLinear([r, g, b]) -> { L, a, b },
- *   }
- * The hue's cusp (the wall point farthest from grey) is found by a short bisection on
- * S, the gamut intersection reuses Ottosson's Halley step with the document's rows, and
- * the Okhsl control points are derived from the boundary instead of the sRGB fit:
- *   C0   = Ottosson's fixed shape (gamut-independent),
- *   Cmid = (C0 + Cmax) / 2.
- * The toe constants stay Ottosson's (they shape V <-> OKLab L, not the cube).
- *
- * With an sRGB gamut this module must reproduce color.js exactly; test/ottosson.test.js
- * is that gate. `gamutRelative` is the non-cube (CMYK / LUT) flavour: S is measured
- * against the document gamut's boundary at the current lightness and hue.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroOttosson = factory();
@@ -29,7 +6,7 @@
   'use strict';
 
   const PI = Math.PI;
-  // Ottosson's toe (a fit of how OKLab L maps to the picker's value near black/white).
+
   const TOE_K1 = 0.206;
   const TOE_K2 = 0.03;
   const TOE_K3 = (1 + TOE_K1) / (1 + TOE_K2);
@@ -44,7 +21,6 @@
     return { L, a: C * Math.cos(r), b: C * Math.sin(r) };
   };
 
-  // OKLab -> (l_, m_, s_) before the cube, Ottosson's own constants.
   const M1 = [
     [1, 0.3963377774, 0.2158037573],
     [1, -0.1055613458, -0.0638541728],
@@ -74,8 +50,7 @@
    * @param {{toLinear: (lab) => number[], fromLinear: (rgb: number[]) => {L,a,b}}} gamut
    */
   function create(gamut) {
-    // Each document channel as weights on (l^3, m^3, s^3): probe toLinear on the three
-    // unit LMS directions, which is exact and needs no matrix from the caller.
+
     const cols = [0, 1, 2].map((j) => {
       const e = [0, 0, 0];
       e[j] = 1;
@@ -120,9 +95,7 @@
 
     /** The gamut's cusp at a hue direction, cached per half-degree bucket. */
     function cusp(a_, b_) {
-      // Cache on the rounded hue (0.05 deg) and compute at the bucket's *centre*, so every
-      // caller in the bucket sees the same cusp (a cache that stored the first caller's
-      // exact hue made the result depend on call order).
+
       const key = Math.round((Math.atan2(b_, a_) * 180) / PI * 20) + 7200;
       const hit = cuspCache.get(key);
       if (hit) return hit;
@@ -183,9 +156,7 @@
       if (!(L > 0 && L < 1)) return { C0: 0, Cmid: 0, Cmax: 0 };
       const cp = cusp(a_, b_);
       const Cmax = gamutIntersection(a_, b_, L, 1, L, cp);
-      // Ottosson's C0 shape, but the gamut sets the ceiling: on a narrow hue Cmax can be
-      // smaller than his fixed C0, which would put the piecewise curve's control points
-      // past the wall (a discontinuous S). Keep C0 < Cmid < Cmax.
+
       const base = Math.sqrt(1 / (1 / ((L * 0.4) ** 2) + 1 / (((1 - L) * 0.8) ** 2)));
       const C0 = Math.min(base, 0.5 * Cmax);
       const Cmid = Math.min(0.5 * (C0 + Cmax), 0.9 * Cmax);
@@ -324,9 +295,7 @@
    * document can hold. `gamut.maxChroma(L, H)` supplies the limit.
    */
   function gamutRelative(gamut) {
-    // A LUT/CMYK proof answers `maxChroma` with a cubic solve plus LUT interpolation, so
-    // it cannot be called per pixel. Cache it on a (hue, lightness) grid and interpolate:
-    // a disc plane touches one lightness row, an H x L plane fills the grid once.
+
     const NH = 360;
     const NL = 96;
     const cells = new Float32Array(NH * NL).fill(NaN);

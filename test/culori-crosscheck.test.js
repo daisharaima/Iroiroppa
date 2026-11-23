@@ -1,21 +1,11 @@
 'use strict';
 
-// The culori cross-check (docs/STATE.md, §12.16).
-//
-// Proves Iroiroppa's own colour maths agrees with an independent, well-tested
-// oracle — WITHOUT using culori as the oracle where its semantics differ. The
-// gamut-interval core, the ICC proof transform and the gamut-tolerance rule are
-// deliberately NOT cross-checked here: culori would encode the wrong behaviour,
-// so nobody should "fix" this file toward culori.
-//
-// The suite skips itself if culori is not installed.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Color = require('../src/shared/color');
 
 let culori = null;
-try { culori = require('culori'); } catch { /* oracle unavailable */ }
+try { culori = require('culori'); } catch {  }
 
 /** A deterministic PRNG (mulberry32) — the same sample every run. */
 function prng(seed) {
@@ -71,7 +61,7 @@ test('OKLab ↔ OKLCH agrees on chroma (hue skipped near achromatic)', { skip: !
     const ref = culori.oklch({ mode: 'rgb', r, g, b });
     worstC = Math.max(worstC, Math.abs(mine.C - ref.c));
     if (mine.C > 1e-4) {
-      // hue only when it is defined; the app's hue anchor at C=0 is intentional
+
       let dh = Math.abs(((mine.H - ref.h) % 360 + 540) % 360 - 180);
       assert.ok(dh < 1e-2, `hue ${dh} at ${[r, g, b]}`);
     }

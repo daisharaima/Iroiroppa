@@ -1,23 +1,5 @@
 'use strict';
 
-// The one writer of the shared colour history (docs/STATE.md).
-//
-// Main sees every Companion colour once, and `CompanionService` emits `pick` for
-// a real active-slot pick (src/main/service.js). The settle below is the fallback
-// for picks that have no pointer gesture (keyboard, hex, paste): it collapses a
-// burst into one tile after 450 ms of quiet.
-//
-// A pointer release in CSP is the precise end of a pick gesture: `pointer-history`
-// does a fresh protocol read at the up and calls `commit(rgb, { replaceHostHead:
-// true })`, which takes over the head the settle may already have added during the
-// same gesture, so a drag still yields exactly one tile — with the last colour the
-// protocol sent, not a poll-old one.
-//
-// It is deliberately Electron-free and timer-injectable, so `npm test` covers the
-// ordering guarantees without a window. Every window's ColorStore only mirrors
-// `setHistory`; a per-window settle timer is what used to let a hidden window add
-// an older pick after a newer one (docs/INVARIANTS.md).
-
 const { addToHistory, normalizeRgb } = require('../shared/history');
 
 /**
@@ -35,8 +17,7 @@ function createHistoryRecorder({
 }) {
   let pending = null;
   let timer = null;
-  // The head was added by the fallback settle and has not been confirmed by a
-  // pointer up yet; that up may replace it instead of adding a second tile.
+
   let unconfirmedHostHead = false;
 
   function publish() {

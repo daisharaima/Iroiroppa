@@ -1,11 +1,5 @@
 'use strict';
 
-// Builds a minimal ICC v2 matrix/TRC profile in memory. It backs the committed
-// `src/assets/synthetic.icc` (see `scripts/make-icc.js`) and lets the proof
-// parser and transform be tested on any machine, CI included, without vendoring
-// a third-party profile. The profile is deliberately, unmistakably synthetic —
-// it must never be mistaken for a real working profile such as Adobe RGB (1998).
-
 const Proof = require('./proof');
 
 const D50 = [0.9642, 1.0, 0.8249];
@@ -35,8 +29,8 @@ const descType = (text) => {
   return Buffer.concat([
     Buffer.from('desc', 'latin1'), Buffer.alloc(4),
     u32(ascii.length), ascii,
-    u32(0), u32(0), // unicode language code + count
-    Buffer.alloc(2), Buffer.from([0]), Buffer.alloc(67), // scriptcode
+    u32(0), u32(0),
+    Buffer.alloc(2), Buffer.from([0]), Buffer.alloc(67),
   ]);
 };
 
@@ -65,7 +59,7 @@ function buildSyntheticIcc(opts = {}) {
 
   const header = Buffer.alloc(128);
   header.write('lcms', 4, 'latin1');
-  header.writeUInt32BE(0x02100000, 8); // v2.1
+  header.writeUInt32BE(0x02100000, 8);
   header.write('mntr', 12, 'latin1');
   header.write('RGB ', 16, 'latin1');
   header.write('XYZ ', 20, 'latin1');
@@ -92,7 +86,7 @@ function buildSyntheticIcc(opts = {}) {
     return entry;
   });
 
-  header.writeUInt32BE(offset, 0); // total size
+  header.writeUInt32BE(offset, 0);
 
   const table = Buffer.alloc(tableSize);
   table.writeUInt32BE(entries.length, 0);

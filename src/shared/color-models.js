@@ -1,13 +1,4 @@
-/*
- * Colour models — the per-picker views over the canonical OKLab value.
- *
- * The canonical internal colour is OKLab (docs/COLOR.md); a "model" is a way to
- * parameterise that appearance with three axes, chosen per picker instance. A
- * model NEVER owns colour and never touches a device or display space: it only
- * converts between its own axes and OKLab.
- *
- * Loads as CommonJS in Node and as a global `IroColorModels` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(require('./color'), require('../renderer/vendor/helmlab/helmlab.umd.js'));
@@ -32,12 +23,6 @@
   const models = [];
   const byId = new Map();
 
-  // --- The RGB cube the HSV/HSL/HWB-shaped models are built on ------------------
-  // OKHSV/OKHSL/OKHWB are HSV/HSL/HWB-shaped, and that shape is defined by an RGB
-  // cube. Ottosson's versions are the sRGB-specific ones, so their axes stop at the
-  // sRGB gamut. `document` swaps in the active profile's cube (a matrix/TRC RGB
-  // profile), which makes the three spaces reach every colour the document holds;
-  // `srgb` keeps the sRGB-referenced definitions (and the "sRGB reference" notice).
   const SRGB_REFERENCE = { kind: 'srgb', limited: true };
   let reference = SRGB_REFERENCE;
   const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -92,19 +77,13 @@
 
   const DEFAULT_ID = 'oklch';
 
-  // The three planes a slice shows, each as [horizontalAxis, verticalAxis,
-  // fixedAxis]. This convention reproduces OKLCH's (L,C) / (H,C) / (H,L) panels
-  // and generalises to any three-axis model. Rectangular models (no hue axis)
-  // keep this order; a hue model derives its planes from the axis roles so its
-  // fixed-hue (lightness x chroma) plane is always first, matching OKLCH.
   const PLANES = [[0, 1, 2], [2, 1, 0], [2, 0, 1]];
 
   /** The axis a model treats as its lightness/value axis. */
   function lightAxis(model) {
     const found = model.axes.findIndex((a) => a.role === 'lightness');
     if (found >= 0) return found;
-    // A model registered before roles existed: OKLCH-like hues sit at 2,
-    // Okhsv/Okhsl hues at 0.
+
     return model.hueIndex === 2 ? 0 : 2;
   }
 
@@ -153,9 +132,7 @@
         ? model.isAchromatic(axes)
         : Math.abs(axes[1] - model.axes[1].min) < 1e-9;
       if (achromatic) {
-        // The anchor is an OKLCH hue angle, but every model spells its hue axis in
-        // its own units (OKHSV's hue, CIELCH's, HelmGen's). Probe the model at a tiny
-        // chroma so the pointer lands on the same colour the ring was turned to.
+
         const probe = model.fromLab(Color.oklchToOklab(store.L, 1e-4, store.H));
         axes[model.hueIndex] = probe[model.hueIndex];
       }
@@ -179,7 +156,6 @@
     return def.fmt ? v.toFixed(def.fmt) : String(Math.round(v));
   }
 
-  // --- OKLCH — the reference view (the app's original axes) -----------------
   register({
     id: 'oklch',
     name: 'OKLCH',
@@ -198,10 +174,6 @@
     },
   });
 
-  // --- OKLab — the canonical value as a model -------------------------------
-  // The rectangular parent every other view derives from: a model like any
-  // other (so a slice can show the a-b plane), but with no hue axis. The a/b
-  // range is wide enough for the widest working profile the proof can show.
   register({
     id: 'oklab',
     name: 'OKLab',
@@ -219,10 +191,6 @@
     },
   });
 
-  // --- CIELAB / CIELCH — the Lab standard as views over OKLab --------------
-  // D65, matching the rest of the app; CIELAB is gamut-independent, so it needs
-  // no domain gate. CIELCH is the standard cylindrical form; there is no
-  // standard CIELAB-HSL/HSV and this app does not invent one.
   register({
     id: 'cielab',
     name: 'CIELAB',
@@ -266,10 +234,6 @@
     },
   });
 
-  // --- Okhsv / Okhsl / Okhwb (sRGB-referenced picker spaces) -----------------
-  // Ottosson's three perceptual picks, all defined against sRGB: their S/V/W/B
-  // axes are only meaningful inside it, so `domain` limits the round-trip and
-  // `dense` says every axis value maps to a colour (no out-of-gamut area).
   const inSrgb = (lab) => {
     const l = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
     const eps = 1e-6;
@@ -290,7 +254,7 @@
     ],
     fromLab(lab) {
       if (reference.gamut) {
-        // Ottosson's Okhsv computed inside the document's cube (or its gamut, for CMYK).
+
         const v = reference.gamut.oklabToOkhsv(lab.L, lab.a, lab.b);
         return [v.h, clamp01(v.s), clamp01(v.v)];
       }
@@ -333,16 +297,8 @@
     },
   });
 
-  // --- HelmGen (Helmlab GenSpace): the cylindrical and the rectangular view --
-  // Two views over ONE space (docs/COLOR.md): `helmgenlch` is the polar form a
-  // picker needs, `helmgen` the rectangular parent (no hue axis, like OKLab).
-  // Helmlab's entry point is XYZ (D65), so both adapters hop OKLab -> linear RGB
-  // -> XYZ -> GenLab. `gen.space` is the raw space: the `gen` facade has no
-  // toXyz. The vendored bundle is optional — without it these models simply do
-  // not exist rather than taking the picker down.
   if (Helm && Helm.Helmlab) {
-    // The module exports the classes; the facade (gen/metric/tokens) lives on an
-    // instance.
+
     const gen = new Helm.Helmlab().gen;
     const helmXyz = (lab) => {
       const lin = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);

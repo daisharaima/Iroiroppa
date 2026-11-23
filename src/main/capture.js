@@ -1,12 +1,5 @@
 'use strict';
 
-// Screen capture + QR decoding.
-//
-// Two capture backends:
-//   - Electron's desktopCapturer (when running inside the app)
-//   - a PowerShell + System.Drawing screenshot, for the standalone CLI probe
-// Both yield raw RGBA frames that jsQR can read.
-
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -50,11 +43,6 @@ function bgraToRgba(buf) {
   return out;
 }
 
-// A capture pass is on the auto-connect critical path, so the thumbnail is
-// capped well below the desktop resolution: at 1280x800 a full-screen frame
-// decodes in a fraction of the time of a 2560x1600 one, and a Companion QR is
-// still comfortably above jsQR's module floor. The cursor's display is decoded
-// first (see `captureWithElectron`), so the common case is one frame.
 const CAPTURE_MAX = { width: 1280, height: 800 };
 
 /** Capture with Electron's desktopCapturer. Returns [{width,height,rgba}]. */
@@ -66,8 +54,7 @@ async function captureWithElectron() {
     thumbnailSize: CAPTURE_MAX,
     fetchWindowIcons: false,
   });
-  // Decode the display the cursor is on first: `scanOnce` stops at the first
-  // frame that decodes, and that is almost always where the QR is.
+
   const cursorId = String(cursorDisplay.id);
   const ordered = [...sources].sort((a, b) => {
     const da = String(a.display_id || '') === cursorId ? 0 : 1;
@@ -83,24 +70,6 @@ async function captureWithElectron() {
   }
   return frames;
 }
-
-// The Companion dialog carries the QR, so reading *that window* is the reliable
-// path. Neither built-in option polls cheaply: `desktopCapturer` window enumeration
-// captures every window (~3.5 s on a busy desktop, whatever the thumbnail size), and
-// spawning PowerShell per scan costs ~2 s of Add-Type compile. So one long-lived
-// PowerShell helper compiles once and then answers "find the dialog" / "shoot this
-// rect" in milliseconds — Win32 `EnumWindows` for the rects, `CopyFromScreen` for the
-// pixels.
-//
-// The dialog is found **by process, not by title**: CSP ships in 11 languages (EN
-// "Connect to smartphone", JA スマートフォンを接続, KO 스마트폰 접속, ZH-TW
-// 連接智慧型手機, ZH-CN 连接智能手机, FR "Connecter au smartphone", DE "Mit
-// Smartphone verbinden", ES "Conectar a smartphone", PT-BR "Conectar ao
-// smartphone", ID "Hubungkan ke smartphone", …) and the Chinese build runs as
-// "Udongman Paint". Any *small* window of the CSP/Udongman process is a candidate;
-// the QR itself is validated by the caller's `accept`. A title match is kept as a
-// secondary signal — mostly so a test can pose as the dialog — because the process
-// check covers every language and every future rename.
 
 /** A window title that names a Companion dialog, in any supported language. */
 const COMPANION_TITLE = /smartphone|スマートフォン|スマホ|스마트폰|智慧型手機|智能手机|สมาร์ทโฟน|ponsel/i;
@@ -171,8 +140,7 @@ let psCooldownUntil = 0;
 function ensurePsScript() {
   if (psScriptPath && fs.existsSync(psScriptPath)) return psScriptPath;
   psScriptPath = path.join(os.tmpdir(), `iro-capture-${process.pid}.ps1`);
-  // The helper matches non-ASCII titles, so the script needs a UTF-8 BOM: Windows
-  // PowerShell 5.1 reads a BOM-less .ps1 as ANSI and mangles the CJK/Thai text.
+
   fs.writeFileSync(psScriptPath, '\uFEFF' + PS_HELPER, 'utf8');
   return psScriptPath;
 }
@@ -185,7 +153,7 @@ function dropPsHelper(cooldownMs) {
   const child = psHelper;
   psHelper = null;
   if (child) {
-    try { child.stdin.end(); child.kill(); } catch { /* ignore */ }
+    try { child.stdin.end(); child.kill(); } catch {  }
   }
   psCooldownUntil = Date.now() + (cooldownMs || 15000);
   console.warn(`[capture] Companion helper unavailable; scanning the desktop for ${Math.round((cooldownMs || 15000) / 1000)}s`);
@@ -197,25 +165,23 @@ function ensurePsHelper() {
     '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ensurePsScript(),
   ], { windowsHide: true });
   if (!child.stdout || !child.stdin) {
-    // A spawn failure with no stdio: never let it leak or block a scan.
+
     dropPsHelper(30000);
     throw new Error('capture helper has no stdio');
   }
-  // Replies and pending queries live on the child, so a replaced helper can never
-  // hand a stale reply to the next one (the bug that made every query after the
-  // first timeout time out too).
+
   child.replyBuffer = '';
   child.replyWaiters = [];
   child.stdout.setEncoding('utf8');
   child.stderr.setEncoding('utf8');
-  child.stderr.on('data', () => { /* not fatal: a query just times out */ });
+  child.stderr.on('data', () => {  });
   child.stdout.on('data', (chunk) => {
     child.replyBuffer += chunk;
     let idx;
     while ((idx = child.replyBuffer.indexOf('\n')) >= 0) {
       const line = child.replyBuffer.slice(0, idx).trim();
       child.replyBuffer = child.replyBuffer.slice(idx + 1);
-      if (line === 'READY') continue; // the helper's one-off bootstrap line
+      if (line === 'READY') continue;
       child.ready = true;
       const waiter = child.replyWaiters.shift();
       if (waiter) waiter(line);
@@ -237,8 +203,7 @@ function psQuery(expr, timeoutMs) {
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
-      // A late reply may still be in flight; drop the whole helper so it cannot be
-      // handed to the next query, and cool down before spawning another.
+
       dropPsHelper(15000);
       resolve('');
     }, timeoutMs);
@@ -256,8 +221,7 @@ function psQuery(expr, timeoutMs) {
 async function captureCompanionWindow(accept) {
   if (process.platform !== 'win32') return null;
   if (Date.now() < psCooldownUntil) return null;
-  // The first query covers the helper's one-off Add-Type compile; once the helper
-  // has answered, a reply is expected in well under a second.
+
   const findTimeout = psHelper && psHelper.ready ? 2500 : 6000;
   const found = await psQuery('Find-Companion', findTimeout);
   const m = /^RECTS (.+)$/.exec(found);
@@ -267,8 +231,7 @@ async function captureCompanionWindow(accept) {
     .filter((f) => f.length === 5)
     .map(([tag, x, y, w, h]) => ({ csp: tag === 'C', x: Number(x), y: Number(y), w: Number(w), h: Number(h) }))
     .filter((r) => [r.x, r.y, r.w, r.h].every(Number.isFinite));
-  // A window of the CSP process is the real dialog; a title-only match is a
-  // fallback (and how a test poses as the dialog). Smallest first within each group.
+
   const byArea = (a, b) => a.w * a.h - b.w * b.h;
   const ordered = [
     ...rects.filter((r) => r.csp).sort(byArea),
@@ -292,23 +255,22 @@ async function shootRect(x, y, w, h) {
   } catch {
     return null;
   } finally {
-    try { fs.unlinkSync(file); } catch { /* ignore */ }
+    try { fs.unlinkSync(file); } catch {  }
   }
 }
 
 /** Stop the capture helper (the app is quitting). */
 function stopCaptureHelper() {
   if (psHelper && !psHelper.killed) {
-    try { psHelper.stdin.end(); psHelper.kill(); } catch { /* ignore */ }
+    try { psHelper.stdin.end(); psHelper.kill(); } catch {  }
   }
   psHelper = null;
   if (psScriptPath) {
-    try { fs.unlinkSync(psScriptPath); } catch { /* ignore */ }
+    try { fs.unlinkSync(psScriptPath); } catch {  }
     psScriptPath = null;
   }
 }
 
-// Never leave the helper behind when the app exits.
 process.on('exit', stopCaptureHelper);
 
 const PS_CAPTURE = `
@@ -342,7 +304,7 @@ function captureWithPowerShell() {
       } catch (readErr) {
         reject(readErr);
       } finally {
-        try { fs.unlinkSync(file); } catch { /* ignore */ }
+        try { fs.unlinkSync(file); } catch {  }
       }
     });
   });
@@ -358,14 +320,14 @@ function parseBmp(buf) {
   const heightRaw = buf.readInt32LE(22);
   const bpp = buf.readUInt16LE(28);
   const compression = buf.readUInt32LE(30);
-  if (compression !== 0) return null; // BI_RGB only
+  if (compression !== 0) return null;
   if (bpp !== 24 && bpp !== 32) return null;
   const topDown = heightRaw < 0;
   const height = Math.abs(heightRaw);
   if (width <= 0 || height <= 0) return null;
   const inBytes = (bpp / 8);
   const rowStride = Math.ceil((width * inBytes) / 4) * 4;
-  // Reject a truncated/corrupt header rather than reading past the buffer.
+
   if (dataOffset < 54 || dataOffset + rowStride * height > buf.length) return null;
   const rgba = Buffer.alloc(width * height * 4, 255);
   for (let y = 0; y < height; y++) {
@@ -452,13 +414,10 @@ function decodeQrFrame(frame) {
 let scanCount = 0;
 async function scanOnce(accept, decode = decodeQrFrame) {
   scanCount += 1;
-  // The Companion dialog first: once the helper is warm this is ~80 ms, so the QR
-  // is caught almost the moment the dialog opens.
+
   const winText = await captureCompanionWindow(accept);
   if (winText) return winText;
-  // The desktop is the fallback (a QR that is not a small CSP/dialog window). It
-  // costs ~1 s, so run it only every third pass; the quick window-only passes
-  // between keep the polling tight.
+
   if (scanCount % 3 !== 1) return null;
   const frames = await captureScreens();
   for (const frame of frames) {
@@ -480,7 +439,7 @@ async function findQr({ accept, timeoutMs = 60000, intervalMs = 700, onAttempt }
       if (text) return text;
     } catch (err) {
       if (onAttempt) onAttempt(attempt, err);
-      // A capture failure is retryable in the probe; keep trying until timeout.
+
     }
     if (onAttempt) onAttempt(attempt);
     await new Promise((r) => setTimeout(r, intervalMs));

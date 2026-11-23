@@ -1,12 +1,5 @@
 'use strict';
 
-// The IPC handler helpers shared across the group files (docs/STATE.md).
-//
-// Moved out of ipc.js verbatim. `wireIpc` builds one with `createHelpers(ctx,
-// trusted)` and hands it to each group's `register(ctx, h)`, which destructures
-// what it needs. Keeping the helper bodies in one place is what lets the group
-// handlers stay small and move without carrying closures around.
-
 function createHelpers(ctx, trusted) {
   const instanceOf = (spec) => (spec && typeof spec.instanceId === 'string' ? spec.instanceId : null);
 
@@ -61,8 +54,6 @@ function createHelpers(ctx, trusted) {
     return null;
   }
 
-  // Settings are owned by src/main/settings-service.js; the IPC layer only asks
-  // that service to commit.
   const commitSettings = (merged) => ctx.settings.commit(merged);
 
   return { instanceOf, findInstance, moduleIdOfInstance, isSingletonModule, paletteIdForSender, commitSettings, trusted };

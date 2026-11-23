@@ -1,12 +1,5 @@
 'use strict';
 
-// One owner for the overlay menus in this window.
-//
-// The palette's ☰ menu and the Session profile picker are both drawn by the overlay
-// window (a renderer cannot paint outside its own window), and both need the same
-// "a click anywhere else closes it" rule. Owning it here means opening one menu
-// closes the other and neither has to know about the other's trigger.
-
 (function () {
   const csp = window.csp;
   const state = { kind: null, trigger: null };
@@ -34,9 +27,6 @@
 
   const kind = () => state.kind;
 
-  // Which module gets the pick. The overlay is one surface for several menus (the
-  // palette's ☰, the Session profile picker, a module's Model dropdown), and the pick
-  // arrives here as `{ id, menu }` — so each menu registers its own handler.
   const handlers = new Map();
 
   /** @param {string} menu @param {(id: string) => void} fn */
@@ -47,7 +37,7 @@
   document.addEventListener('pointerdown', (event) => {
     if (!state.kind) return;
     if (state.trigger && (state.trigger === event.target || state.trigger.contains(event.target))) return;
-    // The in-window fallback menu (only when the overlay is unavailable) owns its own clicks.
+
     if (event.target && event.target.closest && event.target.closest('#palette-menu')) return;
     close();
   }, true);

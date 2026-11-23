@@ -1,16 +1,4 @@
-/*
- * Plane chunk arithmetic — how a plane's rows are split across animation frames.
- *
- * The chunked builder walks rows in order, writing each row exactly once and never
- * past the plane's height. That is the invariant the earlier implementation violated
- * when a row counter advanced before the row was written (every row landed one row
- * off) and is the reason a resize, a superseded build and a hidden page all have to
- * abandon the build rather than continue it.
- *
- * Pure and injected so it is unit-tested without a canvas.
- *
- * Loads as CommonJS in Node and as a global `IroPlotChunks` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroPlotChunks = factory();

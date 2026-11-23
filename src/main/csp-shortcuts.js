@@ -1,15 +1,5 @@
 'use strict';
 
-// Read CSP's shortcut configuration (; the file layout is
-// in docs/ARCHITECTURE.md, "CSP shortcut storage"). Everything here is read-only —
-// the app never writes CSP's files.
-//
-// The files are SQLite and Node's built-in `node:sqlite` reads them with no new
-// dependency. CSP's user-settings root (the "materials location") is either the
-// default `<Documents>\CELSYS` or a custom path in
-// `CLIPStudioCommon\Preference\Config.sqlite` -> CategoryFolderPath.DataFolderPath;
-// under it, `CLIPStudioPaintVer1_5_0\` holds the shortcut files.
-
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -52,7 +42,7 @@ function readRow(file, sql, params = [], { exists = fs.existsSync, DatabaseSync 
   } catch {
     return null;
   } finally {
-    try { if (db) db.close(); } catch { /* ignore */ }
+    try { if (db) db.close(); } catch {  }
   }
 }
 
@@ -66,7 +56,7 @@ function readRows(file, sql, params = [], { exists = fs.existsSync, DatabaseSync
   } catch {
     return [];
   } finally {
-    try { if (db) db.close(); } catch { /* ignore */ }
+    try { if (db) db.close(); } catch {  }
   }
 }
 
@@ -87,9 +77,7 @@ function resolveRoot({ documents = defaultDocuments(), exists = fs.existsSync, D
 /** The versioned folder under the materials root (`CLIPStudioPaintVer1_5_0`). */
 function settingsRoot(root, { exists = fs.existsSync, readdir = fs.readdirSync } = {}) {  if (!root || !exists(root)) return '';
   try {
-    // A materials root can hold several versions (1_1_0 beside 1_5_0). The
-    // newest is the one CSP is running; picking the first readdir entry read the
-    // old install and found no current workspace.
+
     const score = (name) => {
       const m = String(name).match(/Ver(\d+)_(\d+)_(\d+)/i);
       return m ? Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3]) : -1;
@@ -123,7 +111,7 @@ function readWorkspace(settings, deps = {}) {
       const raw = fs.readFileSync(path.join(dir, 'workspacelist.txt'), 'utf8');
       const match = raw.match(/workspace_[^\s"']+\.spws/i);
       if (match) file = match[0];
-    } catch { /* no workspace list */ }
+    } catch {  }
   }
   if (!file) return { file: '', name: '', path: '' };
   const full = path.join(dir, file);
@@ -170,10 +158,7 @@ function listCommands(settings, deps = {}) {
   const wsMap = workspace.path
     ? mergeCommandRows(read(workspace.path, 'SELECT menucommand, shortcut, modifier FROM workspaceshortcutmenu'))
     : new Map();
-  // The current workspace is authoritative. Do not merge the factory/global
-  // table into it: that is how old shortcuts from another context used to
-  // reappear. Only a workspace without a shortcut table falls back to
-  // default.khc.
+
   const source = wsMap.size
     ? wsMap
     : mergeCommandRows(read(path.join(settings, 'Shortcut', 'default.khc'),
@@ -208,8 +193,7 @@ function listToolShortcuts(settings, deps = {}) {
       if (name && key) legacy.push({ name, key, kind: source.kind });
     }
   }
-  // The current workspace's tool shortcuts are the effective ones. Their uuid is
-  // a Blob matching Node.NodeUuid; the shortcut is a key string (e.g. "Z").
+
   const workspace = readWorkspace(settings, deps);
   const wsTools = workspace.path
     ? readRows(workspace.path, 'SELECT shortcut, uuid FROM workspaceshortcuttool', [], deps)
@@ -240,7 +224,7 @@ function workspaceMeta(workspace, deps = {}) {
     const stat = (deps.stat || fs.statSync)(workspace.path);
     out.savedMs = Number(stat.mtimeMs) || 0;
     out.savedAt = out.savedMs ? new Date(out.savedMs).toISOString() : '';
-  } catch { /* the file vanished between resolve and stat */ }
+  } catch {  }
   return out;
 }
 

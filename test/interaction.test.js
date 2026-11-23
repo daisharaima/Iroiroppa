@@ -1,8 +1,5 @@
 'use strict';
 
-// The interaction hub's state machine (E1). Pure: no Electron, no clock tricks —
-// `now` is injected so a test can be deterministic.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { createInteractionHub } = require('../src/main/interaction');
@@ -121,8 +118,6 @@ test('two domains are independent', () => {
   assert.equal(hub.get('layout').id, 'b');
 });
 
-// --- the failure cases the live matrix keeps producing ---------------------
-
 test('an update that arrives after the end is dropped, never reopened', () => {
   const hub = createInteractionHub();
   hub.begin({ id: 'i1', domain: D, windowId: 7, baseRev: 0, currentRev: 0 });
@@ -163,8 +158,6 @@ test('a begin without an id or a domain is refused', () => {
   assert.equal(hub.begin({ id: 'i1', domain: D }).ok, false);
 });
 
-// --- the recent-value ring: a lagging echo is ours, a real change is not ------
-
 const rgb = (r, g, b) => ({ r, g, b });
 const sameRgb = (a, b) => Boolean(a && b && a.r === b.r && a.g === b.g && a.b === b.b);
 
@@ -174,10 +167,10 @@ test('an echo of any recently sent value counts as ours, not as an external chan
   hub.update({ id: 'i1', domain: D, seq: 1, value: rgb(1, 2, 3) });
   hub.update({ id: 'i1', domain: D, seq: 2, value: rgb(4, 5, 6) });
   hub.update({ id: 'i1', domain: D, seq: 3, value: rgb(7, 8, 9) });
-  // The host lags: it reports the value from seq 1 while seq 3 is the newest.
+
   assert.equal(hub.isRecent(D, rgb(1, 2, 3), sameRgb), true);
   assert.equal(hub.isRecent(D, rgb(7, 8, 9), sameRgb), true);
-  // A colour this interaction never sent is an external change.
+
   assert.equal(hub.isRecent(D, rgb(200, 0, 0), sameRgb), false);
 });
 
@@ -194,8 +187,7 @@ test('the committed value joins the ring, so its echo after the end is ours', ()
   hub.begin({ id: 'i1', domain: D, windowId: 7, baseRev: 0, currentRev: 0 });
   hub.update({ id: 'i1', domain: D, seq: 1, value: rgb(1, 1, 1) });
   hub.end({ id: 'i1', domain: D, seq: 2, value: rgb(9, 9, 9) });
-  // The interaction is closed, so the ring is gone with it: the echo of the final
-  // write is handled by the renderer's own ring, not by a closed hub entry.
+
   assert.equal(hub.get(D), null);
   assert.equal(hub.isRecent(D, rgb(9, 9, 9), sameRgb), false);
 });

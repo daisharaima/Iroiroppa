@@ -4,8 +4,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createDragSession } = require('../src/main/drag-session');
 
-// One 300x640 pane at the origin: a 276 px column with an auto module (200) over
-// a fill module (402), so local y decides the insertion index (0 above, 2 below).
 const PANE = {
   paletteId: 'p1',
   rect: { x: 0, y: 0, width: 300, height: 640 },
@@ -57,14 +55,11 @@ test('begin starts the poll and paints the chip with a plan', () => {
   assert.equal(h.session.active(), true);
   assert.equal(h.ticking(), true);
   assert.equal(h.shown.length, 1);
-  // The chip names what is being carried from the first tick, including while the pointer is still
-  // inside the source palette: blanking it there (the old rule) made a drag look like the module had
-  // vanished, which is what the user reported. The *card* stays visible until the pointer leaves —
-  // that is the renderer's rule and a different question from what the chip says.
+
   assert.equal(h.shown[0].text, 'OKLCH Slice');
   assert.deepEqual([h.shown[0].x, h.shown[0].y], [100, 50]);
   assert.equal(h.shown[0].line.axis, 'h');
-  // The caller needs to know which pane the line belongs to, to convert it.
+
   assert.equal(h.shown[0].paletteId, 'p1');
 });
 
@@ -114,8 +109,8 @@ test('drop re-resolves at the drop point, not from the last tick', () => {
   const h = harness();
   h.session.begin({ sourcePaletteId: 'p1', items: ['m1'] });
   h.move({ x: 100, y: 50 });
-  h.tick(); // plan says index 0
-  h.move({ x: 100, y: 600 }); // the pointer moved, and no tick ran before the drop
+  h.tick();
+  h.move({ x: 100, y: 600 });
   const out = h.session.drop();
   assert.equal(out.target.index, 2);
 });
@@ -125,8 +120,7 @@ test('a drop outside every pane becomes a new window', () => {
   h.session.begin({ sourcePaletteId: 'p1', items: ['m1'], grouping: 'columns' });
   h.move({ x: 900, y: 900 });
   const out = h.session.drop();
-  // A new window is dropped *where the pointer is* (screen DIP), not left to main's
-  // "just right of the palette" fallback.
+
   assert.deepEqual(out.target, { kind: 'desktop', pos: { x: 900, y: 900 } });
   assert.equal(h.dispatched[0].grouping, 'columns');
 });
@@ -137,7 +131,7 @@ test('cancel leaves the document alone', () => {
   assert.equal(h.session.cancel(), true);
   assert.equal(h.dispatched.length, 0);
   assert.equal(h.ticking(), false);
-  assert.equal(h.session.cancel(), false); // nothing to cancel
+  assert.equal(h.session.cancel(), false);
 });
 
 test('a drag that never ends cancels itself instead of polling forever', () => {
@@ -157,7 +151,7 @@ test('a second begin supersedes the first', () => {
   const state = h.session.state();
   assert.deepEqual(state.payload.items, ['m2']);
   assert.equal(h.dispatched.length, 0);
-  assert.equal(h.events.filter((e) => e === 'hide').length, 1); // the first was stopped
+  assert.equal(h.events.filter((e) => e === 'hide').length, 1);
 });
 
 test('drop without a drag, and a refused dispatch, are both reported', () => {
@@ -176,9 +170,7 @@ test('the session needs its collaborators', () => {
 });
 
 test('a drag nobody is holding ends itself instead of polling forever', () => {
-  // A `pointerup` can be lost — the OS can take a drag over (PowerToys FancyZones does it
-  // when Shift is held) — so a session that only ends on a message would poll forever with
-  // the chip and indicator stuck on screen.
+
   const h = harness();
   h.session.begin({ items: ['m1'], sourcePaletteId: 'p1' });
   h.tick();

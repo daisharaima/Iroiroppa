@@ -1,21 +1,5 @@
 'use strict';
 
-// Session-secret hardening (docs/STATE.md, §6; docs/PROTOCOL.md).
-//
-// `session.json` holds the Companion pairing password. At rest it is encrypted
-// with Electron's `safeStorage` (Windows DPAPI, tied to the user account), so a
-// copied file is useless on another machine. The consumer API is identical to
-// JsonStore (`get`/`set`/`replace`/`clear`) and always hands back **plaintext**,
-// so nothing that reads the session has to know how it is stored.
-//
-// The format is self-describing, so an old plaintext file keeps working and is
-// upgraded to the encrypted shape on the next write:
-//   v1 (plaintext): the record itself
-//   v2 (encrypted): { __secret: true, v: 2, data: {...}, secrets: { password: '<base64>' } }
-//
-// Electron-free (the safeStorage is injected), so the format and the migration
-// are unit-tested (test/secret-store.test.js).
-
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -47,8 +31,7 @@ function createSecretStore({ file, defaults = {}, secrets = ['password'], safeSt
         try {
           out[key] = safeStorage.decryptString(Buffer.from(stored[key], 'base64'));
         } catch {
-          // Undecryptable (another user/machine, or a corrupt blob): drop the
-          // secret and keep the rest, so the app can simply re-pair.
+
         }
       }
       return out;
@@ -69,7 +52,7 @@ function createSecretStore({ file, defaults = {}, secrets = ['password'], safeSt
         try {
           stored[key] = safeStorage.encryptString(rest[key]).toString('base64');
           delete rest[key];
-        } catch { /* leave this field in plaintext rather than lose it */ }
+        } catch {  }
       }
     }
     encryptedAtRest = true;
@@ -80,8 +63,8 @@ function createSecretStore({ file, defaults = {}, secrets = ['password'], safeSt
     try {
       return decode(JSON.parse(fs.readFileSync(file, 'utf8')));
     } catch {
-      // Missing or malformed: keep a copy before anything can overwrite it.
-      try { fs.copyFileSync(file, `${file}.bak`); } catch { /* nothing to back up */ }
+
+      try { fs.copyFileSync(file, `${file}.bak`); } catch {  }
       return { ...defaults };
     }
   }

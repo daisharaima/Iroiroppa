@@ -14,7 +14,7 @@ function attachRendererRecovery(win, label = 'renderer') {
     if (!win || win.isDestroyed() || reloads >= 2) return;
     reloads += 1;
     console.error(`[renderer] ${label} ${reason}; reloading (${reloads}/2)`);
-    try { win.webContents.reload(); } catch { /* already gone */ }
+    try { win.webContents.reload(); } catch {  }
   };
   win.webContents.on('render-process-gone', (_e, details) => recover(`gone:${(details && details.reason) || 'unknown'}`));
   win.webContents.on('unresponsive', () => recover('unresponsive'));

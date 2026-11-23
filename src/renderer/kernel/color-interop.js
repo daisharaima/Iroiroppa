@@ -1,17 +1,5 @@
 'use strict';
 
-// The colour-library interop layer (docs/STATE.md, §12.15.4).
-//
-// culori (MIT) is used only AROUND the core — CSS parsing, space breadth,
-// interpolation and colour-difference — never for the gamut-interval maths, the
-// ICC proof transform or the canonical OKLab value (§12.15.2). It is optional:
-// every method checks for it and returns null when the vendored bundle is not
-// loaded, so the app is byte-for-byte unaffected when culori is absent.
-//
-// This is the ONLY module that references `culori`, so the dependency stays
-// swappable. Values cross the boundary as OKLab `{ L, a, b }` / hex, matching the
-// app's own conventions.
-
 (function () {
   const culori = typeof window !== 'undefined' ? window.culori : undefined;
   const available = Boolean(culori);
@@ -28,8 +16,7 @@
     if (!available || !lab) return null;
     try {
       const colour = { mode: 'oklab', l: lab.L, a: lab.a, b: lab.b };
-      // 'hex' is a formatter, not a converter mode: converter('hex') has no rgb
-      // formatter and throws, which used to make every hex request return null.
+
       if (space === 'hex' || space === 'rgb') return culori.formatHex(colour);
       return culori.converter(space)(colour);
     } catch { return null; }
@@ -58,8 +45,7 @@
       const cb = typeof b === 'string' ? culori.parse(b) : b;
       if (!ca || !cb) return null;
       if (metric && metric !== 'oklab') {
-        // culori exposes metrics as factories (differenceCiede2000() …), not as
-        // culori.difference(a, b, name); that name was undefined.
+
         const factory = metric === 'ciede2000' ? culori.differenceCiede2000
           : metric === 'cie76' ? () => culori.differenceEuclidean('lab')
             : null;
@@ -79,7 +65,7 @@
       const ca = typeof a === 'string' ? culori.parse(a) : a;
       const cb = typeof b === 'string' ? culori.parse(b) : b;
       if (!ca || !cb) return null;
-      // culori takes a mode name; the callers' `{ space: 'oklch' }` shape is accepted too.
+
       const mode = typeof opts === 'string' ? opts : ((opts && opts.space) || 'oklab');
       return culori.interpolate([ca, cb], mode)(t);
     } catch { return null; }

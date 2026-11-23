@@ -1,9 +1,6 @@
 'use strict';
 
-// Selector module: Shortcut Library — CSP's own command/tool shortcuts and the
-// app's module-command bindings, in one place. CSP's files are read-only; the
-// manager can browse/invoke them and edit Iroiroppa's own bindings, and it warns
-// when an app binding collides with a CSP shortcut.
+
 
 (function () {
   const reg = (window.Iro = window.Iro || {});
@@ -45,8 +42,7 @@
     create(ctx) {
       const csp = ctx.csp;
       let mode = 'csp';
-      // The list is 1,077 rows on a real workspace, and building every row costs a visible
-      // pause. It renders in pages of PAGE; reaching the bottom loads the next one.
+
       const PAGE = 300;
       let shownLimit = PAGE;
       let lastPageKey = '';
@@ -105,8 +101,7 @@
 
       const source = document.createElement('div');
       source.className = 'csp-shortcuts-source';
-      // The clash badge shares the source line: the tabs above need the full width
-      // for their equal halves.
+
       const meta = document.createElement('div');
       meta.className = 'csp-shortcuts-meta';
       meta.append(source, warn);
@@ -135,7 +130,7 @@
       const status = document.createElement('div');
       status.className = 'csp-shortcuts-empty';
 
-      // Shown only when CSP's folder cannot be found: pick it once, globally.
+
       const locate = document.createElement('button');
       locate.type = 'button';
       locate.className = 'csp-shortcuts-locate hidden';
@@ -147,13 +142,12 @@
           if (!picked) return;
           await csp.updateSettings({ cspDataDir: picked.path || '' });
           load();
-        } catch { /* dialog cancelled */ }
+        } catch {  }
       });
 
       const list = document.createElement('div');
       list.className = 'csp-shortcuts-list';
-      // Reaching the end of the rendered page loads the next, so scrolling a 1,077-row
-      // workspace never dead-ends.
+
       list.addEventListener('scroll', () => {
         if (list.scrollTop + list.clientHeight < list.scrollHeight - 24) return;
         const more = list.querySelector('.csp-shortcuts-more');
@@ -272,7 +266,7 @@
         chips.classList.toggle('hidden', mode === 'app');
         locate.classList.toggle('hidden', mode === 'app' || data.ok);
         const q = search.value.trim().toLowerCase();
-        // A new query, filter or tab starts the list again; only scrolling keeps it long.
+
         const pageKey = `${mode}|${kindFilter}|${keyQuery}|${q}`;
         if (pageKey !== lastPageKey) { lastPageKey = pageKey; shownLimit = PAGE; }
         list.textContent = '';
@@ -307,8 +301,7 @@
             else row.disabled = true;
             list.append(row);
           }
-          // More than one page: a button, and the scroll listener above presses it at the
-          // bottom, so a 1,077-row workspace is browsable without typing a query.
+
           if (shown.length > shownLimit) {
             const left = shown.length - shownLimit;
             const more = document.createElement('button');
@@ -319,7 +312,7 @@
               shownLimit += PAGE;
               const at = list.scrollTop;
               render();
-              list.scrollTop = at; // keep the reader where they were
+              list.scrollTop = at;
             });
             list.append(more);
           }

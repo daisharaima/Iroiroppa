@@ -1,10 +1,5 @@
 'use strict';
 
-// The drop matrix (docs/LAYOUT.md, V5): every payload × destination, asserted on
-// the document the reducer produces and on the effects main will act on. This is
-// the contract that used to be a set of behaviours nobody could enumerate — which
-// is why "main to float", "float to main" and the rest kept breaking.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Model = require('../src/shared/layout-model');
@@ -50,12 +45,10 @@ function place(doc, items, target, extra = {}) {
   return out;
 }
 
-// --- payload: one module (M1) -------------------------------------------------
-
 test('M1 → column body: inserted at the index, nothing else moves', () => {
   const out = place(base(), ['i1'], { kind: 'column', paletteId: 'p2', columnId: 'd1', index: 0 });
   assert.deepEqual(shape(out.doc), [[['i2'], ['i3']], [['i1', 'i4']]]);
-  // The source gives back the row's height; the destination takes it (docs/LAYOUT.md, "Snapping").
+
   assert.deepEqual(effects(out), ['palette.fit:module-removed', 'palette.fit:module-added']);
 });
 
@@ -66,8 +59,7 @@ test('M1 → seam: a new column appears at that boundary', () => {
 });
 
 test('M1 → the seam it already sits on keeps the arrangement', () => {
-  // i3 lives in the column to the right of the seam it is dropped on. The columns
-  // are re-created (so their ids change) but nothing a user sees moves.
+
   const out = Model.reduce(base(), {
     type: 'layout.place',
     items: ['i3'],
@@ -104,24 +96,19 @@ test('M1 → its own position is a no-op, and the reducer says so', () => {
   assert.deepEqual(out.effects, []);
 });
 
-// --- the size rule ------------------------------------------------------------
-
 test('the size rule: a row adds its height, a column adds its width, and both come back', () => {
   const fits = (out) => out.effects
     .filter((e) => e.type === 'palette.fit')
     .map((e) => [e.paletteId, e.change.kind, e.change.py || e.change.px || 0]);
 
-  // Into a column: the row's *height* travels with it, both ways.
   const intoColumn = place(base(), ['i1'], { kind: 'column', paletteId: 'p2', columnId: 'd1', index: 0 },
     { grown: { width: 180, height: 90 } });
   assert.deepEqual(fits(intoColumn), [['p1', 'module-removed', 90], ['p2', 'module-added', 90]]);
 
-  // A new column: the *width* — a docked palette brings its own window width.
   const asColumn = place(base(), ['i1'], { kind: 'outer', paletteId: 'p2', side: 'right' },
     { grown: { width: 180, height: 90 } });
   assert.deepEqual(fits(asColumn), [['p1', 'module-removed', 90], ['p2', 'columns-added', 180]]);
 
-  // A column that leaves takes its width with it (the document's estimate: 8 for the seam here).
   const out = place(base(), ['i1', 'i2'], { kind: 'desktop' }, { grown: { width: 200, height: 40 } });
   const goneEffect = out.effects.find((e) => e.change && e.change.kind === 'columns-removed');
   assert.ok(goneEffect, 'a removed column must ask the window to give its width back');
@@ -144,18 +131,15 @@ test('M2 → desktop makes one window with one column', () => {
 });
 
 test('M2 → dropped inside its own span adjusts the index instead of jumping', () => {
-  // i1 already sits before i2; dropping the pair back at index 2 must not move it.
+
   const out = place(base(), ['i1', 'i2'], { kind: 'column', paletteId: 'p1', columnId: 'c1', index: 2 });
   assert.deepEqual(shape(out.doc)[0], [['i1', 'i2'], ['i3']]);
 });
 
-// --- payload: a whole palette (P3) -------------------------------------------
-
 test('P3 → a column merges its modules in, keeping their order', () => {
   const out = place(base(), ['i1', 'i2', 'i3'], { kind: 'column', paletteId: 'p2', columnId: 'd1', index: 0 }, { grouping: 'columns' });
   assert.deepEqual(shape(out.doc), [[['i1', 'i2', 'i3', 'i4']]]);
-  // The emptied source palette closes: nothing to fit for a window that is going away. The
-  // destination does grow — its rows take the docked height (docs/LAYOUT.md, "Snapping").
+
   assert.deepEqual(effects(out), ['palette.fit:module-added', 'palette.close']);
 });
 
@@ -169,14 +153,13 @@ test('P3 → the desktop recreates the whole window, columns and all', () => {
   const out = place(base(), ['i1', 'i2', 'i3'], { kind: 'desktop' }, { grouping: 'columns' });
   assert.deepEqual(shape(out.doc), [[['i4']], [['i1', 'i2'], ['i3']]]);
   assert.deepEqual(effects(out), ['palette.fit:content', 'palette.open', 'palette.close']);
-  // Re-creating a whole window keeps that window's size.
+
   const source = base().palettes[0].size;
   assert.deepEqual(out.doc.palettes[1].size, source);
 });
 
 test('P3 → back onto its own layout keeps the arrangement', () => {
-  // Not a byte-level no-op (the columns are re-created, so their ids change), but
-  // nothing a user can see moves — which is the property that matters.
+
   const out = Model.reduce(base(), {
     type: 'layout.place',
     items: ['i1', 'i2', 'i3'],
@@ -186,8 +169,6 @@ test('P3 → back onto its own layout keeps the arrangement', () => {
   assert.equal(out.ok, true);
   assert.deepEqual(shape(out.doc), [[['i1', 'i2'], ['i3']], [['i4']]]);
 });
-
-// --- guards -------------------------------------------------------------------
 
 test('the last palette is never left empty', () => {
   const single = Model.normalise({

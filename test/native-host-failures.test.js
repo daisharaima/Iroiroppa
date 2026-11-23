@@ -1,8 +1,5 @@
 'use strict';
 
-// Partial-failure behaviour of the native host: the cases the happy-path tests miss.
-// The child is faked so nothing is installed on this machine.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { EventEmitter } = require('node:events');
@@ -75,12 +72,11 @@ test('a restart spawns a new child after the backoff, and recovers', async (t) =
   children[0].stdout.emit('data', '{"ready":1}\n');
   children[0].emit('exit', 1, null);
 
-  // The first backoff is 500 ms.
   await new Promise((resolve) => setTimeout(resolve, 700));
   assert.equal(children.length, 2, 'a second child was spawned');
   children[1].stdout.emit('data', '{"ready":2}\n');
   assert.equal(host.available, true);
-  // `restarts` resets on every ready, so the recovered state is what matters here.
+
 });
 
 test('after giving up, further exits do not spin', async (t) => {
@@ -93,7 +89,6 @@ test('after giving up, further exits do not spin', async (t) => {
   host.start();
   children[0].stdout.emit('data', '{"ready":1}\n');
 
-  // Drive the backoff table to exhaustion without waiting for the timers.
   host.restarts = 7;
   children[0].emit('exit', 1, null);
 

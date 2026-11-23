@@ -1,29 +1,9 @@
-/*
- * ICC proofing support: parse a matrix/TRC profile and build the T / T-inverse
- * transform between sRGB and the proof space.
- *
- * Three appearance models exist. Only `working` is reachable from the UI, and it
- * is the only one proven in real use; `colorimetric` and `display` are dev-only
- * (selectable only with `--shot --proof-model <model>`, or by editing
- * `settings.json` directly):
- *
- *   'working'       The records are already in the profile's (working) space.
- *                   appearance = proofToSrgb(record); recorded = srgbToProof().
- *   'colorimetric'  The records are treated as sRGB and shown unchanged
- *                   (identity); the profile is not applied at all.
- *   'display'       The records are sRGB and the profile encoding is shown
- *                   directly: appearance = srgbToProof(record) — the inverse of
- *                   `working`.
- *
- * Loads as CommonJS (Node) or as a global `Proof` (renderer).
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./color.js'), require('./lut.js'));
   else root.Proof = factory(root.Color, root.IroLut);
 })(typeof self !== 'undefined' ? self : this, function (Color, Lut) {
   'use strict';
-
-  // --- 3x3 matrix helpers --------------------------------------------------
 
   const mulVec = (m, v) => [
     m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
@@ -49,7 +29,6 @@
     ];
   }
 
-  // sRGB (D65) <-> XYZ, Bradford D65 <-> D50.
   const M_SRGB = [
     [0.4123908, 0.3575843, 0.1804808],
     [0.2126390, 0.7151687, 0.0721923],
@@ -66,8 +45,6 @@
   const D50 = [0.9642, 1.0, 0.8249];
   const D65 = [0.950455, 1.0, 1.08905];
 
-  // --- ICC parsing ---------------------------------------------------------
-
   function parseIcc(input) {
     const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
     const u32 = (o) => buf.readUInt32BE(o);
@@ -76,7 +53,7 @@
 
     if (sig(36) !== 'acsp') throw new Error('not an ICC profile');
     const profile = {
-      // ICC versions are BCD: major.minor.bugfix
+
       version: `${buf[8]}.${(buf[9] >> 4) & 0xf}.${buf[9] & 0xf}`,
       deviceClass: sig(12),
       dataSpace: sig(16),
@@ -144,12 +121,12 @@
     if (type === 'desc') {
       const n = u32(o + 8);
       const raw = buf.toString('latin1', o + 12, o + 12 + Math.max(0, n));
-      return raw.split('\0')[0]; // the ASCII string is NUL-terminated
+      return raw.split('\0')[0];
     }
     if (type === 'mluc') {
       const len = u32(o + 20);
       const off = u32(o + 24);
-      // UTF-16BE
+
       let s = '';
       for (let i = 0; i + 1 < len; i += 2) s += String.fromCharCode(buf.readUInt16BE(o + off + i));
       return s.split('\0')[0];
@@ -169,8 +146,6 @@
     if (canonical) return canonical;
     return icc.find((n) => /adobe[-\s_]*rgb/i.test(n)) || null;
   }
-
-  // --- tone curve ----------------------------------------------------------
 
   function makeCurve(trc) {
     if (trc.type === 'identity') return { decode: (x) => x, encode: (y) => y };
@@ -195,7 +170,7 @@
       };
       return { decode: dec, encode: invert(dec) };
     }
-    // sampled table: device -> linear
+
     const v = trc.values;
     const n = v.length;
     const decode = (x) => {
@@ -236,8 +211,6 @@
       return (lo + hi) / 2;
     };
   }
-
-  // --- proof pipeline ------------------------------------------------------
 
   /**
    * A CMYK (LUT-based) proof, soft-proof only: it shows what the recorded sRGB
@@ -372,11 +345,6 @@
     const srgbDecode = (c) => Color.srgbToLinear(c);
     const srgbEncode = (c) => Color.linearToSrgb(c);
 
-    // sRGB white in this profile's own record space. The Bradford path targets the
-    // D50 white (0.9642, 1, 0.8251) while the profile's colorants sum to a Z that
-    // differs by ~5e-4, putting pure white at rec ≈ (1, 1, 1.0006) — just past the
-    // gamut tolerance, so #FFFFFF read as out of proof gamut. Normalise to the
-    // profile's own white, so a displayed white records as exactly (1, 1, 1).
     const whiteRec = mulVec(Pinv, mulVec(BRADFORD_D65_D50, mulVec(M_SRGB, [1, 1, 1])));
     const toRec = (xyzD50) => {
       const rec = mulVec(Pinv, xyzD50);
@@ -400,7 +368,7 @@
     }
 
     const identity = (v) => [v[0], v[1], v[2]];
-    // How values recorded by CSP map to what you see, and back.
+
     const toAppearance = model === 'working' ? proofToSrgb : model === 'display' ? srgbToProof : identity;
     const toRecorded = model === 'working' ? srgbToProof : model === 'display' ? proofToSrgb : identity;
 
@@ -409,9 +377,6 @@
       return [c.r, c.g, c.b];
     };
 
-    // Tolerance relative to the colour's own magnitude. Near black the linear
-    // channels are ~1e-9, so an absolute epsilon would accept a spurious chroma
-    // and leave a spike at the dark end of the lightness plot.
     const GAMUT_REL_TOL = 1e-5;
     /** Is an appearance OKLCH representable by CSP (linear profile channels in range)? */
     function inGamut(lch) {
@@ -425,9 +390,6 @@
              rec[2] >= -eps && rec[2] <= 1 + eps;
     }
 
-    // Recorded (profile-space) channels as cubics in chroma at fixed L,H: the
-    // transform from linear sRGB is a matrix, so it maps the channel cubics to
-    // cubics. See Color#linearRgbChromaCubic.
     const M_REC = mulMat(Pinv, mulMat(BRADFORD_D65_D50, M_SRGB))
       .map((row, i) => row.map((v) => v / whiteRec[i]));
     function recChromaCubic(L, H) {

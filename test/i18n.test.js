@@ -1,8 +1,5 @@
 'use strict';
 
-// The i18n core: interpolation, locale resolution and
-// catalog lookup, plus the shipped locales' completeness.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -44,8 +41,7 @@ test('every shipped locale is a subset of English, and English is complete', () 
   assert.ok(enKeys.length > 0, 'the English catalog is empty');
   for (const file of locales) {
     const messages = loadLocale(file);
-    // A locale may omit a key (it then falls back to English); it must not carry a
-    // key English does not, which would be a stale leftover.
+
     const stale = Object.keys(messages).filter((k) => !(k in en));
     assert.deepEqual(stale, [], `${file} has keys English does not`);
   }

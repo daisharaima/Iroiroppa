@@ -1,15 +1,12 @@
 'use strict';
 
-// The backing-store scale (src/shared/canvas-size.js): a pixel budget instead of a fixed
-// 2×, so a module stretched large does not render four times the pixels and stutter.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const Size = require('../src/shared/canvas-size');
 
 test('a small module still supersamples', () => {
   const s = Size.backingScale(160, 160, { want: 2 });
-  // 25 600 px at 1×; a 70k budget fits about 1.65×.
+
   assert.ok(s > 1.4 && s <= 2, `scale ${s}`);
 });
 

@@ -1,4 +1,4 @@
-// Русский.
+
 (function (root) {
   'use strict';
 

@@ -1,10 +1,5 @@
 'use strict';
 
-// The windows and OS-level watchers: the palette popup, the Settings and
-// module-settings windows, the drag chip, the tray, and the focus/auto-connect
-// watchers. It takes the app context (main.js) so it drives the live windows and
-// reads the shared state through accessors.
-
 const path = require('node:path');
 const { app, BrowserWindow, Tray, Menu, screen, nativeImage, globalShortcut } = require('electron');
 const { resolveWindowBounds } = require('./window-bounds');
@@ -40,7 +35,7 @@ function createWindows(ctx) {
   function repairTopmost(win) {
     ensureTopmost(win, { zorder: false }).catch(() => {});
   }
-  // The palette/float band: topmost *and* out of the activation path (topmost.js).
+
   const raiseBand = (win, opts = {}) => {
     ensureBand(win, { noActivate: true, ...opts }).catch(() => {});
   };
@@ -73,14 +68,13 @@ function createWindows(ctx) {
   function raiseOverlayNow() {
     const now = Date.now();
     if (ctx.overlayRaisedAt && now - ctx.overlayRaisedAt < 120) {
-      // A burst (a tooltip then its menu) must not swallow the trailing raise.
+
       setTimeout(() => raiseOverlayIfOwned(), 60);
       return;
     }
     ctx.overlayRaisedAt = now;
     raiseOverlayIfOwned();
-    // The owner may activate itself a moment later (Settings is an activatable
-    // window); these trailing raises land after that activation.
+
     setTimeout(raiseOverlayIfOwned, 40);
     setTimeout(raiseOverlayIfOwned, 160);
   }
@@ -99,12 +93,9 @@ function createWindows(ctx) {
     });
   }
 
-  // Window order follows the user: a focus (Settings, the popout) or a show (a palette
-  // coming back, the overlay menu opening) makes that window the one to raise.
   app.on('browser-window-focus', (_event, win) => {
     if (!win || win.isDestroyed()) return;
-    // A click anywhere else dismisses an open menu or tooltip (they live on the overlay).
-    // The owner window keeping focus must not dismiss its own dropdown.
+
     const menuOwner = ctx.overlayMenu && ctx.overlayMenu.ownerWinId;
     const tipOwner = ctx.overlayTooltip && ctx.overlayTooltip.ownerWinId;
     const sameOwner = Boolean((menuOwner && win.id === menuOwner) || (tipOwner && win.id === tipOwner));
@@ -114,8 +105,7 @@ function createWindows(ctx) {
     }
     markInteracted(win);
     if (win !== ctx.overlayWin) scheduleRaise();
-    // The owner of an open menu/tooltip keeps its helper above it, even when the
-    // focus event is the activation that raised the owner over the menu.
+
     if (sameOwner) raiseOverlayIfOwned();
   });
   app.on('browser-window-created', (_event, win) => {
@@ -123,9 +113,7 @@ function createWindows(ctx) {
       if (!win.isDestroyed()) markInteracted(win);
       ensureOnScreen(win);
       if (win === ctx.overlayWin) {
-        // A helper surface shown with nothing on it is a bug; hide it rather than
-        // leave a full-desktop transparent window in the band. A drag, merge card,
-        // menu, or tooltip all count as an owner.
+
         if (!overlayOwned()) win.hide();
         else raiseOverlayNow();
       } else {
@@ -133,8 +121,6 @@ function createWindows(ctx) {
       }
     });
   });
-
-  // --- the band watchdog + visibility trace ----------------------------------
 
   /**
    * How often a visible band window's topmost bit is checked and repaired.
@@ -164,32 +150,18 @@ function createWindows(ctx) {
       for (const win of (ctx.floatWins ? ctx.floatWins.values() : [])) {
         if (win && !win.isDestroyed() && win.isVisible()) wins.push(win);
       }
-      // Our own tool windows join the same list: order now follows the user, not a
-      // fixed "tools last" rule.
+
       for (const tool of [ctx.moduleSettingsWin, ctx.lensWin, ctx.settingsWin, ctx.whatsNewWin, ctx.overlayWin]) {
         if (tool && !tool.isDestroyed() && tool.isVisible()) wins.push(tool);
       }
-      // Order follows the user: every band window's *bit* is repaired without touching
-      // the z-order (`zorder:false`), and only the window the user touched last is
-      // raised. A fixed "tools last" order made Settings permanently outrank a palette
-      // (and vice versa); a plain `SetWindowPos(HWND_TOPMOST)` per window on every tick
-      // made the palette flash over Settings (the "palette flashes on top then goes
-      // behind" report). The per-window call is a no-op when the bits already match.
+
       for (const win of wins) raiseBand(win, { zorder: false });
-      // Self-heal: the overlay is only for a menu, a tooltip, the merge card, or an
-      // in-flight drag. The drag chip/line and the merge card have no menu/tooltip
-      // flag of their own; hiding them here made all four vanish on every tick.
+
       const owned = overlayOwned();
       if (ctx.overlayWin && !ctx.overlayWin.isDestroyed() && ctx.overlayWin.isVisible()
         && !owned) ctx.overlayWin.hide();
       raiseInteracted();
-      // The overlay must stay above whatever opened it, but only when its
-      // ownership starts or the owner was just raised — not on every tick.
-      // The overlay (a menu or a tooltip) must stay above the window that opened it.
-      // Re-asserting it is safe; the old flash came from raising the *owner* every
-      // tick. While the owner is an activatable tool window (Settings, the popout),
-      // Windows can reorder it over the menu on a later activation, so keep the
-      // helper on top there as well.
+
       if (owned && !overlayWasOwned) raiseOverlayNow();
       if (owned) {
         const ownerId = ctx.overlayMenu ? ctx.overlayMenu.ownerWinId
@@ -223,28 +195,19 @@ function createWindows(ctx) {
         foreground: ctx.fgName || '',
         autoHide: ctx.settings.get().autoHide !== false,
         t: Date.now(),
-        // Warm summon: from the hotkey press to the window being visible. A shown
-        // palette clears the mark so a later auto-show is not measured against it.
+
         sinceSummon: action === 'show' && ctx.summonAt ? Date.now() - ctx.summonAt : undefined,
       });
       if (action === 'show') ctx.summonAt = 0;
-    } catch { /* tracing only */ }
+    } catch {  }
   }
-// --- window -----------------------------------------------------------------
 
-// Auto-hide diagnostics (`--trace-focus`): the foreground stream, the decision,
-// the confirming re-query and any cancel. This is how a "hidden while CSP is
-// focused" report is proven fixed rather than guessed at.
 const focusTrace = process.argv.includes('--trace-focus');
 const traceFocus = (...args) => { if (focusTrace) console.log('[focus]', ...args); };
 function createPopup() {
   const sizeArg = ctx.argValue('--size');
   const fallback = { width: 260, height: 640 };
-  // The size is stored — and set with --size — in CSS pixels; the physical
-  // window grows with the UI scale. `windowBounds` carries a CSS-pixel size and
-  // the display it was on; the older `windowSize`/`windowPos` keys migrate in.
-  // The document is the source of truth now; `windowBounds` in settings.json is
-  // legacy and only read when the document has nothing (see docs/LAYOUT.md).
+
   const remembered = ctx.primaryPlacement() || ctx.settings.get().windowBounds || {};
   const legacySize = ctx.settings.get().windowSize;
   const legacyPos = ctx.settings.get().windowPos;
@@ -260,9 +223,7 @@ function createPopup() {
     cssH = Math.max(340, Math.min(1400, Math.round(savedSize.height)));
   }
   const scale = uiScaleValue();
-  // The display comes from the remembered display id (else the cursor, else the
-  // primary) and the window is clamped into its work area — so a second monitor
-  // is restored, and an unplugged one cannot strand the window off-screen.
+
   const resolved = resolveWindowBounds(
     {
       x: Number.isFinite(remembered.x) ? remembered.x : legacyPos && legacyPos.x,
@@ -287,12 +248,7 @@ function createPopup() {
     resizable: true,
     minWidth: 200,
     minHeight: 340,
-    // A non-activating window: clicking the palette must not take focus away
-    // from Clip Studio Paint. Text fields re-enable focus while editing.
-    // Activatable on purpose: on Windows 26300 a press on a window Chromium
-    // considers non-activatable never reaches the page (only the move and the
-    // release do). The window is kept out of the activation path natively instead
-    // — WS_EX_NOACTIVATE from topmost.ps1 — so a click still leaves CSP focused.
+
     focusable: true,
     maximizable: false,
     minimizable: false,
@@ -313,16 +269,13 @@ function createPopup() {
   ctx.popup.setAlwaysOnTop(true, 'floating');
   attachRendererRecovery(ctx.popup, 'palette');
   ctx.popup.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
-  // Electron drops a zoom applied before the page loads; re-apply it once loaded.
+
   ctx.popup.webContents.on('did-finish-load', () => {
     applyZoom(ctx.popup);
-    // Push the current helper state as the page becomes ready: a run that starts degraded
-    // never fires a transition, and the dot would stay hidden.
-    if (ctx.pushHelpers) setTimeout(() => { try { ctx.pushHelpers(); } catch { /* gone */ } }, 0);
+
+    if (ctx.pushHelpers) setTimeout(() => { try { ctx.pushHelpers(); } catch {  } }, 0);
   });
 
-  // Restore the position the user last left it at (if any). With no memory the
-  // first-run placement in positionPopup() centres under the cursor.
   if (resolved.hadPosition) {
     ctx.popup.setPosition(resolved.x, resolved.y, false);
     ctx.hasPositioned = true;
@@ -336,9 +289,6 @@ function createPopup() {
 
   if (ctx.shotPath) ctx.runShot(ctx);
 
-  // A collapsed palette comes up as a bar. The document is authoritative, and waiting for the
-  // renderer to apply its own state races the resize handler — which then remembers the expanded
-  // size and reports the flag back as false. Main applies it before the window is in use.
   {
     const pal = ctx.layoutPalette(ctx.primaryPaletteId());
     if (pal && pal.collapsed) {
@@ -351,11 +301,7 @@ function createPopup() {
     if (ctx.isDev || ctx.shotPath) return;
     const s = ctx.settings.get();
     if (!s.autoHide) return;
-    // The foreground watcher owns visibility. A blur is not proof that CSP lost
-    // focus: a text field, the module-settings popout or the palette menu all
-    // blur the palette while CSP is still the foreground. Hiding here was the
-    // "auto-hide hides while CSP is focused" bug. If the watcher is down the
-    // palette stays up; a broken watcher must never guess.
+
     traceFocus('blur ignored (watcher owns visibility)', {
       healthy: Boolean(ctx.fgHealthy),
     });
@@ -367,13 +313,11 @@ function createPopup() {
     }
   });
 
-  // Remember the last window size (CSS pixels) across launches.
   let sizeSaveTimer = null;
   let lastPaletteBounds = ctx.popup.getBounds();
   const trackMove = () => {
     const pal = ctx.popup.getBounds();
-    // A corner/edge resize fires `move` too; the resize handler must still see the
-    // pre-resize rect, so only a pure move advances the remembered bounds.
+
     if (pal.width === lastPaletteBounds.width && pal.height === lastPaletteBounds.height) {
       ctx.followSnapGroup(ctx.primaryPaletteId(), lastPaletteBounds, pal);
       lastPaletteBounds = pal;
@@ -395,8 +339,7 @@ function createPopup() {
     if (!ctx.popup || ctx.popup.isDestroyed()) return;
     const [x, y] = ctx.popup.getPosition();
     const display = screen.getDisplayMatching(ctx.popup.getBounds());
-    // The size is the *design* size, never the live one: while the palette is collapsed the live
-    // height is just the titlebar and must not become the palette's remembered size.
+
     const collapsed = (() => {
       const p = ctx.layoutPalette(ctx.primaryPaletteId());
       return Boolean(p && p.collapsed);
@@ -416,17 +359,10 @@ function createPopup() {
   };
 
   ctx.popup.on('resize', () => {
-    // A park (or the DPI change from crossing monitors while parked) resizes the
-    // window; that is not the user's size and must not be remembered either.
+
     if (ctx.popupParked || Date.now() < ctx.parkReleaseAt) return;
     trackResize();
-    // A user resize (dragging the window edges) does not go through
-    // window:resize, so keep the CSS-pixel design size in step here — otherwise
-    // opening Settings re-applies the old size and undoes the resize.
-    // A collapse shrinks the window to its titlebar. That height is not the palette's own, so it
-    // must never be remembered — the float's collapse has the same guard in panes.js. Without it
-    // the palette saved 340 px (the `Math.max` clamp below) and reopened as a bar with a band of
-    // empty space under it, which is the "weird collapsed state" a user reported.
+
     const collapsedNow = () => {
       const p = ctx.layoutPalette(ctx.primaryPaletteId());
       return Boolean(p && p.collapsed);
@@ -450,14 +386,12 @@ function createPopup() {
 
   if (ctx.isDev) ctx.popup.webContents.openDevTools({ mode: 'detach' });
 
-  // Remember the last window position across launches.
   let moveSaveTimer = null;
   ctx.popup.on('move', () => {
-    // A scan temporarily parks the palette off the QR; that position is not the
-    // user's, so never remember it (or drag floats after it).
+
     if (ctx.popupParked || Date.now() < ctx.parkReleaseAt) return;
     trackMove();
-    // Mark any joined edges while the palette is being dragged.
+
     if (moveSaveTimer) clearTimeout(moveSaveTimer);
     moveSaveTimer = setTimeout(() => {
       if (!ctx.popup || ctx.popup.isDestroyed() || ctx.popupParked || Date.now() < ctx.parkReleaseAt) return;
@@ -466,8 +400,6 @@ function createPopup() {
     moveSaveTimer.unref?.();
   });
 
-  // A monitor being unplugged (or reconfigured) must not strand the palette
-  // off-screen: clamp the live window into a work area that still exists.
   const reclamp = () => {
     if (!ctx.popup || ctx.popup.isDestroyed()) return;
     const b = ctx.popup.getBounds();
@@ -482,7 +414,6 @@ function createPopup() {
   screen.on('display-added', reclamp);
   screen.on('display-metrics-changed', reclamp);
 
-  // Reopen the float boards that were on screen last time.
   ctx.applyLocked(ctx.settings.get().locked === true);
   ctx.reopenFloats();
 
@@ -522,8 +453,7 @@ function createSettingsWindow() {
   });
   ctx.settingsWin.setAlwaysOnTop(true, 'floating');
   ctx.settingsWin.loadFile(path.join(__dirname, '..', 'renderer', 'settings.html'));
-  // Zoom has to be (re)applied after load; this also re-sizes the window to the
-  // scaled width and lets the renderer re-fit its height.
+
   ctx.settingsWin.webContents.on('did-finish-load', () => applyUiScale());
   ctx.settingsWin.once('ready-to-show', () => ctx.settingsWin.show());
   ctx.settingsWin.on('closed', () => { ctx.settingsWin = null; });
@@ -576,8 +506,7 @@ function createWhatsNewWindow() {
   win.webContents.on('did-finish-load', () => applyZoom(win));
   win.once('ready-to-show', () => {
     win.showInactive();
-    // The note is one-time and must outrank the palette; the palette's own band
-    // raise otherwise puts it behind.
+
     raiseBand(win, { zorder: true });
   });
   win.on('closed', () => {
@@ -614,7 +543,7 @@ function showPopup({ includeSettings = true, atCursor = false, clearSuppression 
   resetInputState();
   if (!ctx.popup) createPopup();
   if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.webContents.isCrashed()) {
-    try { ctx.popup.webContents.reload(); } catch { /* recovery already scheduled */ }
+    try { ctx.popup.webContents.reload(); } catch {  }
   }
   if (atCursor) positionWindowAtCursor(ctx.popup);
   else if (!ctx.hasPositioned) positionPopup();
@@ -633,7 +562,7 @@ function showPopup({ includeSettings = true, atCursor = false, clearSuppression 
     markInteracted(ctx.settingsWin);
   }
   bandDirty = false;
-  // A palette that just appeared is the moment to look for the QR, not the next timer tick.
+
   scheduleAutoConnect({ immediate: true });
 }
 
@@ -642,12 +571,12 @@ function showPopupAuto() {
   resetInputState();
   if (!ctx.popup) createPopup();
   if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popup.webContents.isCrashed()) {
-    try { ctx.popup.webContents.reload(); } catch { /* recovery already scheduled */ }
+    try { ctx.popup.webContents.reload(); } catch {  }
   }
   const primaryId = ctx.primaryPaletteId();
   const primaryHidden = primaryId && suppressedPalettes.has(primaryId);
   if (!primaryHidden) {
-    // Keep wherever the user last put it; only place it the first time.
+
     if (!ctx.hasPositioned) {
       positionPopup();
       ctx.hasPositioned = true;
@@ -662,8 +591,7 @@ function showPopupAuto() {
   }
   ctx.showFloats(true);
   if (anyBandVisible()) startBandWatch();
-  // Keep an already-open Settings window's band bit; do not re-show or re-raise it
-  // from focus-follow (that flashed Settings whenever the palette reappeared).
+
   if (ctx.settingsWin && !ctx.settingsWin.isDestroyed() && ctx.settingsWin.isVisible()) {
     repairTopmost(ctx.settingsWin);
   }
@@ -671,20 +599,18 @@ function showPopupAuto() {
 }
 
 function hidePopup() {
-  // An unanswered merge question cannot outlive the windows it is asking about.
+
   if (typeof ctx.cancelPendingMerge === 'function') ctx.cancelPendingMerge();
-  // The automatic after-pick reveal is over; do not try to hide its windows
-  // again after `showFloats(false)` below.
+
   if (typeof ctx.clearAfterPickShortcut === 'function') ctx.clearAfterPickShortcut();
-  // The palette menu is drawn by the overlay: it must not outlive the palette.
+
   closeOverlayMenu();
   hideTooltip();
   closeModuleSettingsWindow();
   ctx.showFloats(false);
-  // The Settings window goes away with the palette and returns with it.
+
   if (ctx.settingsWin && !ctx.settingsWin.isDestroyed()) ctx.settingsWin.hide();
-  // What's New is a one-time dialog, not a palette tool: it stays until its own
-  // Close button (auto-hide must not hide the note before it is read).
+
   if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.hide();
   stopBandWatch();
   traceVisibility('hide');
@@ -729,10 +655,6 @@ function toggleAllWindows() {
   else showPopup({ includeSettings: true });
 }
 
-// --- per-palette visibility -------------------------------------------------
-// A palette hidden by its own shortcut is *suppressed*: the Auto-hide watcher
-// must not revive it on the next focus change. The set is session-only and is
-// cleared by General show-all, Alt+click's app target, or a restart.
 const suppressedPalettes = new Set();
 
 const paletteIds = () => (ctx.currentWorkspace().palettes || []).map((p) => p.id);
@@ -742,10 +664,7 @@ const paletteVisible = (id) => {
   return Boolean(win && !win.isDestroyed() && win.isVisible());
 };
 
-// A shortcut placement is visible but not the palette's remembered home. The
-// window's own debounced bounds report is skipped for a moment so repeated
-// Toggle/After-pick reveals do not keep overwriting layout.json.
-const shortcutPlacements = new Map(); // paletteId -> expiresAt
+const shortcutPlacements = new Map();
 function markShortcutPlacement(id) {
   if (!id) return;
   shortcutPlacements.set(id, Date.now() + 800);
@@ -822,10 +741,6 @@ function pruneSuppressed() {
   for (const id of [...suppressedPalettes]) if (!live.has(id)) suppressedPalettes.delete(id);
 }
 
-// --- hold-to-show -----------------------------------------------------------
-// A hold is momentary: capture what was visible, reveal the target ignoring the
-// hidden set, then put every window back exactly as it was on release. The
-// suppression set is never touched, so a hidden palette returns to hidden.
 function captureShortcutVisibility(target) {
   const parsed = ShortcutModel.parseTarget(target) || { kind: 'app' };
   const ids = parsed.kind === 'palette' ? [parsed.paletteId] : paletteIds();
@@ -897,10 +812,8 @@ function resetInputState() {
     if (win && !win.isDestroyed()) wins.push(win);
   }
   for (const win of wins) {
-    try { win.setEnabled(true); } catch { /* closing */ }
-    // This is an input reset, not a show/raise: a focus-follow show already has its
-    // own one raise. Re-applying the band here raised every palette and float on
-    // every show and was a source of whole-band flashing.
+    try { win.setEnabled(true); } catch {  }
+
     sendTo(win, 'input:reset');
   }
   if (process.argv.includes('--trace-input') || ctx.traceInput) {
@@ -918,13 +831,11 @@ function resetInputState() {
             bounds: win.getBounds(),
           });
         }
-      } catch { /* closing */ }
+      } catch {  }
     }
     console.log('[input] reset', { windows: wins.length, overlay: Boolean(ctx.overlayWin && !ctx.overlayWin.isDestroyed()) });
   }
 }
-
-// --- the native band (topmost + non-activating) -------------------------------
 
 /**
  * Repair the band after a press. Chromium rewrites the window's extended style when
@@ -936,8 +847,7 @@ function resetInputState() {
  * topmost bit.
  */
 function reassertBand(webContents) {
-  // A press in any window that is not the menu surface dismisses the menu (and the
-  // tooltip): a click elsewhere must close it, like a normal popup.
+
   if (ctx.overlayMenu || ctx.overlayTooltip) {
     const ov = ctx.overlayWin;
     if (!ov || ov.isDestroyed() || ov.webContents !== webContents) {
@@ -951,8 +861,7 @@ function reassertBand(webContents) {
     if (win && !win.isDestroyed()) wins.push(win);
   }
   for (const win of wins) {
-    // Only for the window that sent the press: a privileged channel acts for a live
-    // window it resolves, never for a window id from the payload.
+
     if (webContents && win.webContents !== webContents) continue;
     markInteracted(win);
     raiseBand(win, { zorder: true });
@@ -993,8 +902,7 @@ function ensureOnScreen(win) {
  * every other band window's *bit* has been repaired without moving it.
  */
 function markInteracted(win) {
-  // The overlay is a helper surface (a menu or a tooltip), not a window the user works
-  // in: it must never become the one window the watchdog raises.
+
   if (win === ctx.overlayWin) return;
   if (win && !win.isDestroyed()) {
     ctx.lastInteracted = win;
@@ -1005,9 +913,7 @@ function markInteracted(win) {
 function raiseInteracted() {
   if (!bandDirty) return;
   const win = ctx.lastInteracted;
-  // `lastInteracted` must be a BrowserWindow: an IPC sender is a webContents, and
-  // calling isVisible() on one threw inside the watchdog (the "isVisible is not a
-  // function" crash).
+
   if (!win || typeof win.isVisible !== 'function' || win.isDestroyed() || !win.isVisible()) {
     bandDirty = false;
     return;
@@ -1015,7 +921,7 @@ function raiseInteracted() {
   if (isBandWindow(win)) raiseBand(win, { zorder: true });
   else raiseTopmost(win);
   bandDirty = false;
-  // Keep a menu/tooltip above the owner we just raised, once per real raise.
+
   if (overlayOwned()) raiseOverlayIfOwned();
 }
 
@@ -1044,19 +950,14 @@ function trackInteraction(win) {
  */
 async function setPaletteEditable(on) {
   if (!ctx.popup || ctx.popup.isDestroyed()) return;
-  // Toggling the band can deactivate the window; ignore that blur.
+
   ctx.focusGraceUntil = Date.now() + 900;
   forgetBand(ctx.popup);
   await ensureBand(ctx.popup, { noActivate: !on, topmost: true }).catch(() => {});
   if (on && ctx.popup && !ctx.popup.isDestroyed()) {
-    try { ctx.popup.focus(); } catch { /* closing */ }
+    try { ctx.popup.focus(); } catch {  }
   }
 }
-
-// --- the summon hotkey (legacy name) -----------------------------------------
-// The General show/hide binding lives in `settings.shortcuts.app.toggle` now. This
-// wrapper exists for the `--summon-hotkey` development flag and old IPC; the real
-// registration is owned by src/main/shortcut-actions.js.
 
 /** A non-F-key accelerator needs at least one modifier, or it would swallow typing. */
 function validAccelerator(accel) {
@@ -1073,12 +974,7 @@ function unregisterSummonHotkey() {
   if (typeof ctx.stopShowShortcuts === 'function') ctx.stopShowShortcuts();
 }
 
-// --- per-module command hotkeys ---------------------------------------------
-// `settings.commandBindings` maps `"<instanceId>:<command>"` to an accelerator. Each is
-// registered system-wide and, on press, calls the command through the command router
-// (main owns it; ctx.commandRouter is set by ipc.js). A binding that is invalid or
-// already taken is reported and left unregistered, never silently "remembered".
-let commandHotkeys = new Map(); // accelerator -> binding key
+let commandHotkeys = new Map();
 /** Bare-key command bindings, watched by the keyboard hook rather than globalShortcut. */
 let bareCommandKeys = [];
 
@@ -1089,7 +985,7 @@ let bareCommandKeys = [];
  */
 function applyCommandHotkeys(bindings) {
   for (const accel of commandHotkeys.keys()) {
-    try { globalShortcut.unregister(accel); } catch { /* keep going */ }
+    try { globalShortcut.unregister(accel); } catch {  }
   }
   commandHotkeys = new Map();
   if (typeof ctx.clearCommandBare === 'function') {
@@ -1104,9 +1000,7 @@ function applyCommandHotkeys(bindings) {
     const target = at === -1 ? '' : key.slice(0, at);
     const command = at === -1 ? '' : key.slice(at + 1);
     if (!accel || !target || !command) continue;
-    // A bare key cannot be a globalShortcut (it would swallow typing everywhere);
-    // it goes through the keyboard hook, which only consumes it while CSP or
-    // Iroiroppa is in front and the typing guard says the user is not typing.
+
     const parsed = Match.parseAccelerator(accel);
     if (parsed.hook) {
       const res = (ctx.registerCommandBare
@@ -1133,13 +1027,13 @@ function runCommandHotkey(target, command) {
   try {
     const p = ctx.commandRouter && ctx.commandRouter.call({ target, command, args: [] });
     if (p && typeof p.catch === 'function') p.catch(() => {});
-  } catch { /* keep going */ }
+  } catch {  }
 }
 
 /** Release every per-module hotkey (on quit). */
 function unregisterCommandHotkeys() {
   for (const accel of commandHotkeys.keys()) {
-    try { globalShortcut.unregister(accel); } catch { /* keep going */ }
+    try { globalShortcut.unregister(accel); } catch {  }
   }
   commandHotkeys = new Map();
   if (typeof ctx.clearCommandBare === 'function') {
@@ -1169,13 +1063,12 @@ function applyUiScale() {
   const scale = uiScaleValue();
   applyZoom(ctx.popup);
   applyZoom(ctx.settingsWin);
-  // A float keeps its CSS-pixel (layout.json) size; grow it with the zoom so
-  // its content does not shrink.
+
   const doc = ctx.readLayoutDoc();
   for (const [floatId, win] of ctx.floatWins) {
     if (win.isDestroyed()) continue;
     applyZoom(win);
-    // A collapsed float is showing only its bar; leave its (small) size alone.
+
     if (ctx.isFloatCollapsed && ctx.isFloatCollapsed(floatId)) continue;
     const f = doc && doc.floats.find((x) => x.floatId === floatId);
     const [rawW, rawH] = win.getContentSize();
@@ -1186,8 +1079,7 @@ function applyUiScale() {
   if (ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed()) applyZoom(ctx.moduleSettingsWin);
   if (ctx.lensWin && !ctx.lensWin.isDestroyed()) applyZoom(ctx.lensWin);
   if (ctx.whatsNewWin && !ctx.whatsNewWin.isDestroyed()) applyZoom(ctx.whatsNewWin);
-  // Grow each window's physical size with the zoom, keeping its CSS layout size
-  // constant (so content is not clipped and the layout does not reflow).
+
   if (ctx.popup && !ctx.popup.isDestroyed() && ctx.popupDesign) {
     ctx.popup.setContentSize(
       Math.round(ctx.popupDesign.width * scale),
@@ -1215,19 +1107,8 @@ function applyWindowTheme() {
   }
 }
 
-// --- drag chip ---------------------------------------------------------------
-
-// The module chip that follows the pointer while dragging. It lives in its own
-// transparent, click-through window so it is not clipped by the window the drag
-// started in (which is how a module can visibly cross to another window).
-
-
-// The chip and the drop indicator share one transparent, click-through window
-// covering the whole desktop, so the indicator is never clipped by a window or
-// hidden behind another one (docs/LAYOUT.md, V4). It is only shown during a drag.
 function overlayBox() {
-  // Work areas, not display bounds: a desktop-sized surface is what Windows 11's
-  // "full-screen app" automatic rule reads as Do Not Disturb. See overlay-bounds.js.
+
   return overlayBounds(screen.getAllDisplays());
 }
 
@@ -1267,8 +1148,7 @@ function ensureOverlayWin() {
   ctx.overlayWin.webContents.on('did-finish-load', () => {
     if (!ctx.overlayWin || ctx.overlayWin.isDestroyed()) return;
     sendTo(ctx.overlayWin, 'overlay:update', ctx.overlayState);
-    // A menu may have been asked for before this window had a renderer to draw it (the window is
-    // created lazily on first use), so it is re-sent here — the same reason the chip state is.
+
     if (ctx.overlayMenu) sendTo(ctx.overlayWin, 'overlay:menu', { items: ctx.overlayMenu.items });
     if (ctx.overlayConfirm) sendTo(ctx.overlayWin, 'overlay:confirm', ctx.overlayConfirm);
   });
@@ -1278,7 +1158,7 @@ function ensureOverlayWin() {
 
 /** Hide the drag chip (also used when a window disappears mid-drag). */
 function hideOverlay() {
-  // The merge card owns the same surface; a drag cleanup must not erase it.
+
   if (ctx.overlayConfirm) return;
   ctx.overlayPreview = false;
   ctx.overlayRaisedAt = 0;
@@ -1299,8 +1179,7 @@ function showOverlayConfirm(spec = {}) {
     : screen.getCursorScreenPoint();
   const area = screen.getDisplayNearestPoint({ x: Math.round(anchor.x), y: Math.round(anchor.y) }).workArea;
   const box = confirmBox({ anchor, area, message: spec.message, detail: spec.detail });
-  // Mark it owned before resizing: a band-watch tick between the setBounds and the
-  // flag would otherwise see an ownerless overlay and hide the card.
+
   ctx.overlayConfirm = {
     title: String(spec.title || ''),
     message: String(spec.message || ''),
@@ -1335,15 +1214,10 @@ function showOverlay(sender, spec = {}) {
     hideOverlay();
     return;
   }
-  // The dev `--drag-overlay` screenshot is not backed by a live drag session; it is
-  // a preview owner on the same surface.
+
   if (spec.preview) ctx.overlayPreview = true;
   const win = ensureOverlayWin();
-  // The surface covers the union of the displays' work areas (not a whole display:
-  // that is what Windows 11 reads as full-screen and turns Do Not Disturb on), and it
-  // must stay **still** for the whole drag. Re-assert the full bounds whenever they
-  // differ: a just-closed menu/confirm card shrank the window, and a drag started
-  // after that used to keep the card-sized surface (the chip was clipped away).
+
   const wanted = overlayBox();
   const now = win.getBounds();
   if (now.x !== wanted.x || now.y !== wanted.y
@@ -1355,15 +1229,9 @@ function showOverlay(sender, spec = {}) {
   const py = Number(spec.y) || 0;
   ctx.overlayBox = box;
   const clamp = (value, low, high) => Math.min(Math.max(value, low), Math.max(low, high));
-  // The chip rides 10x12 px past the pointer (CSS px, as the renderer sends it);
-  // the indicator line arrives in screen DIP. Both become overlay-local CSS px
-  // here, which is the only conversion — the overlay itself never guesses.
-  // The chip rides 10x12 px *up and to the left* of the pointer (CSS px, as the renderer
-  // sends it), so it never sits under the cursor or over the drop point; `overlay.js`
-  // pulls it the rest of the way with `translate(-100%, -100%)`.
+
   const zoom = (sender && sender.getZoomFactor && sender.getZoomFactor()) || 1;
-  // Clamped into the surface: a position that would fall outside it is drawn at the edge, so the chip
-  // and the line can never be sliced by the window's boundary.
+
   const chip = {
     x: clamp(Math.round(px * zoom - 10 - box.x), 0, box.width),
     y: clamp(Math.round(py * zoom - 12 - box.y), 0, box.height),
@@ -1381,7 +1249,7 @@ function showOverlay(sender, spec = {}) {
       axis: vertical ? 'v' : 'h',
     };
   }
-  // Snap zones (screen DIP) become overlay-local rects, the same conversion as the line.
+
   const zones = Array.isArray(spec.zones) ? spec.zones.map((z) => ({
     left: Math.round(z.x - box.x),
     top: Math.round(z.y - box.y),
@@ -1389,7 +1257,7 @@ function showOverlay(sender, spec = {}) {
     height: Math.max(1, Math.round(z.height)),
     side: z.side,
   })) : [];
-  // The dragged windows' outlines (screen DIP) become overlay-local rects, like the zones.
+
   const previews = Array.isArray(spec.previews) ? spec.previews.map((p) => ({
     left: Math.round(p.x - box.x),
     top: Math.round(p.y - box.y),
@@ -1401,8 +1269,7 @@ function showOverlay(sender, spec = {}) {
   const wasVisible = win.isVisible();
   if (!wasVisible) win.showInactive();
   if (!wasVisible) raiseTopmost(win);
-  // Never call `moveTop()` here: Chromium's HWND_TOP move removes the topmost
-  // band, so the drag chip/line would drop behind the palette on every tick.
+
 }
 
 /**
@@ -1413,9 +1280,8 @@ function showOverlay(sender, spec = {}) {
  * else is covered. `setIgnoreMouseEvents(false)` lasts only as long as the menu is open.
  */
 function showOverlayMenu(sender, spec = {}) {
-  if (ctx.overlayConfirm) return; // the merge card owns the surface
-  // The profile list can be long. The window shows at most 10 rows and scrolls
-  // the rest; the CSS completes the fix by refusing to shrink the rows.
+  if (ctx.overlayConfirm) return;
+
   const items = Array.isArray(spec.items) ? spec.items.slice(0, 200) : [];
   if (!items.length) return;
   const anchor = spec.anchor || { x: 0, y: 0 };
@@ -1436,8 +1302,7 @@ function showOverlayMenu(sender, spec = {}) {
   });
   win.setBounds(box);
   ctx.overlayBox = win.getBounds();
-  // `menu` tells the pick handler which window asked; `palette` is the default so the
-  // old palette menu keeps working unchanged.
+
   ctx.overlayMenu = {
     items,
     menu: spec.menu || 'palette',
@@ -1450,13 +1315,10 @@ function showOverlayMenu(sender, spec = {}) {
   };
   win.setIgnoreMouseEvents(false);
   sendTo(win, 'overlay:menu', { items });
-  // Above the palette: on Windows every always-on-top window is the same level, so
-  // the only reliable order is raise-after-show. Without it a palette that was
-  // raised (a click, a drag) could sit over the menu (the user's report).
+
   win.setAlwaysOnTop(true, 'screen-saver');
   if (!win.isVisible()) win.showInactive();
-  // A new menu always gets its own raise; do not let a just-shown tooltip's
-  // throttle skip it.
+
   ctx.overlayRaisedAt = 0;
   raiseOverlayNow();
 }
@@ -1483,7 +1345,7 @@ function showTooltip(sender, spec = {}) {
   if (ctx.overlayConfirm) return;
   const text = String(spec.text || '').slice(0, 300);
   if (!text) { hideTooltip(); return; }
-  if (ctx.overlayMenu) return; // A menu owns the surface while it is open (never close it).
+  if (ctx.overlayMenu) return;
   const win = ensureOverlayWin();
   const anchorX = Number.isFinite(spec.x) ? spec.x : 0;
   const anchorY = Number.isFinite(spec.y) ? spec.y : 0;
@@ -1506,7 +1368,7 @@ function showTooltip(sender, spec = {}) {
   sendTo(win, 'overlay:tooltip', { text });
   win.setAlwaysOnTop(true, 'screen-saver');
   if (!win.isVisible()) win.showInactive();
-  // Above the page that asked (its own window may be lower in the band).
+
   const senderWin = sender && typeof sender.isDestroyed === 'function' && typeof sender.isVisible === 'function'
     ? sender
     : BrowserWindow.fromWebContents(sender);
@@ -1547,9 +1409,6 @@ function removeModuleFromFloats(moduleId) {
   for (const id of emptied) ctx.closeFloatWin(id);
 }
 
-// --- module ctx.settings popout --------------------------------------------------
-
-
 function closeModuleSettingsWindow() {
   if (ctx.moduleSettingsWin && !ctx.moduleSettingsWin.isDestroyed()) ctx.moduleSettingsWin.close();
   ctx.moduleSettingsWin = null;
@@ -1577,13 +1436,13 @@ function openModuleSettingsWindow(spec = {}) {
 
   let px;
   if (hasAnchor) {
-    px = anchor.right + 6; // prefer the module's right
-    if (px + width > area.x + area.width - 4) px = anchor.left - width - 6; // else its left
+    px = anchor.right + 6;
+    if (px + width > area.x + area.width - 4) px = anchor.left - width - 6;
   } else {
     px = palette ? palette.x + palette.width + 6 : area.x + 120;
   }
   let py = hasAnchor ? anchor.top : (palette ? palette.y + 40 : area.y + 120);
-  // Keep the popout on screen.
+
   px = Math.max(area.x + 4, Math.min(Math.round(px), area.x + area.width - width - 4));
   py = Math.max(area.y + 4, Math.min(Math.round(py), area.y + area.height - height));
 
@@ -1611,8 +1470,7 @@ function openModuleSettingsWindow(spec = {}) {
       sandbox: false,
     },
   });
-  // Hold this window locally: a replaced popout's late 'closed' must not clear the
-  // new window's reference (openModuleSettingsWindow closes the old one first).
+
   const win = ctx.moduleSettingsWin;
   win.setAlwaysOnTop(true, 'floating');
   win.loadFile(path.join(__dirname, '..', 'renderer', 'module-settings.html'), {
@@ -1620,14 +1478,12 @@ function openModuleSettingsWindow(spec = {}) {
   });
   win.webContents.once('did-finish-load', () => {
     if (!win.isDestroyed()) {
-      // Kept behind --log: the number is the honest answer to "the popup feels slow"
-      // (measured 485 ms, almost all of it loading the settings page's script graph).
+
       if (process.argv.includes('--log')) console.log('[popout] ready in', Date.now() - openedAt, 'ms');
       applyZoom(win);
       win.show();
       win.__shownAt = Date.now();
-      // The runtime's always-on-top request is dropped on this build, so the popout
-      // would open under the palette: assert the band now, and again on every resize.
+
       raiseTopmost(win);
       win.focus();
     }
@@ -1637,16 +1493,13 @@ function openModuleSettingsWindow(spec = {}) {
       console.log('[module-settings]', message ?? (_e && _e.message));
     });
   }
-  // Close when the user really clicks away, but not on the transient blur a palette
-  // band repair can cause: an instant close made the popup look like it never opened.
+
   let blurTimer = null;
   win.on('blur', () => {
     if (blurTimer) clearTimeout(blurTimer);
     blurTimer = setTimeout(() => {
       blurTimer = null;
-      // Opening races a transient blur: the band repair or the palette's own raise can
-      // take the focus for a frame, which used to close the popout before it was usable
-      // (the "popup sometimes does not open" report).
+
       if (win.__shownAt && Date.now() - win.__shownAt < 600) return;
       if (ctx.moduleSettingsWin === win) closeModuleSettingsWindow();
     }, 150);
@@ -1657,8 +1510,6 @@ function openModuleSettingsWindow(spec = {}) {
   win.on('closed', () => { if (ctx.moduleSettingsWin === win) ctx.moduleSettingsWin = null; });
   return true;
 }
-
-// --- the Lens window ---------------------------------------------------------
 
 function closeLensWindow() {
   if (ctx.lensWin && !ctx.lensWin.isDestroyed()) ctx.lensWin.close();
@@ -1751,8 +1602,7 @@ function openLensWindow(spec = {}) {
     if (blurTimer) clearTimeout(blurTimer);
     blurTimer = setTimeout(() => {
       blurTimer = null;
-      // A resize under the pointer can blur the window for a frame; closing then made
-      // the lens window vanish as soon as an option was picked.
+
       if (win.__lastResize && Date.now() - win.__lastResize < 400) return;
       if (ctx.lensWin === win) closeLensWindow();
     }, 150);
@@ -1764,23 +1614,16 @@ function openLensWindow(spec = {}) {
   return true;
 }
 
-// --- auto connect ------------------------------------------------------------
-
-
-// While the palette is parked off the QR, its moves (and the trailing move
-// events) must not overwrite the remembered window position or drag floats.
-
 const AUTO_CONNECT_STATES = new Set(['idle', 'error']);
 function canAutoConnect() {
   if (!ctx.settings || !ctx.service) return false;
-  // Quitting: a scan started during shutdown would outlive the windows.
+
   if (ctx.quoted) return false;
-  // The boot saved-connection attempt owns the service until `start()` returns.
+
   if (!ctx.autoConnectArmed) return false;
   if (ctx.settings.get().autoConnect === false) return false;
   if (Date.now() < ctx.autoConnectResumeAt) return false;
-  // A client that is retrying itself owns the socket. Scanning now would tear it down
-  // and turn a 250 ms retry into a 30 s scan (the "reconnect is not instant" bug).
+
   if (ctx.service.retrying && ctx.service.retrying()) return false;
   return AUTO_CONNECT_STATES.has(ctx.service.snapshot().status.state);
 }
@@ -1795,25 +1638,18 @@ function scheduleAutoConnect({ immediate = false } = {}) {
   ctx.autoConnectTimer = setTimeout(async () => {
     ctx.autoConnectTimer = null;
     if (!canAutoConnect()) return;
-    // Scan quickly so a QR that appears while disconnected is caught within about
-    // a second: the old 2.5s first delay plus a 1.5s poll was the slow part.
-    // `intervalMs` is a floor between captures, not the whole gap. Each pass now
-    // captures the Companion dialog itself (fast and reliable), so the interval
-    // can be short.
+
     try {
-      // First with the palette left where it is; if that finds nothing it is
-      // probably covering the QR, so park it aside and keep scanning.
+
       await ctx.service.pair({ intervalMs: 150, timeoutMs: 5000 });
       if (ctx.service.snapshot().status.state !== 'connected') {
         await withPopupParked(() => ctx.service.pair({ intervalMs: 150, timeoutMs: 25000 }));
       }
-    } catch { /* surfaced through status */ }
+    } catch {  }
     scheduleAutoConnect();
   }, immediate ? 0 : 100);
   ctx.autoConnectTimer.unref?.();
 }
-
-// --- focus following --------------------------------------------------------
 
 const isCspProcess = (name) => /clipstudiopaint|clipstudio/i.test(name);
 function isOwnProcess(name) {
@@ -1834,24 +1670,20 @@ function focusState(name) {
 function startFollowFocus() {
   if (ctx.fgWatcher) return;
   ctx.fgWatcher = new ForegroundWatcher();
-  // When the native host owns the hooks, the watcher follows its events and its
-  // on-demand query instead of spawning foreground.ps1 (and its 5 s one-shot).
+
   if (ctx.nativeHost) ctx.fgWatcher.attach(ctx.nativeHost, ctx.helperHealth || null);
   ctx.fgWatcher.on('change', (name) => {
     if (!name) return;
     ctx.fgHealthy = true;
     ctx.fgName = name;
     if (isCspProcess(name)) ctx.lastCspAt = Date.now();
-    // Leaving our own windows/CSP ends a hold: its snapshot must be restored even
-    // if the key-up arrives after focus moved.
+
     if (!isCspProcess(name) && !isOwnProcess(name) && typeof ctx.endHoldShortcut === 'function') {
       ctx.endHoldShortcut();
     }
     if (typeof ctx.setBareActiveShortcut === 'function') ctx.setBareActiveShortcut(ctx.isShortcutActive());
     if (!ctx.popup) return;
-    // Using a popout (module settings, the Lens window) is a deliberate interaction with
-    // our own UI, and those windows do not always own the foreground: hiding the palette
-    // under them is the "Iroiroppa disappears while I use the popup" report.
+
     const popoutOpen = [ctx.moduleSettingsWin, ctx.lensWin].some(
       (w) => w && !w.isDestroyed() && w.isVisible(),
     );
@@ -1859,32 +1691,26 @@ function startFollowFocus() {
     traceFocus('change', JSON.stringify({ name, action }));
     if (action === 'show') {
       if (!ctx.popup.isVisible()) showPopupAuto();
-      // Coming back to CSP is the moment a saved reconnect is most likely to work and a
-      // scan most likely to find the QR; don't wait for the next timer tick.
+
       if (typeof scheduleAutoConnect === 'function') scheduleAutoConnect({ immediate: true });
     } else if (action === 'hide') {
-      // The foreground event is authoritative: hide now, with no debounce or
-      // PowerShell re-query. A stale poll could only add latency.
+
       hidePopup();
     }
   });
   ctx.fgWatcher.on('down', () => {
-    // The watcher is not authoritative while it is down: keep, never guess.
+
     ctx.fgHealthy = false;
-    // …and stop claiming bare keys, because "we do not know the foreground" must never
-    // mean "claim everywhere": a dead watcher used to swallow those keys in every app.
+
     if (typeof ctx.setBareActiveShortcut === 'function') ctx.setBareActiveShortcut(false);
     traceFocus('watcher down -> keep');
   });
-  // Safety net. `foreground.ps1` is event-driven, and a missed event (a lock screen,
-  // a runtime hiccup) leaves the palette hidden while CSP is focused — the "does not
-  // reappear" report. While Auto-hide is on and the palette is hidden, re-query the
-  // foreground on a slow timer and show it if CSP really is in front.
+
   if (ctx.fgSafety) clearInterval(ctx.fgSafety);
   ctx.fgSafety = setInterval(async () => {
     if (!ctx.popup || ctx.popup.isDestroyed() || ctx.popup.isVisible()) return;
     if (ctx.settings.get().autoHide === false) return;
-    // An explicit per-palette hide is the user's choice; do not fight it every 5 s.
+
     if (typeof isPaletteSuppressed === 'function' && isPaletteSuppressed(ctx.primaryPaletteId())) return;
     let name = '';
     try { name = await ctx.fgWatcher.refresh(); } catch { name = ''; }
@@ -1897,8 +1723,7 @@ function startFollowFocus() {
   }, 5000);
   if (ctx.fgSafety.unref) ctx.fgSafety.unref();
   ctx.fgHealthy = false;
-  // No host: this watcher is the PowerShell fallback, and saying so is the whole point
-  // of the health dot.
+
   if (!ctx.nativeHost && ctx.helperHealth) ctx.helperHealth.set('foreground', 'ps');
   ctx.fgWatcher.start();
 }
@@ -1923,9 +1748,7 @@ function stopFollowFocus() {
  */
 function applyAutoHide(enabled) {
   const on = enabled !== false;
-  // The watcher also supplies the foreground process used by the Companion
-  // worktime gate, so it keeps running when Auto-hide is off; `focusState`
-  // returns `keep` for every change in that mode.
+
   if (!ctx.fgWatcher) startFollowFocus();
   traceFocus(on ? 'auto-hide enabled' : 'auto-hide disabled');
 }
@@ -1969,24 +1792,20 @@ async function withPopupParked(fn) {
     if (ctx.parkDepth === 0) {
       if (ctx.popup && !ctx.popup.isDestroyed()) ctx.popup.setPosition(ctx.parkOrigin[0], ctx.parkOrigin[1], false);
       ctx.popupParked = false;
-      // Move events can arrive a tick late; keep muting briefly so the restored
-      // position is what gets saved.
+
       ctx.parkReleaseAt = Date.now() + 600;
     }
   }
 }
 
 async function startPairing() {
-  // A manual scan supersedes any scheduled auto-connect tick; the service's own
-  // `scanning` guard prevents a second loop from starting.
+
   if (ctx.autoConnectTimer) {
     clearTimeout(ctx.autoConnectTimer);
     ctx.autoConnectTimer = null;
   }
   await withPopupParked(() => ctx.service.pair());
 }
-
-// --- ctx.tray -------------------------------------------------------------------
 
 /** Draw the tray icon from the same pastel big-I art as the app icon (BGRA). */
 function makeTrayIcon() {
@@ -2009,8 +1828,7 @@ function trayMenu() {
     { label: t('tray.showHide'), click: togglePopup },
     { label: t('tray.bringFloats'), click: () => { showPopup(); if (ctx.reclampFloats) ctx.reclampFloats(); } },
     { type: 'separator' },
-    // Settings lives here and in the palette's `session` module — never only in the window that
-    // happens to be first (docs/LAYOUT.md, "One palette").
+
     { label: t('tray.settings'), click: () => ctx.createSettingsWindow() },
     { type: 'separator' },
     { label: t('tray.reconnect'), click: () => ctx.service.connectSaved().catch(() => {}) },

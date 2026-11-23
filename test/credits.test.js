@@ -1,8 +1,5 @@
 'use strict';
 
-// The credits/allowlist data and the packaging that makes the license texts
-// available offline in the About tab.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

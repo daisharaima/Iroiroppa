@@ -1,23 +1,5 @@
 'use strict';
 
-// Selector module: the colour-slice picker. By default the three gamut slices at
-// the current colour, in OKLCH:
-//   * L x C : the fixed-hue plane (Lightness x Chroma)
-//   * H x C : the fixed-lightness plane
-//   * H x L : the fixed-chroma plane
-// Each slice is a silhouette: the coloured area is exactly the in-gamut region.
-//
-// The three panels are the active model's three planes (color-models.js#planesFor).
-// OKLCH keeps its analytic silhouette renderer (exact, and it draws the primary
-// fin); any other model rasterises the plane and tests the working gamut per
-// pixel. The canonical value is never a model's own axes — the module reads the
-// store's OKLab and writes it back through the model.
-//
-// The raster and the pointer share slice-geometry.js, so a pick can only land on
-// a colour the panel shows. A drag pins its fixed axis for the whole gesture: a
-// snap may move the colour along the gamut boundary but must not move the plane
-// (that is what made HelmGen LCH's hue drift). Shift freezes the lightness axis.
-
 (function () {
   const reg = (window.Iro = window.Iro || {});
   reg.modules = reg.modules || {};
@@ -57,7 +39,7 @@
       return Models.get(Models.defaultForFamily(store.viewFamily || 'all')) || Models.get(Models.DEFAULT_ID);
     };
     let currentModel = modelOf(api.get().model);
-    const rows = []; // { el, label, plane, refresh }
+    const rows = [];
 
     const addToggle = (key, label) => {
       const row = document.createElement('label');
@@ -90,8 +72,6 @@
     });
     root.append(modelRow);
 
-    // sRGB-referenced models cannot reach a wide document gamut; say so instead
-    // of letting the crosshair vanish off their panel.
     const modelHint = document.createElement('div');
     modelHint.className = 'pop-hint slice-model-hint hidden';
     root.append(modelHint);
@@ -108,7 +88,6 @@
       row.className = 'pop-row slice-view-row';
       row.dataset.plane = String(plane);
 
-      // The gripper sits next to the show/hide box, as requested.
       const grip = document.createElement('button');
       grip.type = 'button';
       grip.className = 'icon-btn slice-grip';
@@ -175,7 +154,7 @@
     };
 
     for (let plane = 0; plane < 3; plane += 1) makeRow(plane);
-    // Seat the rows in the stored order.
+
     for (const plane of normaliseOrder(api.get().sliceOrder)) {
       const row = rows.find((r) => r.plane === plane);
       if (row) list.append(row.el);
@@ -192,7 +171,6 @@
     };
     refreshLabels();
 
-    // Reorder: pointer drag on the gripper (and ArrowUp/ArrowDown when focused).
     let dragging = null;
     const commitOrder = () => api.patch({ sliceOrder: displayOrder() }, { immediate: true });
     for (const r of rows) {
@@ -272,7 +250,7 @@
 
   reg.modules['color-slices'] = {
     id: 'color-slices',
-    // Wears a lens: the header offers the Lens window for this instance.
+
     lens: true,
     name: 'Color Slices',
     version: 5,
@@ -285,7 +263,7 @@
       slice3Rotate: 0, slice3FlipH: false, slice3FlipV: false,
     },
     migrate(stored) {
-      // v2 had a single "hueSlice" flag, which is now the Constant Chroma slice.
+
       if (stored && stored.hueSlice === false && stored.constantChroma === undefined) {
         return { ...stored, constantChroma: false, hueSlice: undefined };
       }
@@ -306,21 +284,15 @@
       const Raster = window.IroRasterPlane;
       const Contour = window.IroContour;
       const Cadence = window.IroRenderCadence;
-      // The analytic plane's per-pixel maths (src/shared/slice-plane.js): hoisted
-      // constants and a LUT gamma, so a panel-sized plane is ~3-4 ms.
+
       const Plane = window.IroSlicePlane;
       const identity = SV ? SV.composeView(0, false, false) : { rotate: 0, flipH: false, flipV: false };
       const panelViews = [identity, identity, identity];
       const viewFor = (p) => panelViews[p] || identity;
       const point = (p, u, v) => (SV ? SV.forward(viewFor(p), u, v) : { u, v });
 
-      // Plot caches depend on the gamut *and* the profile identity, so a profile
-      // switch cannot leave a stale silhouette behind (the key tag covers it).
       const plotCache = new Map();
 
-      // The lens over this pane (a per-channel band grid, src/shared/lens.js). It is
-      // rebuilt only when this instance's lens settings or the profile change — and a
-      // change clears every cached map, because every plane's pixels depend on it.
       const LensAccess = window.IroLensAccess;
       let lensKey = null;
       let lensNow = null;
@@ -335,8 +307,6 @@
       };
       syncLens();
 
-      // A lensed pick: the map paints the band, so the recorded colour is that band too
-      // (the pick half is not optional — docs/INVARIANTS.md).
       /**
        * What the lens records for a colour the pointer is on. The store keeps the pointer's
        * own colour for geometry (pointer, guide, the plane's fixed axes) and only *sends*
@@ -346,28 +316,17 @@
       const lensRecorded = (lab) => (lensNow
         ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb)
         : null);
-      // The last-built map per panel. During a drag the maps of the *other*
-      // panels are held (their fixed axes are changing); the dragged panel's map
-      // is stable because its fixed axis is pinned.
+
       const lastOff = [null, null, null];
-      // The lightness field of a map travels on the canvas itself (`__luma`), so the
-      // guide always matches the image currently on screen, whatever its size or key.
-      // Extracted by src/shared/contour.js (marching squares).
-      // Interactive raster pacing: how long the last plane build took, and the
-      // moment the next one may start (buildRasterPlot sets both).
+
       let lastRasterMs = 0;
       let holdUntil = 0;
 
-      // The drag snapshot: the plane, its fixed axes and (with Shift) the frozen
-      // light axis. Nothing in a drag re-reads these from the store.
       let dragAxes = null;
       let dragPanel = -1;
       let lockLight = null;
       const inputCleanups = [];
 
-      // Where the mouse last was, per panel. With a lens on, the *recorded* colour is the
-      // band under the pointer, but the pointer itself must stay under the mouse: drawing
-      // it from the stored colour snapped it to the band's canonical position.
       const lastPointer = [null, null, null];
 
       const panels = document.createElement('div');
@@ -393,7 +352,6 @@
       makePanel(1);
       makePanel(2);
 
-      // One line at the very bottom of the module: the model's three axes.
       const footer = document.createElement('div');
       footer.className = 'slice-footer';
       const outLabels = [];
@@ -443,9 +401,7 @@
       const updateFooter = () => footer.classList.toggle('hidden', hideNumbers || narrow);
 
       const sizeCanvas = (canvas, cap = 2.5, nativeOnly = false) => {
-        // A pixel *budget*, not a fixed dpr: a module stretched large would otherwise
-        // render four times the pixels of its usual size and drop frames. Never below 1×
-        // (no blurry upscale); only the supersampling is given up above the budget.
+
         const base = window.devicePixelRatio || 1;
         const want = nativeOnly ? Math.max(1, Math.min(base, cap)) : Math.min(Math.max(base, 2), cap);
         const dpr = window.IroCanvasSize
@@ -469,13 +425,9 @@
        * narrower than one row still gets a scanline — otherwise the corner would
        * be drawn as unreachable.
        */
-      // Chunked builds in flight, by plot key. A key already being built is not
-      // requested again: the interactive tick fires every frame, and queueing the same
-      // plane twelve times only delays the one that lands.
+
       const chunkedInFlight = new Set();
-      // rAF pauses while the page is hidden. A build in flight then never completes and
-      // its key would stay "in flight" for the rest of the session, so that panel would
-      // never rebuild again. Abandon everything and let the next visible pass restart it.
+
       if (typeof document !== 'undefined' && !document.__plotVisibilityHooked) {
         document.__plotVisibilityHooked = true;
         document.addEventListener('visibilitychange', () => {
@@ -484,21 +436,13 @@
           for (let i = 0; i < 3; i += 1) plotGeneration[i] += 1;
         });
       }
-      // One generation per panel: a newer request bumps it, and an in-flight build whose
-      // generation is behind aborts instead of painting stale rows.
+
       const plotGeneration = [0, 0, 0];
-      // Above this many pixels a plane is never *rebuilt* synchronously, even when no gesture
-      // is in flight: the trailing rebuild after a drag measured 47-61 ms on the hue slice and
-      // landed as a long task right after the pen lifted. The first build still runs
-      // synchronously, because there is no previous image to keep on screen and a chunked
-      // first build could leave the panel blank if a resize made it abort.
+
       const COSTLY_PLANE_PX = 40000;
 
       const round1 = (x) => Math.round(x * 10) / 10;
-      // Per-panel build counters, so "does this map land every frame?" is a number
-      // (`--perf-gaps` reports `__plotDbg`). `ms`/`maxMs` are the plane's own fill time:
-      // the old `t.complete`/`completeMax` timed from one shared timestamp, so two
-      // overlapping builds reported seconds.
+
       const chunkStats = (window.__plotDbg = window.__plotDbg || { chunked: 0, sync: 0, panels: 0, t: {} });
       if (typeof chunkStats.chunked !== 'number') chunkStats.chunked = 0;
       if (typeof chunkStats.sync !== 'number') chunkStats.sync = 0;
@@ -533,7 +477,7 @@
               build((built) => {
                 chunkedInFlight.delete(key);
                 if (!built) {
-                  // Aborted (superseded or resized): a different metric, not a completion.
+
                   chunkStats.t.aborted = (chunkStats.t.aborted || 0) + 1;
                   return;
                 }
@@ -557,34 +501,15 @@
         timed('overlay', () => drawOverlay(c2d, plane, W, H, modelNow(), axesNow()));
       };
 
-      // How long one chunk may run before yielding. A fixed row count was measured to be
-      // wrong in both directions: 24 rows took 25 frames to finish a plane (up to 234 ms
-      // to complete, mostly superseded before it landed), while a whole plane blocks a
-      // frame. A time budget adapts to the machine and to the plane's real cost.
-      // Two budgets, because the two situations want different things:
-      // - during a gesture the frames matter most, so a chunk is small (4 ms) and a plane may
-      //   take a while to land behind the pointer;
-      // - when no gesture is in flight (first paint, the trailing full rebuild) nobody is
-      //   waiting on the next frame, so a bigger chunk finishes the plane sooner. Using the
-      //   small budget for the *first* build left a panel blank for hundreds of ms.
       const CHUNK_BUDGET_MS = 4;
       const CHUNK_BUDGET_IDLE_MS = 14;
-      // The budget follows the chunk count: a single chunk has to be allowed to finish in
-      // its frame, or the time cap would fragment it anyway.
+
       const chunkBudget = () => (plotChunks() === 1 ? CHUNK_BUDGET_IDLE_MS : CHUNK_BUDGET_MS);
 
-      // How many frames a plane is spread over. During a gesture every stale map is
-      // rebuilt on the frame its turn comes up, so a plane that took two frames would be
-      // superseded by the next request before it ever landed -- the map would stop
-      // updating while the pointer kept moving. One chunk means a plane completes in the
-      // step it starts (they are ~3-4 ms; see src/shared/slice-plane.js).
       const plotChunks = () => (store.interactive ? 1 : PLOT_CHUNKS);
-      // At most this many chunks per plane. Three keeps a build inside roughly the time
-      // the synchronous build took (one frame's worth of blocking each), while still
-      // letting the compositor paint between them. More chunks spread the same work over
-      // more frames, so the map lands later for no gain in smoothness.
+
       const PLOT_CHUNKS = 3;
-      // Chunk arithmetic lives in one tested place (src/shared/plot-chunks.js).
+
       const Chunks = (typeof IroPlotChunks !== 'undefined') ? IroPlotChunks : { size: (h, c) => Math.max(1, Math.ceil(h / c)) };
 
       /**
@@ -611,16 +536,11 @@
         const img = c2d.createImageData(w, h);
         const data = img.data;
         const luma = new Float32Array(w * h).fill(NaN);
-        // The plane's per-column constants (the silhouette intervals, the hue
-        // coefficients) are part of the frame's cost, so the pacing budget includes them.
+
         const prepStart = performance.now();
         const prep = Plane.prepare({ ...spec, lens: lensNow });
         const prepMs = performance.now() - prepStart;
 
-        // The synchronous pass is the CACHE-ONLY path. A caller that wants the plane
-        // built across frames must not pay for it first: doing exactly that was the
-        // uninstrumented block that made every "chunked" build cost more than the code
-        // it replaced (it ran the whole plane, then built it again chunked).
         if (!onDone) {
           Plane.fillRows(prep, data, luma, 0, h);
           Plane.paintFins(prep, data, luma);
@@ -630,29 +550,21 @@
           return off;
         }
 
-        // Chunked: paint whole row bands per frame so the main thread never blocks for
-        // the whole plane, then hand the finished canvas back. The caller keeps the
-        // previous image on screen until then (a map is never cleared before its
-        // replacement exists).
         const rowsPerChunk = Chunks.size(h, plotChunks());
         let row = 0;
         let spent = prepMs;
         const step = () => {
-          // Abandon a build whose canvas was resized, whose panel scheduled a newer
-          // build, or whose key was superseded: stale rows must never reach a canvas
-          // they were not built for.
+
           if (isStale && isStale()) { onDone(null); return; }
           const stepStart = performance.now();
           const startRow = row;
-          // A band is the plane's share of one frame, so the time budget is checked
-          // between bands: one `fillRows` call is the unit of work.
+
           do {
             const end = Math.min(h, row + rowsPerChunk);
             Plane.fillRows(prep, data, luma, row, end);
             row = end;
           } while (row < h && performance.now() - stepStart < chunkBudget());
-          // Only the rows just built: a full-canvas copy per chunk invalidated the whole
-          // layer sixty times per plane.
+
           c2d.putImageData(img, 0, 0, 0, startRow, w, row - startRow);
           const chunkMs = performance.now() - stepStart;
           spent += chunkMs;
@@ -662,15 +574,12 @@
             requestAnimationFrame(step);
             return;
           }
-          // The fins may sit in rows no chunk uploaded; one full copy at the end is
-          // cheaper than tracking them.
+
           Plane.paintFins(prep, data, luma);
           c2d.putImageData(img, 0, 0);
           plotCache.set(key, off);
           off.__luma = luma;
-          // The pacing budget comes from the *interactive* build only: the trailing
-          // full-quality plane is a bigger job, and measuring it marked every model
-          // expensive and froze the maps for the whole next gesture.
+
           const measured = round1(spent);
           if (store.interactive) planeMs[plane] = measured;
           const stats = chunkStats.p[plane];
@@ -688,8 +597,7 @@
         c2d.save();
         c2d.setTransform(1, 0, 0, 1, 0, 0);
         c2d.clearRect(0, 0, canvas.width, canvas.height);
-        // The offscreen map is 1:1 with the canvas (the drag canvas is already
-        // native 1× CSS), so there is no upscaled low-res map.
+
         const W = w || canvas.width;
         const H = h || canvas.height;
         const v = view || { rotate: 0, flipH: false, flipV: false };
@@ -710,8 +618,6 @@
         return c2d;
       };
 
-      // The guide actually on screen per panel, in normalized map (u, v) coordinates, so
-      // a pointer near the line can be projected onto it and pick the line's own colour.
       const guideMap = [null, null, null];
 
       /** The iso-lightness guide: the contour of the map's own lightness field. */
@@ -721,49 +627,32 @@
         const src = lastOff[plane];
         const luma = src && src.__luma;
         if (!luma) return;
-        // The model's own lightness: CIELAB L*, HelmGen L, or OKLab L for the
-        // sRGB-referenced spaces — the same value the lock holds and the footer prints.
-        //
-        // When the plane's *fixed* axis is the light axis, the map is keyed by that
-        // light. Trace the contour from the light the map was built for when idle — a
-        // paced/stale map traced at a newer target jumps and misses the pointer (the
-        // OKHSV HxS report) — but follow the live light *during a drag*, so the guide
-        // moves with the pointer instead of waiting for the next paced build.
+
         const planes = Models.planesFor(model);
         const fixedIndex = planes[plane] ? planes[plane][2] : -1;
         const lightIndex = Models.lightAxis(model);
         const mapLight = fixedIndex === lightIndex && src.__fixed && !store.interactive;
         const fixedAxes = mapLight ? src.__fixed : axes;
         const target = lockLight != null ? lockLight : G.lightnessOf(model, fixedAxes);
-        // The field belongs to the map, which may differ in size from the canvas (the
-        // interactive native-pixel build, or a held map): index it with its own size,
-        // or the contour is scrambled into many stacked lines. Every cell is sampled
-        // (stride 1) and one-cell holes are bridged, because the guide is also the
-        // path the user drags along and it must not arrive in pieces.
+
         const sw = Math.max(2, src.width);
         const sh = Math.max(2, src.height);
-        // Stride 2: the H x V plane's luma is quantised by the model's own axes, and a
-        // per-pixel contour turns that quantisation into vertical zig-zags all over the
-        // slice. Every other cell is enough for a guide and kills the high-frequency
-        // zig-zag (the line is smoothed by the caller's decimation as well).
+
         const lines = Contour.isoLines(luma, sw, sh, target, { stride: 2 });
         if (!lines.length) return;
-        // A ragged field (the OKHSV H x V plane near S=1 is nearly all out-of-gamut) can
-        // produce dozens of one-cell stubs, which read as vertical lines scattered over
-        // the slice. A guide is one contour through the pointer: keep real components and
-        // draw nothing rather than a speckle when there is no clear line.
+
         const kept = lines.filter((pts) => {
           if (pts.length < 3) return false;
           let len = 0;
           for (let i = 1; i < pts.length; i += 1) {
             len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
           }
-          // A stub a few cells long is not a guide; it reads as a stray vertical stroke.
+
           return len >= 12;
         });
         if (!kept.length || kept.length > 24) return;
         guideMap[plane] = kept.map((pts) => pts.map(([x, y]) => [x / (sw - 1), y / (sh - 1)]));
-        // Pixel -> the map's drawn transform, the same one paint() uses (v down).
+
         const wd = Math.max(1, w - 1);
         const hd = Math.max(1, h - 1);
         const segs = lines.map((pts) => pts.map(([x, y]) => {
@@ -785,8 +674,6 @@
         Overlay.pointer(c2d, x, y, { clamped: clamped.clamped, scale });
       };
 
-      // --- OKLCH: the analytic silhouette ------------------------------------
-
       /**
        * The three analytic OKLCH planes.
        *
@@ -804,7 +691,6 @@
         const fixedFor = (p) => (store.dragging && p === dragPanel && dragAxes) ? dragAxes : axes;
         const want = (p, off) => allowed === null || allowed.has(p) || !off;
 
-        // Lightness x Chroma at the current hue.
         {
           const plane = 0;
           const section = panelSections[plane];
@@ -826,7 +712,6 @@
           }
         }
 
-        // Hue x Chroma at the current lightness.
         {
           const plane = 1;
           const section = panelSections[plane];
@@ -848,7 +733,6 @@
           }
         }
 
-        // Hue x Lightness at the current chroma (the omitted slice).
         {
           const plane = 2;
           const section = panelSections[plane];
@@ -860,9 +744,7 @@
             if (want(plane, lastOff[plane])) {
               const spec = {
                 kind: 'hue', width: W, height: H, cmax, fixed,
-                // A working gamut is wider than the screen: its test is the proof's, and
-                // the pixels past the sRGB window stay holes (the Slices show what they
-                // can pick).
+
                 inDocument: store.useWorkingGamut() ? (L, C, Hh) => store.inGamut(L, C, Hh) : null,
               };
               panelPlot(plane, key, (done, isStale) => buildPlot(plane, key, spec, done, isStale), canvas, W, H);
@@ -874,11 +756,6 @@
         }
       };
 
-      // --- any other model: rasterise each plane against the working gamut ---
-
-      // The plane rasteriser is shared and unit-tested against the old per-pixel
-      // loop (src/shared/raster-plane.js). One conversion chain per pixel instead of
-      // five is what keeps HelmGen usable.
       const workingGamutTest = () => (store.useWorkingGamut()
         ? (lab) => {
           const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
@@ -917,19 +794,14 @@
             model, plane, fixed, ranges, width: w, height: h, out: img.data, luma,
             workingGamut: gamutTest || workingGamutTest(),
             lens: lensNow,
-            // A dense model's map is a *shape*: a square with no bites. Its out-of-document
-            // pixels are painted with the sRGB stand-in at full opacity — opaque, not a
-            // pale dim band (the user's report), so the square is whole.
+
             fill: model.dense === true,
             fillAlpha: 255,
-            // Inside the document but beyond the display: full opacity by default (the
-            // nearest displayable colour), dimmed when the user asks to see the region.
+
             outAlpha: store.markOutOfDisplay ? 140 : 255,
           });
         }
-        // The interactive budget must come from the interactive build only: the
-        // trailing full-quality plane is ~4x the pixels, and measuring it marked
-        // every model "expensive" and froze the maps for the whole next gesture.
+
         if (store.interactive) {
           lastRasterMs = performance.now() - started;
           holdUntil = performance.now() + Cadence.holdFor(lastRasterMs);
@@ -956,23 +828,19 @@
           if (canvas.clientWidth < 2 || canvas.clientHeight < 2) continue;
           const { w: W, h: H } = sizeCanvas(canvas, 2, store.interactive);
           const rw = W, rh = H;
-          // The image depends only on the plane's fixed axis (plus the gamut,
-          // model and size) — not on the selected colour. During a drag on this
-          // panel the pinned snapshot keeps that axis stable; the other panels use
-          // the live axes and are rebuilt (throttled) so they follow the drag.
+
           const fixed = (store.dragging && p === dragPanel && dragAxes) ? dragAxes : axes;
           const fi = planes[p][2];
           const key = `g${p}:${store.plotKeyTag()}:${lensKey}:${model.id}:${rw}x${rh}:${fixed[fi].toFixed(5)}`;
           let off = lastOff[p];
           const gamutTest = workingGamutTest();
-          // Diagnostic counters (read by --perf-gaps): which path built this plane.
+
           const dbg = (window.__planeDbg = window.__planeDbg || { sync: 0, worker: 0, cache: 0, gamut: 0 });
           if (gamutTest) dbg.gamut += 1;
           if (want(p, off)) {
             const mayUseWorker = PlaneWorker && PlaneWorker.available() && !gamutTest && !lensNow;
             if (mayUseWorker) {
-              // Build off the main thread and keep the previous image on screen until
-              // the replacement lands: a map must never be cleared before it exists.
+
               if (pendingKeys[p] !== key) {
                 pendingKeys[p] = key;
                 PlaneWorker.render({
@@ -995,7 +863,7 @@
                   drawOverlay(next2d, p, W, H, modelNow(), axesNow());
                 });
               }
-              // Nothing to show for this panel yet: leave the canvas as it was.
+
               dbg.worker += 1;
               if (!off) continue;
             } else {
@@ -1011,23 +879,13 @@
       };
 
       let buildCursor = 0;
-      // Last measured *interactive* build cost per panel, in ms. `choosePanels` uses it
-      // to decide how many maps can rebuild in this frame (src/shared/render-cadence.js).
+
       const planeMs = [0, 0, 0];
-      // The reuse budget for a frame's rebuilds. A 16.7 ms frame also paints three maps,
-      // extracts three guide contours (~1.2 ms each) and draws three pointers, so this
-      // is what is left for the maps themselves. Measured on the dev machine: an
-      // analytic plane is ~3-5 ms including its per-column constants, so the two
-      // sibling maps of a drag fit together; a heavier model (or a slower machine) falls
-      // back to one map per frame instead of dropping the frame.
+
       const FRAME_BUILD_BUDGET_MS = 11;
 
       const renderPlots = (force) => {
-        // A local drag or a sibling palette's preview stream: both are a gesture in
-        // flight. Every panel is painted every frame (cheap: a map blit plus its guide
-        // and pointer), and every panel whose map is stale rebuilds as long as it fits
-        // the frame. The trailing emit after the stream ends does the full-quality pass
-        // (`force`/`interactive` false).
+
         if (!force && store.interactive) {
           const visible = [];
           for (let p = 0; p < 3; p += 1) {
@@ -1035,8 +893,7 @@
             if (!panelSections[p].classList.contains('hidden')) visible.push(p);
           }
           if (modelId === Models.DEFAULT_ID) {
-            // The analytic planes are cheap, so the two sibling maps normally rebuild
-            // together and move with the pointer instead of stepping every other frame.
+
             const pick = Cadence.choosePanels({
               visible, cursor: buildCursor, costs: planeMs,
               budget: FRAME_BUILD_BUDGET_MS, now: performance.now(),
@@ -1044,8 +901,7 @@
             buildCursor = pick.cursor;
             renderOklchPlots(new Set(pick.panels));
           } else {
-            // A rasterised model plane is an order of magnitude dearer, so it keeps the
-            // one-panel-per-frame cadence and its own measured hold.
+
             const pick = Cadence.pickPanel({ visible, cursor: buildCursor, now: performance.now(), holdUntil });
             if (pick.panel >= 0) buildCursor = pick.cursor;
             renderGenericPlots(pick.panel);
@@ -1064,8 +920,6 @@
           plotCache.delete(keys[i]);
         }
       };
-
-      // --- interaction -------------------------------------------------------
 
       const metricsOf = (canvas) => {
         const r = canvas.getBoundingClientRect();
@@ -1119,10 +973,7 @@
           if (!startAxes) startAxes = axesNow();
           const fixed = startAxes;
           const li = lightIndex(model);
-          // A locked (Shift) drag projects the pointer onto the drawn guide: every point
-          // of the line has the guide's lightness, so the line *is* the set of valid picks.
-          // Without the lock the pick is the raw pointer position — an always-on magnet
-          // made the pointer stick to the guide near it, which reads as a soft-lock.
+
           const snap = (lockLight !== null && guideMap[plane])
             ? Contour.nearestOnLines(guideMap[plane], p.u, p.v, 8, 8)
             : null;
@@ -1159,8 +1010,7 @@
 
           let axes = G.pickAxes(model, plane, u, 1 - v, fixed, store);
           if (lockLight !== null && !snap) {
-            // A guide point already has the locked lightness (the line is drawn for it,
-            // to within a pixel), so the solver's rejection must not drop the pick.
+
             const held = G.applyLightness(model, plane, axes, lockLight, store);
             if (!G.lightnessReached(model, held, lockLight)) return;
             axes = held;
@@ -1182,7 +1032,7 @@
         });
         canvas.addEventListener('pointermove', (ev) => {
           if (!active) return;
-          // Shift may be pressed mid-drag: freeze canonical lightness from that moment.
+
           if (ev.shiftKey && lockLight === null) lockLight = G.lightnessOf(modelNow(), axesNow());
           else if (!ev.shiftKey && lockLight !== null) lockLight = null;
           pick(ev);
@@ -1220,8 +1070,6 @@
       attach(panelCanvases[1], 1);
       attach(panelCanvases[2], 2);
 
-      // --- render loop -------------------------------------------------------
-
       let rafId = 0;
       const schedulePlots = () => {
         if (rafId) return;
@@ -1251,8 +1099,7 @@
         onResize({ width }) {
           narrow = width < 150;
           updateFooter();
-          // The panels changed size, so last gesture's build costs describe a different
-          // job: forget them and let the next gesture measure again.
+
           planeMs[0] = planeMs[1] = planeMs[2] = 0;
           renderPlots(true);
         },

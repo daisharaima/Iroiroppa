@@ -1,7 +1,4 @@
-/*
- * العربية — Arabic UI catalog. Missing keys fall back to English; the shell is
- * right-to-left (kernel/i18n.js sets dir="rtl").
- */
+
 (function (root) {
   'use strict';
   const messages = {

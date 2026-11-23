@@ -66,16 +66,14 @@ function createQuickState({ read, onChange, onBusy, intervalMs = DEFAULT_INTERVA
       || !sameList(next.disabled, snapshot.disabled);
     snapshot = next;
     if (onChange && changed) {
-      try { onChange(next); } catch { /* a listener must never stop the poll */ }
+      try { onChange(next); } catch {  }
     }
-    // "CSP would refuse a command right now": nothing is on and something is disabled.
-    // That is the state a text layer (or any tool without these toggles) reports, so the
-    // keyboard hook passes bare keys through instead of swallowing them.
+
     const nextBusy = Boolean(next.ok) && next.disabled.length > 0 && next.on.length === 0;
     if (nextBusy !== busy) {
       busy = nextBusy;
       if (onBusy) {
-        try { onBusy(nextBusy); } catch { /* same */ }
+        try { onBusy(nextBusy); } catch {  }
       }
     }
   }
@@ -97,8 +95,7 @@ function createQuickState({ read, onChange, onBusy, intervalMs = DEFAULT_INTERVA
             at: now(),
           });
         } else {
-          // A failed read is not "CSP is free": keep the last content but mark it stale
-          // so the mute can expire instead of trusting an old answer.
+
           publish({ ...snapshot, ok: false, names, at: now() });
         }
       } catch {
@@ -118,7 +115,7 @@ function createQuickState({ read, onChange, onBusy, intervalMs = DEFAULT_INTERVA
 
   /** The explicit path: wait out a running read, then take a fresh one. */
   async function poll() {
-    if (pending) { try { await pending; } catch { /* settled below */ } }
+    if (pending) { try { await pending; } catch {  } }
     if (stopped) return;
     return runPoll();
   }
@@ -127,7 +124,7 @@ function createQuickState({ read, onChange, onBusy, intervalMs = DEFAULT_INTERVA
     if (timer || stopped) return;
     timer = setInterval(() => { tick(); }, intervalMs);
     if (timer.unref) timer.unref();
-    // Poll once immediately so a fresh subscriber sees state without waiting a full tick.
+
     tick();
   }
 
@@ -150,7 +147,7 @@ function createQuickState({ read, onChange, onBusy, intervalMs = DEFAULT_INTERVA
     unwatch(owner) {
       watchers.delete(String(owner));
       if (!union().length) {
-        // Keep the last set: the keyboard mute should outlive the module that taught us.
+
         if (!lastNames.length) stopTimer();
       }
       return watchers.size;

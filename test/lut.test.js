@@ -1,7 +1,5 @@
 'use strict';
 
-// Grid interpolation for the CMYK proof.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 

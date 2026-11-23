@@ -1,27 +1,13 @@
 'use strict';
 
-// Selector module: the colour slider. Its three rows are the active model's
-// three axes (OKLCH by default) — the model is a view, so this is the picker's
-// "type the numbers" surface.
-//
-// Each row is a native range plus an editable numeric field. The range spans the
-// axis, and its track is coloured only where the value is in the working gamut;
-// the rest is the blank colour. Dragging into the blank keeps the marker in the
-// blank but the colour clamps to the nearest in-gamut value on that axis, so one
-// row never changes another. Arrow keys nudge by one display unit.
-//
-// Horizontal in a wide box; vertical when the box is taller than it is wide. The
-// rows share the box evenly and the track's thickness is a percentage of that
-// share.
-
 (function () {
   const reg = (window.Iro = window.Iro || {});
   reg.modules = reg.modules || {};
   const Models = window.IroColorModels;
   const G = window.IroSliceGeometry;
 
-  const MIN_ROW = 14; // the smallest usable base-line pitch
-  const AXIS_IDS = ['L', 'C', 'H']; // DOM ids stay L/C/H in every model (the shot reads them)
+  const MIN_ROW = 14;
+  const AXIS_IDS = ['L', 'C', 'H'];
   const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
   const pctOf = (value) => Math.round(clamp(Number(value) || 70, 10, 100));
   const visibleRows = (settings) => ['showL', 'showC', 'showH'].filter((k) => settings[k] !== false).length || 1;
@@ -83,15 +69,12 @@
     });
     root.append(modelRow);
 
-    // Label the toggle with the model's own axis name, so "show 1st channel" is
-    // "Show L" for OKLCH, "Show H" for OKHSV, "Show L*" for CIELAB, etc.
     const axisName = (i) => (model.axes[i] && model.axes[i].label) || String(i + 1);
     addToggle('showL', `Show ${axisName(0)}`);
     addToggle('showC', `Show ${axisName(1)}`);
     addToggle('showH', `Show ${axisName(2)}`);
     addToggle('hideNumbers', 'Hide Values');
-    // Per-axis out-of-gamut marking. Off leaves the whole track coloured; the
-    // edge is then not drawn for that axis only.
+
     addToggle('showOutL', `Mark out of gamut — ${axisName(0)}`);
     addToggle('showOutC', `Mark out of gamut — ${axisName(1)}`);
     addToggle('showOutH', `Mark out of gamut — ${axisName(2)}`);
@@ -133,7 +116,7 @@
       delete s.gap;
       const t = Number(s.thickness);
       if (!Number.isFinite(t)) return s;
-      // A v1 pixel value, converted against the pitch it used to sit in.
+
       s.thickness = hadGap && t <= 24 ? pctOf(Math.round((t / 22) * 100)) : pctOf(t);
       return s;
     },
@@ -182,8 +165,7 @@
         down.tabIndex = -1;
         down.setAttribute('aria-label', 'Decrease');
         down.innerHTML = CHEV_DOWN;
-        // DOM order is decrease-then-increase: with the stepper reversed for a
-        // vertical row that reads up/down, and with a horizontal row left/right.
+
         steppers.append(down, up);
         field.append(box, steppers);
         const track = document.createElement('div');
@@ -204,7 +186,7 @@
       let draggingRow = -1;
       let lockLight = null;
       let resetCleanup = null;
-      const raw = [0, 0, 0]; // the marker's position (may sit in the blank past the gamut)
+      const raw = [0, 0, 0];
       const trackCache = [0, 1, 2].map(() => ({
         key: '', css: '', lastAt: 0,
       }));
@@ -222,9 +204,6 @@
       const inGamutAt = (m, axes, i, v) => Gamut.inGamutAt(m, axes, i, v, store);
       const nearestInGamut = (m, i, desired, axes) => Gamut.nearestInGamut(m, i, store, axes, desired);
 
-      // The lens over these bars (a per-channel band grid, src/shared/lens.js). A track is
-      // ~65 colour stops, not a pixel loop, so the lens is cheap here; its bands are drawn
-      // with duplicated stops so the change is a step, not a ramp.
       const LensAccess = window.IroLensAccess;
       const lensScratch = [0, 0, 0];
       let lensKey = null;
@@ -270,22 +249,18 @@
         for (let i = 0; i < 3; i++) {
           const a = m.axes[i];
           const r = range(m, i);
-          // If the stored value no longer matches the dragged marker, a change
-          // came from elsewhere: adopt it. While this row is being dragged the
-          // marker owns the value and is left where the user put it.
+
           if (draggingRow !== i) raw[i] = axes[i];
           rows[i].name.textContent = a.label;
           rows[i].rng.min = String(r.min);
           rows[i].rng.max = String(r.max);
-          // Continuous: stepping is the nudge arrows' job, not the pointer's.
+
           rows[i].rng.step = 'any';
           rows[i].rng.value = String(clamp(raw[i], r.min, r.max));
           rows[i].box.value = Models.formatAxis(a, axes[i]);
           const key = trackKey(m, i, axes, dir);
           const cache = trackCache[i];
-          // The dragged row's track is independent of its own value, so it need
-          // not rebuild. Other rows change with the dragged axis; defer their
-          // secondary gradients to a ~100 ms cadence.
+
           const due = !store.interactive || i === draggingRow || now - cache.lastAt > 100;
           if (due && cache.key !== key) {
             cache.key = key;
@@ -301,8 +276,6 @@
         }
       };
 
-      // The gradients are ~150 colour conversions plus long strings; a live drag
-      // emits far faster than the display, so coalesce to one rebuild per frame.
       let rafId = 0;
       const render = () => {
         if (rafId) return;
@@ -317,8 +290,7 @@
         const axes = Models.axesFor(m, store);
         axes[i] = value;
         const lab = m.toLab(axes);
-        // The bar shows bands; the slider's own value stays the cursor's, and only what is
-        // recorded is the band (a band in the store would move the thumb off the pointer).
+
         store.setLab(lab, {
           notify,
           recorded: lensNow ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb) : null,
@@ -329,8 +301,7 @@
         rows[i].rng.addEventListener('pointerdown', (ev) => {
           draggingRow = i;
           store.dragging = true;
-          // Shift on a non-light row holds canonical lightness; the light row is
-          // solved automatically. Shift on the light row itself just drags L.
+
           lockLight = ev.shiftKey && i !== Models.lightAxis(model())
             ? G.lightnessOf(model(), Models.axesFor(model(), store))
             : null;
@@ -360,9 +331,7 @@
             store.setLab(m.toLab(held), { notify: 'live' });
             return;
           }
-          // The slider is allowed to leave the gamut: that is what moves the Slices'
-          // crosshair into their out-of-gamut (hatched) area. Only recorded values
-          // and slice drags snap; this pick is neither.
+
           setAxis(i, raw[i], 'live');
         });
         const release = () => {
@@ -379,8 +348,7 @@
           const parsed = Number(rows[i].box.value);
           if (!Number.isFinite(parsed)) { renderNow(); return; }
           raw[i] = parsed / (a.scale || 1);
-          // Typed values may also sit out of gamut, like a drag; they are not a
-          // recorded colour until written to CSP, and `contentRgb` clamps that.
+
           setAxis(i, raw[i], 'commit');
         };
         rows[i].box.addEventListener('change', commitBox);
@@ -391,8 +359,7 @@
           const m = model();
           const a = m.axes[i];
           const hue = i === m.hueIndex;
-          // Hue nudges by a whole degree; the other axes land on the displayed
-          // precision. The arrow is the one control that quantises.
+
           const step = hue ? 1 : displayStep(a);
           const base = Models.axesFor(m, store)[i];
           const snapped = hue ? Math.round(base) : Math.round(base / step) * step;
@@ -438,8 +405,7 @@
             render();
             if (ctx.requestLayout) ctx.requestLayout();
           }
-          // Horizontal reads as left/right, vertical as up/down; the aria labels
-          // stay increase/decrease (the axis meaning is unchanged).
+
           for (const r of rows) {
             r.up.innerHTML = vertical ? CHEV_UP : ARROW_RIGHT;
             r.down.innerHTML = vertical ? CHEV_DOWN : ARROW_LEFT;

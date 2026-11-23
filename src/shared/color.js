@@ -1,11 +1,4 @@
-/*
- * Color math shared by the main process (HSV decoding of CSP's uint32 payloads)
- * and the renderer (OKLCH picker). Loads as CommonJS in Node and as a global
- * `Color` in the browser.
- *
- * OKLab/OKLCH conversion follows Bjorn Ottosson's reference implementation.
- * sRGB transfer functions follow IEC 61966-2-1.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.Color = factory();
@@ -18,16 +11,12 @@
   const clamp01 = (x) => clamp(x, 0, 1);
   const mod360 = (h) => ((h % 360) + 360) % 360;
 
-  // --- sRGB transfer -------------------------------------------------------
-
   function srgbToLinear(c) {
     return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
   }
   function linearToSrgb(c) {
     return c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
   }
-
-  // --- OKLab / OKLCH -------------------------------------------------------
 
   function linearRgbToOklab(r, g, b) {
     const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
@@ -117,20 +106,10 @@
     };
   }
 
-  // Tolerance is in gamma-encoded sRGB units. It must stay very small: near
-  // black, a linear channel error of ~1e-6 maps to ~1e-5 in sRGB, so a loose
-  // epsilon would call a visibly out-of-gamut chroma "in gamut" and leave a
-  // spurious spike at the left edge of the lightness plot.
-  // Tolerance is relative to the colour's own magnitude. The OKLab<->sRGB
-  // round trip carries ~1e-6 relative error near the gamut corners, while the
-  // absolute channels near black are themselves only ~1e-6 — an absolute
-  // epsilon would either reject real primaries or accept a spurious chroma at
-  // very low lightness (a visible spike in the lightness plot).
   const GAMUT_REL_TOL = 1e-5;
   /** Is an OKLCH color displayable in sRGB? */
   function inGamut(L, C, H) {
-    // The gamut collapses to a point at both ends of the lightness axis; without this
-    // guard `chromaIntervals` reports no interval there while a hair of chroma passed.
+
     if (L <= 0 || L >= 1) return C <= 0;
     const { r, g, b } = oklchToRgb(L, C, H);
     const scale = Math.max(Math.abs(r), Math.abs(g), Math.abs(b), 1e-6);
@@ -141,16 +120,6 @@
       b >= -eps && b <= 1 + eps
     );
   }
-
-  // --- gamut boundary ------------------------------------------------------
-  //
-  // At a fixed lightness and hue every linear-sRGB channel is a *cubic* in the
-  // chroma C, because the OKLab -> linear-RGB step cubes l_, m_ and s_, which
-  // are affine in C. So the in-gamut set along a hue ray is a union of intervals
-  // whose ends are the C where a channel reaches 0 or 1. That union is *not*
-  // single-valued near the primary corners: at blue's hue it is the body
-  // [0, 0.2656] plus a thin fin out to the primary at 0.3132. A single binary
-  // search from zero stops at the body and draws the primary as unreachable.
 
   /**
    * Real roots of `c0 + c1*x + c2*x^2 + c3*x^3` (Cardano).
@@ -293,12 +262,6 @@
     return oklchToRgb(L, reduceChroma(L, C, H), H);
   }
 
-  // --- CIELAB (D65) --------------------------------------------------------
-  //
-  // CIELAB is a view over the same appearance (docs/COLOR.md): OKLab <-> Lab
-  // goes through linear sRGB and XYZ. D65 keeps the hub's white point, so no
-  // chromatic adaptation is involved; the ICC/PCS boundary adapts to D50.
-
   const M_SRGB_TO_XYZ = [
     [0.4124564, 0.3575761, 0.1804375],
     [0.2126729, 0.7151522, 0.0721750],
@@ -350,12 +313,6 @@
     const lin = xyzToLinearRgb(xyz.X, xyz.Y, xyz.Z);
     return linearRgbToOklab(lin.r, lin.g, lin.b);
   }
-
-  // --- Okhsv (sRGB-referenced picker space) --------------------------------
-  //
-  // Bjorn Ottosson's Okhsv (MIT; bottosson.github.io/posts/colorpicker). It is
-  // defined against sRGB, exposed here through OKLab so it shares the hub. The
-  // working profile may be wider than sRGB, so okhsv s/v are sRGB-relative.
 
   const TOE_K1 = 0.206, TOE_K2 = 0.03, TOE_K3 = (1 + TOE_K1) / (1 + TOE_K2);
   const PI = Math.PI;
@@ -427,7 +384,7 @@
     const a_ = C0 > 1e-12 ? a / C0 : 0;
     const b_ = C0 > 1e-12 ? b / C0 : 0;
     const h = mod360((0.5 + (0.5 * Math.atan2(-b, -a)) / PI) * 360);
-    // Achromatic: no hue direction, s = 0 and v is the lightness (toe).
+
     if (C0 <= 1e-9) return { h, s: 0, v: toe(clamp01(L0)) };
     const cusp = findCusp(a_, b_);
     const S_max = cusp.C / cusp.L, T_max = cusp.C / (1 - cusp.L);
@@ -446,14 +403,6 @@
     const s = ((S_0 + T_max) * C_v) / (T_max * S_0 + T_max * k * C_v);
     return { h, s, v };
   }
-
-  // --- Okhsl / Okhwb (perceptual HSL, sRGB-referenced) ---------------------
-  //
-  // Bjorn Ottosson's Okhsl and Okhwb (MIT; bottosson.github.io/posts/colorpicker)
-  // — the HSL- and HWB-shaped siblings of Okhsv, built on the same cusp/toe
-  // machinery above. Both are defined against sRGB, so like Okhsv they are only
-  // meaningful inside it. Okhsl's L is the *toe* of Oklab's L (Ottosson's
-  // definition), not Oklab L itself.
 
   /** The cusp's (S, T) = (C/L, C/(1-L)) — the triangle the gamut fills. */
   function getStMax(cusp) {
@@ -587,8 +536,6 @@
     return { h, w: v * (1 - s), b: 1 - v };
   }
 
-  // --- HSV / RGB -----------------------------------------------------------
-
   /** HSV -> RGB. h degrees, s/v 0..1. Returns gamma sRGB 0..1. */
   function hsvToRgb(h, s, v) {
     const hh = mod360(h) / 60;
@@ -650,8 +597,7 @@
       h *= 60;
     }
     const denominator = 1 - Math.abs(2 * l - 1);
-    // At l = 0 or 1 the formula is singular, and a round-tripped white arrives with a
-    // ~1e-7 channel spread: treat that as achromatic instead of reporting s == 1.
+
     const s = d <= 1e-6 || denominator <= 1e-9 ? 0 : Math.min(1, d / denominator);
     return { h: mod360(h), s, l };
   }
@@ -660,8 +606,6 @@
   function rgbToOklab(r, g, b) {
     return linearRgbToOklab(srgbToLinear(r), srgbToLinear(g), srgbToLinear(b));
   }
-
-  // --- hex -----------------------------------------------------------------
 
   const to255 = (x) => Math.round(clamp01(x) * 255);
   const channel255 = (x) => clamp(Math.round(Number(x) || 0), 0, 255).toString(16).padStart(2, '0');
@@ -688,8 +632,6 @@
       b: parseInt(s.slice(4, 6), 16),
     };
   }
-
-  // --- CSP uint32 channel helpers -----------------------------------------
 
   const u32ToUnit = (v) => clamp(v, 0, MAX_U32) / MAX_U32;
   const u32ToHue = (v) => u32ToUnit(v) * 360;

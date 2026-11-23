@@ -1,4 +1,4 @@
-// Türkçe.
+
 (function (root) {
   'use strict';
 

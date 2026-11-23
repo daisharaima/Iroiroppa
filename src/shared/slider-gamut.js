@@ -1,14 +1,4 @@
-/*
- * Hard-edged in-gamut stops for a slider track.
- *
- * The track used to be built from 28 blended stops, so the boundary between the
- * coloured (in-gamut) part and the blank part faded over a sample. A crisp edge
- * needs two stops at the *same* percentage: the last colour before the boundary
- * and the blank immediately after it (or the reverse). This helper is pure so
- * the single-interval, multi-interval and all-in/all-out cases are testable.
- *
- * Loads as CommonJS in Node and as a global `IroSliderGamut` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./color-models'), require('./color'));
   else root.IroSliderGamut = factory(root.IroColorModels, root.Color);
@@ -66,9 +56,7 @@
     const tmp = axes.slice();
     const N = o.samples || 64;
     const showOut = o.markOut !== false;
-    // A lens (`(colour) => colour`) replaces the row's colours, and its bands must have
-    // hard edges: a CSS gradient interpolates between stops, so two neighbouring samples
-    // in different bands would otherwise blend back into the continuum the lens removed.
+
     const lens = typeof o.lens === 'function' ? o.lens : null;
     const samples = [];
     for (let k = 0; k <= N; k += 1) {
@@ -107,8 +95,7 @@
       const prev = out[out.length - 1];
       if (prev && inside.length && s.pct === prev.pct) { out.push(s); continue; }
       if (prev && prev.color !== s.color) {
-        // The previous colour holds until this sample's position, then the new one takes
-        // over at exactly that position.
+
         out.push({ pct: s.pct, color: prev.color });
       }
       out.push(s);
@@ -133,7 +120,7 @@
       }
       const prev = samples[i - 1];
       if (s.inside !== prev.inside) {
-        // Same percentage, two colours: no interpolation across the boundary.
+
         const before = prev.inside ? prev.color : blank;
         const after = s.inside ? s.color : blank;
         out.push({ pct: s.t, color: before });

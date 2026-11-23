@@ -1,10 +1,4 @@
-/*
- * English — the source catalog. Every other locale is
- * keyed the same way; `npm run i18n` fails when one is missing a key.
- *
- * Keys are dotted and grouped by surface: `app.*` (the palette chrome) and
- * `settings.*` (the Settings window).
- */
+
 (function (root) {
   'use strict';
 
@@ -123,8 +117,7 @@
     'module.wheel.ringWidth': 'Ring width',
     'module.wheel.hueRotate': 'Hue rotation',
     'module.wheel.inner': 'Inner',
-    // Reserved for the modules cut before v1.2.0 (docs/MODULES.md §8). A locale may
-    // not carry a key English lacks, so the names stay here until one ships again.
+
     'module.capture-color.name': 'Capture Color',
     'module.color-gamut.name': 'Color Gamut',
     'module.colour-constructor.name': 'Color Constructor',
@@ -165,7 +158,7 @@
     'module.session.lockTitle': 'Lock the layout',
     'module.session.settingsTitle': 'Settings…',
     'module.session.browseIcc': 'Browse',
-    // The Session row speaks the connection state when it is not connected.
+
     'module.session.state.idle': 'Disconnected',
     'module.session.state.disconnected': 'Disconnected',
     'module.session.state.scanning': 'Scanning…',

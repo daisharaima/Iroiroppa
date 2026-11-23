@@ -1,11 +1,5 @@
 'use strict';
 
-// Guards the "new selector module, stale docs" mistake: every module file under
-// src/renderer/selector_module must be listed as a file in the layout docs, and
-// the ids the renderer mounts must match the files on disk. CI runs `npm test`
-// on every push and PR, so adding a module without documenting it fails there.
-// See AGENTS.md → "Keeping the docs in step".
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -92,17 +86,11 @@ test('the renderer loads the manifest before it uses it', () => {
   assert.ok(manifestAt < html.indexOf('src="app.js"'), 'the manifest must load before app.js');
 });
 
-// --- Agent scaffold: the map and the public/private boundary -----------------
-// The workflow map is only useful if it names the project skills that exist,
-// and a public decision doc that cites `_private/` or `.scratch/` would dangle
-// in a clone. See docs/agents/workflow.md §6.
-
 const PROJECT_SKILLS_DIR = path.join(ROOT, '.agents', 'skills');
 const LOCAL_ONLY_RE = /(?:^|[^A-Za-z0-9])_(?:private)\/|(?:^|[^A-Za-z0-9])\.scratch\//;
 
 test('the workflow map names every project skill', () => {
-  // Project skills are git-ignored, so a fresh clone has none; only check when
-  // they exist locally.
+
   if (!fs.existsSync(PROJECT_SKILLS_DIR)) return;
   const map = fs.readFileSync(path.join(ROOT, 'docs', 'agents', 'workflow.md'), 'utf8');
   const skills = fs.readdirSync(PROJECT_SKILLS_DIR)

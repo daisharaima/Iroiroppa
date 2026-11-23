@@ -1,4 +1,4 @@
-// 繁體中文.
+
 (function (root) {
   'use strict';
 

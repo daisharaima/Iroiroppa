@@ -1,12 +1,5 @@
 'use strict';
 
-// Guards two CSS mistakes that no other test can see (docs/THEMES.md):
-//
-// - a custom property defined as itself (`--font-size: var(--font-size)`), which is
-//   invalid at computed-value time, so every `calc(var(--font-size) …)` is dropped and
-//   the documented pre-theme fallback silently stops existing;
-// - a structural token hard-coded outside the token block, which themes cannot reach.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

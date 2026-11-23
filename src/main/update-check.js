@@ -1,9 +1,5 @@
 'use strict';
 
-// Checks GitHub for a newer release. Pure and dependency-free (Node's built-in
-// fetch) with an injected fetch, so it is unit-testable and the app can stay
-// silent when GitHub is unreachable.
-
 const DEFAULT_REPO = 'daisharaima/Iroiroppa';
 
 /**
@@ -25,9 +21,9 @@ function isNewer(latest, current) {
   if (a.minor !== b.minor) return a.minor > b.minor;
   if (a.patch !== b.patch) return a.patch > b.patch;
   if (a.pre === b.pre) return false;
-  if (!a.pre) return true; // 1.2.3 is newer than 1.2.3-beta
-  if (!b.pre) return false; // 1.2.3-beta is older than 1.2.3
-  return a.pre > b.pre; // best-effort between two prereleases
+  if (!a.pre) return true;
+  if (!b.pre) return false;
+  return a.pre > b.pre;
 }
 
 /**

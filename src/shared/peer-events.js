@@ -1,11 +1,4 @@
-/*
- * The typed session vocabulary (docs/STATE.md, §12.3).
- *
- * The same event names as the token layer, so the mental model transfers: one window
- * (the "source"/hub is main) pairs with its peers and both sides speak
- * `peer-connected` / `sync` / `warning` / `error`. `state` carries the lifecycle
- * (`idle → connecting → connected → paired → disconnected|error`).
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroPeerEvents = factory();
@@ -20,7 +13,7 @@
 
   /** A tiny typed emitter (the token layer's `TypedEmitter`): `on/off/once/emit`. */
   function createTypedEmitter() {
-    const listeners = new Map(); // type -> Set<fn>
+    const listeners = new Map();
 
     function on(type, fn) {
       if (typeof fn !== 'function') return () => {};
@@ -38,9 +31,9 @@
     }
     function emit(type, data) {
       const set = listeners.get(type);
-      if (set) for (const fn of [...set]) { try { fn(data); } catch { /* keep going */ } }
+      if (set) for (const fn of [...set]) { try { fn(data); } catch {  } }
       const all = listeners.get('*');
-      if (all) for (const fn of [...all]) { try { fn({ type, data }); } catch { /* keep going */ } }
+      if (all) for (const fn of [...all]) { try { fn({ type, data }); } catch {  } }
       return Boolean((set && set.size) || (all && all.size));
     }
     const count = (type) => (listeners.get(type) ? listeners.get(type).size : 0);

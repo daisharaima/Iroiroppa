@@ -1,21 +1,12 @@
-/*
- * Backing-store scale for the picker canvases.
- *
- * The maps used to render at a fixed 2× (device-pixel supersampling). That is fine for a
- * small module but the cost grows with the *area*: a module stretched to fill the palette
- * renders 4× the pixels of its usual size and drops frames ("the bigger I make it, the
- * laggier it gets"). A fixed dpr is the wrong knob — a pixel *budget* is. The scale never
- * goes below 1 (never upscale a smaller buffer into a blurry one), and above the budget
- * only the supersampling is given up, which is invisible at normal viewing distance.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroCanvasSize = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const IDLE_BUDGET = 70000; // one resolution for idle and dragging (the user's call)
-  const LIVE_BUDGET = 70000; // a large module is fast, and 1× is sharp enough at its size
+  const IDLE_BUDGET = 70000;
+  const LIVE_BUDGET = 70000;
 
   /**
    * @param {number} cssW  layout width (CSS px)

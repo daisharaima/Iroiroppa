@@ -1,10 +1,5 @@
 'use strict';
 
-// Chunk arithmetic for plane builds. This pins the property the chunked builder
-// depends on — every row is covered exactly once, in order — which is what an
-// off-by-one in the row loop broke during this work. It is not a byte-parity test:
-// parity needs a DOM canvas, and that is stated as a gap in the report.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const Chunks = require('../src/shared/plot-chunks.js');
@@ -31,8 +26,7 @@ test('the chunk count is bounded by the request', () => {
   for (const height of [24, 100, 600]) {
     for (const chunks of [1, 2, 3]) {
       const ranges = Chunks.bounds(height, chunks);
-      // ceil() can produce fewer chunks than asked (a plane shorter than the count)
-      // but never more.
+
       assert.ok(ranges.length <= Math.max(1, chunks), `h=${height} c=${chunks} made ${ranges.length}`);
     }
   }

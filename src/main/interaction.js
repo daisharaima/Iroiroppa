@@ -1,24 +1,5 @@
 'use strict';
 
-// The interaction hub (E1, colour only). docs/STATE.md, "local-first".
-//
-// One continuous gesture on a domain is an *interaction*: the originating window
-// paints from its own preview immediately, main stays the only writer of
-// canonical state, and a delayed acknowledgement can never overwrite a newer
-// preview. This module is the bookkeeping only — it is Electron-free so the
-// state machine is unit-tested headlessly (test/interaction.test.js).
-//
-// Rules (v9 §8):
-//  - `begin` checks the base revision once; a stale begin is refused;
-//  - one interaction per domain: a second `begin` supersedes the first;
-//  - updates are applied in `seq` order, and a late or duplicate `seq` is dropped;
-//  - an external change (a CSP echo that is not ours, a discrete command) ends
-//    the interaction: the owner is told, and the epoch moves on;
-//  - `end(commit)` closes it with the final value; `end(cancel)` leaves the
-//    baseline to the caller.
-//
-// The epoch is internal: renderers never see it, they only see a reject.
-
 /** How many recently sent values an interaction remembers. */
 const RECENT_VALUES = 8;
 
@@ -58,10 +39,7 @@ function createInteractionHub({ now = Date.now } = {}) {
       seq: 0,
       epoch: epochOf(domain),
       lastValue: null,
-      // The last few values this interaction sent. A host echo can lag by more
-      // than one update, so "is this ours?" must never be a comparison with the
-      // newest value alone — that is how a lagging read-back would reject a live
-      // drag. Same reasoning as the renderer's `_ownWrites` ring.
+
       recent: [],
       startedAt: now(),
     });

@@ -1,9 +1,5 @@
 'use strict';
 
-// Geometry for the overlay's merge warning. Like overlay-menu-box.js this is
-// pure and injected (display record + anchor), so the small-screen and
-// multi-monitor cases can be tested without Electron.
-
 const INSET = 6;
 const WIDTH = 330;
 const MIN_HEIGHT = 132;
@@ -28,8 +24,7 @@ function confirmBox(opts = {}) {
   const area = opts.area || { x: 0, y: 0, width: 1920, height: 1080 };
   const anchor = opts.anchor || { x: area.x + area.width / 2, y: area.y + area.height / 2 };
   const width = Math.min(Math.max(1, area.width - INSET * 2), WIDTH);
-  // 16 padding top + 18 title + 16 per message line + 13 per detail line +
-  // 34 button row + 14 padding bottom.
+
   const height = Math.round(clamp(
     16 + 18 + lines(opts.message, 40, 4) * 16 + lines(opts.detail, 46, 3) * 13 + 34 + 14,
     MIN_HEIGHT, MAX_HEIGHT,

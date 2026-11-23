@@ -1,16 +1,5 @@
 'use strict';
 
-// The IPC transport (docs/STATE.md, §12.4).
-//
-// the token layer's `SyncClient` lifecycle, adapted to run over injected IPC instead of
-// a WebSocket: a handshake with a timeout, a keepalive that reaps a silent peer,
-// exponential backoff on reconnect, and a manual-disconnect guard so a deliberate
-// close never triggers a reconnect. It is Electron-free (the scheduler and `send`
-// are injected) so the lifecycle is unit-tested (test/ipc-transport.test.js).
-//
-// The transport tracks a window's liveness; the same shape can be reused
-// over a MessagePort.
-
 const Transport = require('../../shared/transport');
 
 const CLOSED = 'idle';
@@ -51,7 +40,7 @@ function createIpcTransport({
   const openFns = new Set();
   const closeFns = new Set();
 
-  const fire = (set, data) => { for (const fn of [...set]) { try { fn(data); } catch { /* keep going */ } } };
+  const fire = (set, data) => { for (const fn of [...set]) { try { fn(data); } catch {  } } };
   const onMessage = (fn) => { messageFns.add(fn); return () => messageFns.delete(fn); };
   const onOpen = (fn) => { openFns.add(fn); return () => openFns.delete(fn); };
   const onClose = (fn) => { closeFns.add(fn); return () => closeFns.delete(fn); };

@@ -4,8 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const Model = require('../src/shared/layout-model');
-// Ids for the intents that create things (duplicate, place): deterministic, so a
-// failure names the same thing twice.
+
 let seq = 0;
 const newId = (prefix) => `${prefix}_t${++seq}`;
 
@@ -60,8 +59,6 @@ function base() {
 const ids = (palette) => palette.columns.map((c) => c.modules.map((m) => m.instanceId));
 const names = (doc) => doc.palettes.map((p) => p.name);
 
-// --- normalise -------------------------------------------------------------
-
 test('normalise prunes empty columns, repairs duplicate ids and defaults the rest', () => {
   const doc = Model.normalise({
     palettes: [{
@@ -95,8 +92,7 @@ test('an unknown module is dropped only when a registry is given', () => {
 });
 
 test('a hidden instance of a removed module is dropped with a registry', () => {
-  // The removed picker modules leave their hidden instance entries behind; a module
-  // that no longer exists can never be shown again, so the entry is dead weight.
+
   const raw = {
     palettes: [{ id: 'p1', columns: [{ id: 'c1', modules: [{ instanceId: 'i1', moduleId: 'color-slices' }] }] }],
     hiddenInstances: [
@@ -120,9 +116,6 @@ test('an explicit height wins over an autoHeight default', () => {
   assert.deepEqual(heights, ['px', 'auto', 'fill']);
 });
 
-// A module that sizes to its content has no ratio, and the board only builds a resize
-// handle for a ratio - so a module switching to locked-ratio sizing must carry its stored
-// board across, or its bottom edge stays dead for good.
 test('a stored auto height yields to a ratio the module now declares', () => {
   const registry = {
     legacy: { autoHeight: true },
@@ -148,7 +141,7 @@ test('defaultWorkspace follows the manifest order, filtered by the registry', ()
   assert.equal(doc.palettes.length, 1);
   assert.equal(doc.palettes[0].columns.length, 1);
   const modules = doc.palettes[0].columns[0].modules;
-  // The test registry only knows these three, so the rest of DEFAULT_IDS is filtered.
+
   assert.deepEqual(modules.map((m) => m.moduleId), ['csp-color', 'color-slices', 'color-slider']);
   assert.deepEqual(modules.map((m) => m.height.mode), ['auto', 'fill', 'auto']);
   assert.equal(doc.nextPaletteNumber, 2);
@@ -162,8 +155,6 @@ test('the shipped default workspace is Session first, then the pickers and the n
     'color-slider', 'color-history', 'color-stat',
   ]);
 });
-
-// --- reduce: shape of the result ------------------------------------------
 
 test('reduce never mutates its input document', () => {
   const before = base();
@@ -191,8 +182,6 @@ test('an intent that changes nothing reports a no-op', () => {
   assert.equal(out.noop, true);
   assert.deepEqual(out.effects, []);
 });
-
-// --- palettes --------------------------------------------------------------
 
 test('rename trims, caps and refuses an empty name', () => {
   const before = base();
@@ -266,8 +255,6 @@ test('import refuses a palette with no columns', () => {
   assert.equal(out.error, 'bad-palette');
 });
 
-// --- locked-ratio sizing (docs/LAYOUT.md) ---------------------------------
-
 test('a module that declares a defaultRatio gets a locked ratio height', () => {
   const REG = { 'color-slider': { defaultRatio: 0.33 } };
   const doc = Model.normalise(
@@ -339,8 +326,6 @@ test('setSnap needs an edge, anchors to the primary palette by default, and refu
   assert.equal(unknown.error, 'unknown-palette');
 });
 
-// --- modules ---------------------------------------------------------------
-
 test('setHeight stores each mode and refuses an unknown instance', () => {
   const before = base();
   const fill = Model.reduce(before, { type: 'module.setHeight', instanceId: 'i1', height: { mode: 'fill', weight: 3 } }, OPT);
@@ -400,8 +385,6 @@ test('disable removes every instance and prunes what it empties', () => {
   assert.deepEqual(out.doc.palettes.map((p) => p.id), ['p1'], 'the emptied palette closes');
   assert.ok(out.effects.some((e) => e.type === 'palette.close' && e.paletteId === 'p2'));
 });
-
-// --- layout.place ----------------------------------------------------------
 
 test('a module reorders inside its own column without leaving anything behind', () => {
   const before = base();
@@ -550,11 +533,9 @@ test('a multi-selection lands as one run', () => {
     items: ['i3', 'i1'],
     target: { kind: 'column', paletteId: 'p1', columnId: 'c1', index: 0 },
   }, OPT);
-  // Document order is i1 (c1) then i3 (c2), regardless of the order in `items`.
+
   assert.deepEqual(ids(out.doc.palettes[0]), [['i1', 'i3', 'i2']]);
 });
-
-// --- workspace.load --------------------------------------------------------
 
 test('duplicate makes a copy of a palette, with its own instances', () => {
   const before = base();
@@ -563,7 +544,7 @@ test('duplicate makes a copy of a palette, with its own instances', () => {
   assert.equal(out.doc.palettes.length, 3);
   const copy = out.doc.palettes[2];
   assert.equal(copy.name, 'Palette 1 copy');
-  // Same shape and modules, new ids for the palette, its columns and its instances.
+
   assert.deepEqual(
     copy.columns.map((c) => c.modules.map((m) => m.moduleId)),
     before.palettes[0].columns.map((c) => c.modules.map((m) => m.moduleId)),
@@ -572,17 +553,16 @@ test('duplicate makes a copy of a palette, with its own instances', () => {
   const sourceInstances = before.palettes[0].columns.flatMap((c) => c.modules.map((m) => m.instanceId));
   const copyInstances = copy.columns.flatMap((c) => c.modules.map((m) => m.instanceId));
   assert.equal(copyInstances.some((id) => sourceInstances.includes(id)), false);
-  // Offset so it does not hide the original, on the same monitor, and free (not
-  // snapped to it).
+
   assert.deepEqual(copy.pos, {
     x: before.palettes[0].pos.x + 24,
     y: before.palettes[0].pos.y + 24,
     displayId: before.palettes[0].pos.displayId,
   });
   assert.equal(copy.snap, null);
-  // Main is told to open it.
+
   assert.deepEqual(out.effects, [{ type: 'palette.open', paletteId: copy.id }]);
-  // The source is untouched.
+
   assert.deepEqual(before.palettes.map(ids), out.doc.palettes.slice(0, 2).map(ids));
 });
 
@@ -591,8 +571,6 @@ test('duplicate refuses an unknown palette', () => {
   assert.equal(out.ok, false);
   assert.equal(out.error, 'unknown-palette');
 });
-
-// --- workspace load (N3: the Layout & Workspace Manager) ----------------------
 
 test('workspace.load replaces the document and reports the lifecycle', () => {
   const before = base();
@@ -615,15 +593,13 @@ test('queries find an instance and count modules', () => {
   assert.equal(Model.instanceRef(before, 'gone'), null);
 });
 
-// --- document order and selection ranges (the board's shift-click rule) ------
-
 test('documentOrder walks columns then modules, in one palette', () => {
   const before = base();
   assert.deepEqual(Model.documentOrder(before, 'p1'), ['i1', 'i2', 'i3']);
-  assert.deepEqual(Model.documentOrder(before), ['i1', 'i2', 'i3']); // no id -> the primary
+  assert.deepEqual(Model.documentOrder(before), ['i1', 'i2', 'i3']);
   assert.deepEqual(Model.documentOrder(before, 'p2'), ['i4']);
   assert.deepEqual(Model.documentOrder(before, 'nope'), []);
-  // The boards hold the v1 view, not a v2 document: the order rule covers both.
+
   const v1 = { version: 1, columns: [{ id: 'c1', modules: [{ instanceId: 'a' }, { instanceId: 'b' }] }] };
   assert.deepEqual(Model.documentOrder(v1, 'ignored'), ['a', 'b']);
 });
@@ -636,8 +612,6 @@ test('rangeBetween is inclusive and order-independent', () => {
   assert.deepEqual(Model.rangeBetween(order, 'i1', 'gone'), []);
   assert.deepEqual(Model.rangeBetween(null, 'i1', 'i2'), []);
 });
-
-// --- instance controls: hide / show / remove, and the supplied id (N-modules) ---------
 
 const ENV = { registry: REGISTRY, newId };
 const placedIds = (doc) => doc.palettes.flatMap((p) => p.columns.flatMap((c) => c.modules.map((m) => m.instanceId)));
@@ -700,8 +674,7 @@ test('a supplied instance id is honoured, and one already in use is ignored', ()
 });
 
 test('a one-time seed marker is recorded once, and survives the document round trip', () => {
-  // The marker is what stops a seed re-adding a module the user removed (main.js seeds
-  // `session` and `color-stat` into a workspace written before they existed).
+
   const doc = Model.defaultWorkspace({ registry: REGISTRY, newId });
   const out = Model.reduce(doc, { type: 'layout.markSeeded', key: 'one-palette' }, ENV);
   assert.equal(out.ok, true);
@@ -726,8 +699,6 @@ test('a module id renamed in Oct 2026 maps to the new id on read', () => {
   const ids = doc.palettes[0].columns[0].modules.map((m) => m.moduleId);
   assert.deepEqual(ids, ['color-slices', 'color-slider']);
 });
-
-// --- the live-id list the trash sweep uses (docs/INVARIANTS.md) ----------------------
 
 test('liveInstanceIds keeps placed and hidden instances, hidden included', () => {
   const doc = {
@@ -764,8 +735,6 @@ test('showing a hidden module as lone gives it its own column', () => {
   assert.equal(out.doc.palettes[0].columns.length, 2);
   assert.deepEqual(out.doc.palettes[0].columns[1].modules.map((m) => m.instanceId), ['i2']);
 });
-
-// --- module minimize (collapsed) -------------------------------------------
 
 test('a module can be minimized and expanded, and the flag survives normalise', () => {
   const doc = base();

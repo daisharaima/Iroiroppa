@@ -1,13 +1,5 @@
 'use strict';
 
-// Native <select> popups are OS windows outside Iroiroppa's always-on-top band,
-// so inside the Settings window (or a module-settings popover) the list is drawn
-// *behind* the window. This enhancement keeps the select element and its change
-// event, but opens the list on the overlay surface instead of the OS popup.
-//
-// It is deliberately progressive: with no overlay API (test pages, a bare
-// renderer) the select is left completely native.
-
 (function () {
   const overlay = window.Iro && window.Iro.overlayMenu;
   const canOverlay = Boolean(overlay && typeof overlay.show === 'function'
@@ -67,11 +59,10 @@
       event.preventDefault();
       event.stopPropagation();
       justOpened = Date.now();
-      try { select.focus({ preventScroll: true }); } catch { try { select.focus(); } catch { /* ignore */ } }
+      try { select.focus({ preventScroll: true }); } catch { try { select.focus(); } catch {  } }
       open(select);
     };
-    // Capture both: Chromium opens the OS popup on the mousedown default action,
-    // while pointerdown lets us steal it a little earlier.
+
     select.addEventListener('pointerdown', press, true);
     select.addEventListener('mousedown', (event) => {
       if (event.button !== 0) return;
@@ -79,8 +70,7 @@
       event.stopPropagation();
     }, true);
     select.addEventListener('click', (event) => {
-      // Some platforms deliver the click after a prevented mousedown. A real click
-      // that did not produce a pointerdown (a synthetic/settings click) still opens.
+
       event.preventDefault();
       event.stopPropagation();
       if (Date.now() - justOpened >= 300) open(select);
@@ -105,7 +95,7 @@
   } else {
     scan(document);
   }
-  // Module settings and the Shortcuts tab create selects after load.
+
   const observer = new MutationObserver((records) => {
     for (const record of records) {
       for (const node of record.addedNodes) {

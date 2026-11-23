@@ -1,30 +1,10 @@
-/*
- * The v1 column codec (plan: palette equality, P1).
- *
- * The board speaks schema-v1 columns: a module carries a `weight` (a share) and an
- * optional `ratio`. The document stores a v2 `height: { mode, value }`. This is
- * only that conversion — NOT the document-level v1 view (`columns` vs `floats`),
- * which is what made palette 0 special and is retired separately.
- *
- * v1 cannot *name* a height: `weight: null` means "the module's own default" and a
- * number is a share. So:
- *
- *   fill(N) <-> N            auto <-> null (when the stored height was auto)
- *   px(P)   <-> null (when the stored height was px)
- *
- * i.e. a px height reads back as null and a null write keeps the stored px, so a
- * round-trip is lossless for every document a v1 writer can produce.
- *
- * Pure and shared (UMD, loaded as a classic script in the renderers), so both a
- * board and main use the same code.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroLayoutCodec = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // Mirrors layout-model's DEFAULT_WEIGHT (v1's default share).
   const DEFAULT_WEIGHT = 17;
 
   function finite(value) {
@@ -86,10 +66,7 @@
     return (columns || []).map((column) => {
       const storedCol = (storedColumns || []).find((c) => String(c.id) === String(column && column.id));
       const storedMods = new Map(((storedCol && storedCol.modules) || []).map((m) => [m.instanceId, m]));
-      // A v1 write whose module entries carry no instance id must not mint a fresh one for
-      // every save. Only when the incoming column is the *same set* of modules as the stored
-      // one (same length, same module ids, in order) do we borrow the stored ids, so a
-      // module that is genuinely being added still gets its own id.
+
       const incoming = (column && column.modules) || [];
       const sameShape = Boolean(storedCol) && storedCol.modules.length === incoming.length
         && storedCol.modules.every((x, i) => x.moduleId === String(incoming[i] && incoming[i].moduleId));
@@ -105,7 +82,7 @@
               instanceId: instanceId || ctx.newId('i'),
               moduleId: String(m.moduleId),
               height: heightEntryFromV1(m, stored.get(String(instanceId)), ctx.registry, m.moduleId),
-              // A v1 writer may omit it (older board); keep what the document had.
+
               collapsed: Object.prototype.hasOwnProperty.call(m, 'collapsed')
                 ? m.collapsed === true
                 : (storedMods.get(String(instanceId)) || {}).collapsed === true,

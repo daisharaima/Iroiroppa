@@ -1,14 +1,4 @@
-/*
- * The What's New reader: a checked-in release note, split into safe blocks for the
- * dialog. No Markdown library and no innerHTML of note text — the What's New window
- * builds DOM nodes from these blocks.
- *
- * Release notes are written in a small, fixed shape (release-notes/TEMPLATE.md):
- * `##` headings, `-` bullets, `**bold**` and `` `code` ``. Everything from
- * `## Install` onward is user-facing deployment detail and is omitted here.
- *
- * Loads as CommonJS and as a global `IroReleaseNote` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroReleaseNote = factory();
@@ -41,14 +31,14 @@
     const blocks = [];
     for (let i = 0; i < lines.length; i += 1) {
       const line = lines[i];
-      // The installation/requirements tail is release-page detail, not What's New.
+
       if (/^##\s+Install\b/i.test(line)) break;
       const heading = /^##\s+(.+)$/.exec(line);
       if (heading) {
         blocks.push({ type: 'heading', parts: inline(heading[1].trim()) });
         continue;
       }
-      if (/^#\s+/.test(line)) continue; // the note's own title is the window title
+      if (/^#\s+/.test(line)) continue;
       const bullet = /^\s*[-*]\s+(.+)$/.exec(line);
       if (bullet) {
         blocks.push({ type: 'bullet', parts: inline(bullet[1].trim()) });

@@ -1,20 +1,5 @@
 'use strict';
 
-// Companion Mode TCP client — the "phone side" of CSP's remote-control protocol.
-//
-// Lifecycle:
-//   connect()            dial the host, start the receive loop
-//   authenticate()       Authenticate with the QR password, rotate in a new one
-//   ...                  request() / setColorRgb() / readColor()
-//   startKeepalive()     TellHeartbeat every second (idle-timer reset when active)
-//   setSyncActive(bool)  toggle whether that heartbeat keeps the host awake
-//
-// The host starves Sync* reads unless a heartbeat requests an idle-timer reset,
-// so while we need live state the heartbeat carries `IdleTimerResetRequested`.
-// That flag resets the same idle timer CSP uses to pause a document's worktime
-// tracker, so it must NOT be sent unconditionally: when nobody is working the
-// service turns it off and the connection survives on passive heartbeats.
-
 const net = require('node:net');
 const { EventEmitter } = require('node:events');
 const { encodeFrame, splitFrames, parseFrame, TYPE } = require('./packets');
@@ -25,14 +10,11 @@ const Color = require('../../shared/color');
 const RECONNECT_MARKER = '{{(([[reconnection request marker]]))}}\r\n';
 const HEARTBEAT_MS = 1000;
 const DEFAULT_TIMEOUT_MS = 8000;
-// A dropped socket should come back as soon as CSP does. The old 500 → ×2 → 15 s
-// ladder could leave a 15 s hole after a few failures, which read as "not instant".
+
 const RECONNECT_FIRST_MS = 250;
 const RECONNECT_FACTOR = 1.6;
 const MAX_RECONNECT_DELAY_MS = 5000;
-// A saved pairing's port is stale as soon as CSP's QR window is reopened, so
-// dialling a dead address must fail fast instead of waiting for the OS's ~20 s
-// connect timeout: for a candidate list that can stall startup for a minute.
+
 const CONNECT_TIMEOUT_MS = 4000;
 
 class CompanionError extends Error {}
@@ -60,21 +42,16 @@ class CompanionClient extends EventEmitter {
     this.closed = false;
     this.reconnecting = false;
     this.keepaliveTimer = null;
-    // Whether our heartbeat should request an idle-timer reset. Default true so
-    // a bare client (the probe, tests) behaves exactly as before; the service
-    // lowers it when the user stops working so CSP's worktime tracker can pause.
+
     this.syncActive = true;
     this.reconnectDelay = RECONNECT_FIRST_MS;
-    // A saved pairing may be dialling a port CSP has already rotated away from; the
-    // service gives it a shorter deadline than a fresh QR pair.
+
     this.connectTimeoutMs = Number.isFinite(cfg.connectTimeoutMs) ? cfg.connectTimeoutMs : CONNECT_TIMEOUT_MS;
     this.remoteAddress = null;
     this.serverSpecVersion = null;
     this.quickAccessAvailable = null;
     this._connectAbort = null;
   }
-
-  // --- connection ----------------------------------------------------------
 
   /** Dial the host (trying each candidate IP). Resolves once TCP is connected. */
   connect() {
@@ -122,8 +99,7 @@ class CompanionClient extends EventEmitter {
         });
         sock.once('error', (err) => advance(`${ip}: ${err.code || err.message}`));
       };
-      // close() uses this to settle a dial that is still in flight, so callers
-      // never await a promise that a teardown can no longer resolve.
+
       this._connectAbort = () => {
         attempt.sock?.destroy();
         finish(new CompanionError('connection closed'));
@@ -133,8 +109,7 @@ class CompanionClient extends EventEmitter {
   }
 
   _attach(sock) {
-    // A reconnect can attach while an older socket is still open (a failed auth
-    // leaves it alive): that socket's later close would otherwise destroy this one.
+
     if (this.socket && this.socket !== sock) {
       const old = this.socket;
       this.socket = null;
@@ -186,8 +161,6 @@ class CompanionClient extends EventEmitter {
     timer.unref?.();
   }
 
-  // --- framing / dispatch --------------------------------------------------
-
   _onData(chunk) {
     this.buffer = this.buffer.length ? Buffer.concat([this.buffer, chunk]) : chunk;
     const { frames, rest } = splitFrames(this.buffer);
@@ -215,7 +188,7 @@ class CompanionClient extends EventEmitter {
     try {
       this._write(TYPE.SUCCESS, pkt.command, pkt.serial, null);
     } catch {
-      /* best effort ACK */
+
     }
     if (pkt.command === COMMANDS.PreNotifyOfServerShutdown) {
       this.emit('shutdown', pkt.detail);
@@ -231,8 +204,6 @@ class CompanionClient extends EventEmitter {
     if (!this.socket || this.socket.destroyed) throw new CompanionError('not connected');
     this.socket.write(encodeFrame(type, command, serial, detail));
   }
-
-  // --- commands ------------------------------------------------------------
 
   /**
    * Send a command and wait for its response packet.
@@ -284,8 +255,6 @@ class CompanionClient extends EventEmitter {
     this.pending.clear();
   }
 
-  // --- auth ----------------------------------------------------------------
-
   /**
    * Authenticate. On first auth, send [generation, enc(qrPassword), enc(newPassword)]
    * and remember `newPassword`. On reconnect, send the reconnection marker plus
@@ -296,8 +265,7 @@ class CompanionClient extends EventEmitter {
     const newPassword = reconnect ? this.password : makePassword();
 
     const detail = [this.generation, authHex(currentToken), authHex(newPassword)];
-    // A reconnect is not the place to wait 8 s for a host that is not answering; the
-    // service falls back to a scan soon after.
+
     const pkt = await this.request(COMMANDS.Authenticate, detail, { timeoutMs: reconnect ? 4000 : 8000 });
 
     const res = parseAuthResult(pkt);
@@ -309,8 +277,7 @@ class CompanionClient extends EventEmitter {
     this.quickAccessAvailable = res.quickAccessAvailable;
     if (!reconnect) this.password = newPassword;
     this.alive = true;
-    // A successful auth is the proof the next retry (if one is ever needed) should be
-    // fast again; the exponential backoff is only for a host that stays away.
+
     this.reconnectDelay = RECONNECT_FIRST_MS;
     this.emit('authenticated', res);
     this.startKeepalive();
@@ -321,8 +288,7 @@ class CompanionClient extends EventEmitter {
     if (this.keepaliveTimer) return;
     this.keepaliveTimer = setInterval(() => this._sendHeartbeat(), HEARTBEAT_MS);
     this.keepaliveTimer.unref?.();
-    // Beat once right away so the first poll after authenticating is not starved
-    // by the idle gate (which we may not have cleared on this fresh socket yet).
+
     if (this.syncActive) this._sendHeartbeat();
   }
 
@@ -331,7 +297,7 @@ class CompanionClient extends EventEmitter {
     if (!this.alive || !this.socket) return;
     const detail = this.syncActive ? { IdleTimerResetRequested: true } : null;
     this.request(COMMANDS.TellHeartbeat, detail, { timeoutMs: 4000 })
-      .catch(() => { /* the socket close handler drives reconnects */ });
+      .catch(() => {  });
   }
 
   /**
@@ -344,17 +310,13 @@ class CompanionClient extends EventEmitter {
     const next = Boolean(on);
     if (next === this.syncActive) return;
     this.syncActive = next;
-    // Becoming active: clear the gate at once so the next poll returns state
-    // instead of starving. Becoming passive just waits for the next tick.
+
     if (next) this._sendHeartbeat();
   }
 
-  // --- color ---------------------------------------------------------------
-
   /** Read the current (active) drawing color as RGB + metadata. */
   async readColor() {
-    // A deliberately stale request forces the host to return a full color payload
-    // instead of a partial diff.
+
     const stale = {
       IsManipulating: false,
       HSVColorMainH: 0,
@@ -413,7 +375,7 @@ class CompanionClient extends EventEmitter {
       clearInterval(this.keepaliveTimer);
       this.keepaliveTimer = null;
     }
-    // Settle a dial that is still in flight, or its caller would await forever.
+
     const abortConnect = this._connectAbort;
     this._connectAbort = null;
     if (abortConnect) abortConnect();
@@ -427,8 +389,6 @@ class CompanionClient extends EventEmitter {
     this.emit('closed');
   }
 }
-
-// --- helpers ---------------------------------------------------------------
 
 function clampByte(x) {
   const n = Math.round(Number(x) || 0);
@@ -449,9 +409,9 @@ function parseAuthResult(pkt) {
     if (typeof d.IsQuickAccessAvailable === 'boolean') out.quickAccessAvailable = d.IsQuickAccessAvailable;
     out.ok = !AUTH_FAILURES.has(out.reason);
   } else if (Array.isArray(d)) {
-    out.ok = true; // bare [true,false] success array
+    out.ok = true;
   }
-  // A bodyless error packet is a genuine failure.
+
   if ((pkt.rawDetail == null || pkt.rawDetail.length === 0) && pkt.type === TYPE.ERROR) out.ok = false;
   return out;
 }
@@ -466,7 +426,6 @@ function parseAuthResult(pkt) {
 function parseColorState(d) {
   if (!d || typeof d !== 'object') return null;
 
-  // Color-mix / sub-view variants carry a single plain RGB value.
   if (typeof d.CurrentColorRed === 'number' && typeof d.CurrentColorGreen === 'number') {
     const rgb = {
       r: Color.clamp(Math.round(d.CurrentColorRed), 0, 255),
@@ -497,8 +456,6 @@ function parseColorState(d) {
   const transparent = !!d.IsCurrentColorTransparent;
   if (!main && !sub && !transparent) return null;
 
-  // A payload is only authoritative for the active colour when it actually
-  // carries that slot's channels; otherwise it is a partial diff.
   const activeSlot = index === 1 ? sub : main;
   const full = transparent || Boolean(activeSlot);
   const chosen = activeSlot || main || sub;

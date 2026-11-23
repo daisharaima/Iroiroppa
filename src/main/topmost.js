@@ -1,27 +1,5 @@
 'use strict';
 
-// The native window band for every window that floats over Clip Studio Paint.
-//
-// Every such window is created with `alwaysOnTop: true` and, on a healthy runtime,
-// Chromium puts it in the WS_EX_TOPMOST band itself. On Windows 11 build 26300
-// (after the 21 Oct 2026 updates) it does not: `setAlwaysOnTop(true)` leaves
-// `isAlwaysOnTop()` false and the window sits at the bottom of the z-order.
-//
-// The same breakage has a second half, which is why this module now also applies
-// WS_EX_NOACTIVATE: a click on a window Chromium considers *non-activatable* never
-// reaches the page there (the move and the release do; only the press is lost, so
-// the palette paints and follows CSP but cannot be clicked). The palette is
-// therefore created activatable — `focusable: true`, so Chromium delivers the
-// press — and kept out of the activation path natively instead, which is exactly
-// the "clicking the palette never steals focus from CSP" behaviour the app needs.
-//
-// Chromium rewrites the extended style whenever it tries to activate the window,
-// which drops the topmost bit; so main re-applies the band after every show and
-// after every press (src/main/windows.js). One long-lived `topmost.ps1 -Watch`
-// applies those repairs: spawning a PowerShell per press was slow, and its hidden
-// console could briefly take the foreground, which made the auto-hide watcher hide
-// the palette ("it disappears and reappears on click").
-
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 
@@ -68,7 +46,7 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200,
       ], { windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'] });
       proc.on('error', () => { brokenAt = Date.now(); if (child === proc) child = null; });
       proc.on('exit', () => { if (child === proc) child = null; });
-      if (proc.stdin) proc.stdin.on('error', () => { /* the child went away; the next call falls back */ });
+      if (proc.stdin) proc.stdin.on('error', () => {  });
       child = proc;
       return proc;
     } catch {
@@ -118,20 +96,15 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200,
     const hwnd = hwndOf(win);
     if (!hwnd) return false;
 
-    // The native host is one long-lived process for the whole session: a request is
-    // a line on a pipe, so the 100 ms tick costs nothing and the one-shot spawn
-    // (1.2 s) disappears entirely.
     if (host) {
-      // A configured-but-still-starting host must not lose the race to the
-      // PowerShell fallback: that fallback spawns a -Watch child that lives for the
-      // whole session, which is exactly what this host exists to remove.
+
       if (!host.available) await host.whenReady(400);
       if (host.available) {
         try {
           const reply = await host.topmost(hwnd, { noActivate, topmost, zorder });
           if (reply && reply.applied === 1) { if (health) health.set('band', 'host'); return true; }
         } catch {
-          // Host died mid-call: fall through to the PowerShell path for this press.
+
         }
       }
     }
@@ -147,8 +120,8 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200,
     if (!child) return;
     const proc = child;
     child = null;
-    try { if (proc.stdin) proc.stdin.end(); } catch { /* already gone */ }
-    try { proc.kill(); } catch { /* already gone */ }
+    try { if (proc.stdin) proc.stdin.end(); } catch {  }
+    try { proc.kill(); } catch {  }
   }
 
   /** Point this client at the native host (or null to go back to PowerShell). */
@@ -158,13 +131,12 @@ function createBand({ spawnFn = spawn, script = scriptPath(), throttleMs = 1200,
 
   function setHost(next) {
     host = next || null;
-    // Once the host is up the PowerShell watch child is redundant: closing it drops a
-    // 56 MB helper instead of leaving it idle for the session.
+
     if (host && child) {
       const proc = child;
       child = null;
-      try { if (proc.stdin) proc.stdin.end(); } catch { /* already gone */ }
-      try { proc.kill(); } catch { /* already gone */ }
+      try { if (proc.stdin) proc.stdin.end(); } catch {  }
+      try { proc.kill(); } catch {  }
     }
   }
 
@@ -192,8 +164,7 @@ function ensureTopmost(win, opts = {}) {
 
 /** Let the next fallback spawn for that handle run even inside the throttle. */
 function forgetBand(win) {
-  // The helper path is not throttled; only the one-shot fallback keeps a memo, and
-  // it is per-call state inside the client. Nothing else to clear.
+
   return hwndOf(win) || '';
 }
 

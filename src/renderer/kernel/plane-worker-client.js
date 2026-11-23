@@ -1,22 +1,12 @@
 'use strict';
 
-// Main-thread half of the plane worker (kernel/plane-worker.js).
-//
-// It owns one Worker for the session, runs one job at a time (a plane build is heavy;
-// queueing ten of them would only delay the newest), and drops a result whose key no
-// longer matches the current request — a drag moves on faster than a build finishes,
-// and a stale image painted over a fresh one reads as a jump.
-//
-// When the worker cannot start (no module worker support, a load error) `available`
-// stays false and every caller keeps its synchronous path.
-
 (function installPlaneWorker() {
   const WORKER_URL = 'kernel/plane-worker.js';
 
   let worker = null;
   let nextId = 1;
-  let inflight = null;          // { id, key, resolve }
-  let queue = null;             // the single newest job waiting for the worker
+  let inflight = null;
+  let queue = null;
   let failed = false;
   let started = 0;
   let completed = 0;
@@ -54,7 +44,7 @@
       inflight = null;
       queue = null;
       if (current) current.resolve(null);
-      try { worker.terminate(); } catch { /* already gone */ }
+      try { worker.terminate(); } catch {  }
       worker = null;
     };
 
@@ -82,7 +72,7 @@
   function render(spec, key) {
     if (failed || !ensureWorker()) return Promise.resolve(null);
     return new Promise((resolve) => {
-      // Newest wins: a build for an older frame is worthless once the colour moved.
+
       if (queue) queue.resolve(null);
       started += 1;
       queue = { id: nextId++, key, spec, resolve };
@@ -92,7 +82,7 @@
 
   function stop() {
     if (!worker) return;
-    try { worker.terminate(); } catch { /* already gone */ }
+    try { worker.terminate(); } catch {  }
     worker = null;
     inflight = null;
     queue = null;

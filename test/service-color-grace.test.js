@@ -1,12 +1,5 @@
 'use strict';
 
-// The colour echo/grace rule (docs/INVARIANTS.md).
-//
-// A write must survive a lagging read-back, but a *real* CSP change (an
-// eyedropper, a slot switch) inside the grace window must still come through.
-// The service suppresses an echo only when it matches the value we wrote or the
-// value we replaced — never by time alone.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { CompanionService } = require('../src/main/service');
@@ -29,8 +22,8 @@ function makeService() {
 test('an echo of our own write is absorbed (no emit, no re-send)', () => {
   const { svc, sent, emitted } = makeService();
   svc.writeColor({ r: 10, g: 20, b: 30 }, { immediate: true });
-  svc._suppressUntil = 0; // past the "don't fight our write" window, inside the grace
-  emitted.length = 0; // ignore the write's own reflection
+  svc._suppressUntil = 0;
+  emitted.length = 0;
   svc._emitIfChanged({ rgb: { r: 10, g: 20, b: 30 }, transparent: false });
   assert.equal(emitted.length, 0, 'our own value is not a change');
   assert.equal(svc._written, null, 'the grace window closes on confirmation');
@@ -77,7 +70,7 @@ test('past the window an echo is never suppressed', () => {
   const { svc, emitted } = makeService();
   svc.writeColor({ r: 10, g: 20, b: 30 }, { immediate: true });
   svc._suppressUntil = 0;
-  svc._written.until = Date.now() - 1; // the grace window has expired
+  svc._written.until = Date.now() - 1;
   emitted.length = 0;
   svc._emitIfChanged({ rgb: { r: 1, g: 2, b: 3 }, transparent: false });
   assert.equal(emitted.length, 1, 'an expired window suppresses nothing');
@@ -121,7 +114,7 @@ test('a new burst after confirmation gets a fresh base', () => {
   svc.writeColor({ r: 10, g: 20, b: 30 }, { immediate: true });
   assert.deepEqual(svc._burstBase, { r: 1, g: 2, b: 3 });
   svc._suppressUntil = 0;
-  svc._emitIfChanged({ rgb: { r: 10, g: 20, b: 30 }, transparent: false }); // confirmed
+  svc._emitIfChanged({ rgb: { r: 10, g: 20, b: 30 }, transparent: false });
   svc.lastColor = { rgb: { r: 7, g: 7, b: 7 }, transparent: false, active: 'main' };
   svc.writeColor({ r: 80, g: 90, b: 100 }, { immediate: true });
   assert.deepEqual(svc._burstBase, { r: 7, g: 7, b: 7 }, 'the base is the value before this burst');
@@ -145,7 +138,7 @@ test('a poll response older than a host push is discarded', async () => {
   let resolveRead;
   svc.client.readColor = () => new Promise((r) => { resolveRead = r; });
   const poll = svc._pollOnce();
-  // The host push is newer than the read that was already in flight.
+
   svc._hostColorSeq += 1;
   svc._emitIfChanged({ rgb: { r: 20, g: 20, b: 20 }, active: 'main' });
   resolveRead({ rgb: { r: 10, g: 10, b: 10 }, active: 'main' });

@@ -1,14 +1,9 @@
 'use strict';
 
-// Main-process i18n. The catalogs are the same UMD
-// modules the renderer loads, so one file serves both; main layers the chosen
-// locale over English and re-reads it when the language setting changes.
-
 const path = require('node:path');
 
 const LOCALE_DIR = path.join(__dirname, '..', 'shared', 'locales');
-// A language code, never a path: `loadLocale` feeds `require()` below, so a value
-// like `../../user-modules/x/module` must not reach it (docs/STATE.md, IPC sender).
+
 const LOCALE_CODE = /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/;
 const cache = new Map();
 

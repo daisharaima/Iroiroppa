@@ -20,8 +20,6 @@ const OPT = {
 const m = (instanceId, height) => ({ instanceId, moduleId: 'x', height });
 const sum = (list) => list.reduce((total, n) => total + n, 0);
 
-// --- columns ---------------------------------------------------------------
-
 test('a null-width column fills the board', () => {
   const [only] = G.columnWidths([{ id: 'c1', width: null }], 300, OPT);
   assert.equal(only.width, 276);
@@ -51,8 +49,6 @@ test('over-full columns are scaled back inside the board', () => {
   const out = G.columnWidths([{ id: 'a', width: 700 }, { id: 'b', width: 700 }], 300, OPT);
   assert.ok(sum(out.map((c) => c.width)) <= 300);
 });
-
-// --- modules ---------------------------------------------------------------
 
 test('leftover height goes to the fill module', () => {
   const column = { id: 'c', width: null, modules: [m('a', { mode: 'auto' }), m('b', { mode: 'fill', weight: 1 })] };
@@ -96,8 +92,6 @@ test('a column never leaves empty space, whatever it holds', () => {
     assert.equal(used, 420, `filled: ${JSON.stringify(item.modules.map((x) => x.height))}`);
   }
 });
-
-// --- palette size ----------------------------------------------------------
 
 test('a palette of single auto columns shrink-wraps to its content', () => {
   const palette = { size: { width: 1, height: 1 }, columns: [{ id: 'c', width: null, modules: [m('a', { mode: 'auto' })] }] };
@@ -157,8 +151,6 @@ test('chrome is added to the palette size but kept out of the board', () => {
   assert.equal(G.minSize(palette, { a: { width: 10, height: 20 } }, withChrome).height, 340, 'the floor still applies');
 });
 
-// --- snap groups -----------------------------------------------------------
-
 const rect = (x, y, width, height) => ({ x, y, width, height });
 
 test('snapFlush puts a follower on any of the four anchor edges', () => {
@@ -217,7 +209,7 @@ test('resizing an anchor outer edge leaves the follower alone', () => {
 });
 
 test('a minimum clamps the splitter and pulls the resized window back', () => {
-  // The follower's left edge is dragged to 180; the anchor may not go below 200.
+
   const follower = G.reflowSnapResize({
     side: 'right',
     resizedRole: 'follower',
@@ -230,7 +222,6 @@ test('a minimum clamps the splitter and pulls the resized window back', () => {
   assert.deepEqual(follower.follower, rect(200, 0, 360, 600));
   assert.equal(follower.follower.x, follower.anchor.x + follower.anchor.width, 'still flush');
 
-  // The anchor's right edge is dragged in; the follower may not go below 320.
   const anchor = G.reflowSnapResize({
     side: 'right',
     resizedRole: 'anchor',

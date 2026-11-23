@@ -7,7 +7,7 @@ const { xorCycle, obfuscateRemoteParam, authHex, makePassword, AUTH_KEY, REMOTE_
   require('../src/main/companion/crypto');
 
 test('authHex matches the CSP binary (AUTH_KEY, lowercase hex)', () => {
-  // Golden vector from chocolatkey/clipremote: 'A'^0xB6 = 0xF7, 'B'^0xD5 = 0x97.
+
   assert.equal(authHex('AB'), 'f797');
 });
 
@@ -26,7 +26,7 @@ test('REMOTE_KEY obfuscation is its own inverse', () => {
 });
 
 test('REMOTE_KEY first byte is 0x74', () => {
-  // 'A' (0x41) ^ 0x74 = 0x35
+
   assert.equal(obfuscateRemoteParam(Buffer.from('A')).toString('hex'), '35');
 });
 

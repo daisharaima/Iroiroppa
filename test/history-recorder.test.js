@@ -1,11 +1,5 @@
 'use strict';
 
-// Main's history recorder is the one writer of the shared list. The fallback
-// settle keeps non-pointer picks to one tile; a pointer up in CSP commits the
-// freshly read colour and takes over the tile the settle may already have added
-// for that gesture, so a drag still ends with one tile showing the last colour
-// (docs/INVARIANTS.md).
-
 const test = require('node:test');
 const assert = require('node:assert');
 const { createHistoryRecorder } = require('../src/main/history-recorder');
@@ -44,7 +38,7 @@ test('note keeps a pick pending with no timer and no add', () => {
   h.rec.note(rgb(4, 5, 6));
   assert.deepEqual(h.list(), []);
   assert.deepEqual(h.rec.pending(), rgb(4, 5, 6));
-  h.fire(); // no timer was installed
+  h.fire();
   assert.deepEqual(h.list(), []);
   h.rec.commit(rgb(4, 5, 6));
   assert.deepEqual(h.list(), [rgb(4, 5, 6)]);
@@ -62,9 +56,9 @@ test('a burst settles to its last colour, not every intermediate one', () => {
 
 test('a pointer-up commit before the settle adds the freshly read colour', () => {
   const h = makeRecorder();
-  h.rec.observe(rgb(1, 2, 3)); // a drag is in progress
-  h.rec.commit(rgb(7, 8, 9), { replaceHostHead: true }); // read taken at the up
-  h.fire(); // the cancelled settle must add nothing
+  h.rec.observe(rgb(1, 2, 3));
+  h.rec.commit(rgb(7, 8, 9), { replaceHostHead: true });
+  h.fire();
   assert.deepEqual(h.list(), [rgb(7, 8, 9)]);
   assert.deepEqual(h.counts(), { saved: 1, broadcasts: 1 });
 });
@@ -72,9 +66,9 @@ test('a pointer-up commit before the settle adds the freshly read colour', () =>
 test('a pointer-up commit takes over a tile the settle already added', () => {
   const h = makeRecorder();
   h.rec.observe(rgb(1, 2, 3));
-  h.fire(); // the user paused mid-drag, so the fallback added a tile
+  h.fire();
   h.rec.observe(rgb(4, 5, 6));
-  h.rec.commit(rgb(7, 8, 9), { replaceHostHead: true }); // the up's fresh read
+  h.rec.commit(rgb(7, 8, 9), { replaceHostHead: true });
   h.fire();
   assert.deepEqual(h.list(), [rgb(7, 8, 9)]);
 });
@@ -82,7 +76,7 @@ test('a pointer-up commit takes over a tile the settle already added', () => {
 test('an explicit commit adds a tile and ends any gesture', () => {
   const h = makeRecorder();
   h.rec.observe(rgb(1, 2, 3));
-  h.rec.commit(rgb(9, 8, 7)); // no replaceHostHead: an explicit Iroiroppa pick
+  h.rec.commit(rgb(9, 8, 7));
   h.fire();
   assert.deepEqual(h.list(), [rgb(9, 8, 7)]);
 });

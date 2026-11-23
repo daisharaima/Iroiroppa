@@ -1,10 +1,5 @@
 'use strict';
 
-// The `pick` event is main's one signal that a host colour change is a real
-// pick and belongs in the shared history (src/main/history-recorder.js). A pure
-// slot switch, an inactive-slot-only partial, our own echo and a lagging poll
-// are colour changes but not picks (docs/INVARIANTS.md).
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { CompanionService } = require('../src/main/service');

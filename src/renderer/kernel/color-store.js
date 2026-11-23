@@ -1,10 +1,5 @@
 'use strict';
 
-// ColorStore: the picker's single source of truth. Owns the OKLCH value, the
-// CSP slots/transparency, the proof transform and the gamut routing. Modules
-// read it and request changes; the chrome (banner, mode bar, footer) does the
-// same. Nothing else keeps colour state.
-
 (function () {
   const Color = window.Color;
 
@@ -14,17 +9,13 @@
 
   const TRANSPARENT_CSS = 'repeating-conic-gradient(#d9dde7 0 25%, #ffffff 0 50%) 50% / 8px 8px';
   const HISTORY_MAX = 100;
-  // A sibling preview stream is treated as one gesture: modules render it like a
-  // local drag, then do one full-quality pass when the stream has been quiet for
-  // this long (src/renderer/kernel/color-store.js, `interactive`).
+
   const PREVIEW_IDLE_MS = 140;
 
   class ColorStore {
     constructor({ csp }) {
       this.csp = csp;
-      // Canonical appearance: OKLab (D65), rectangular and unbounded. `hue` is the
-      // polar anchor kept beside it so an achromatic colour remembers its hue —
-      // exactly what the old stored `H` gave (docs/COLOR.md).
+
       this.L = 0.82;
       const ab = Color.oklchToOklab(0.82, 0.12, 217.2);
       this.a = ab.a;
@@ -36,35 +27,27 @@
       this.proof = null;
       this.proofInfo = null;
       this.lastStored = null;
-      // The records this window wrote lately: a broadcast echo of our own write
-      // (and CSP's read-back of it) must not move the pick — the record is 8-bit
-      // and, past the gamut, already clipped (docs/COLOR.md).
+
       this._ownWrites = [];
-      // E1 (flag-only): the live interaction this window owns, if any. When
-      // `csp.localFirst` is on, a drag opens one on the first live write and
-      // closes it on the commit, instead of a bare write per move.
+
       this._interaction = null;
       this._interactionSeq = 0;
       this.pendingSend = false;
       this._previewLab = null;
       this._previewFrame = 0;
-      // A sibling palette's preview stream is a display-only gesture: modules render
-      // it like a local drag (overlays every frame, one raster per frame) instead of
-      // rebuilding every map on every message (src/renderer/kernel/color-store.js).
+
       this._inPreviewUntil = 0;
       this._inPreviewEmit = 0;
       this._inPreviewTimer = null;
-      // Flags the rest of the app keeps in sync.
+
       this.connected = false;
       this.dragging = false;
       this.liveSync = true;
       this.viewFamily = 'all';
-      this.history = []; // recently stored colours, newest first
-      // Main enforces the drawing-only gate; the store skips its optimistic add
-      // while the gate is on and only mirrors the shared list.
+      this.history = [];
+
       this.historyGate = false;
-      // Paint colours the sRGB display cannot show as the nearest displayable colour
-      // (false) or dim them so the out-of-display region is visible (true).
+
       this.markOutOfDisplay = false;
       this._subs = new Set();
     }
@@ -97,19 +80,14 @@
      */
     setLab(lab, opts) {
       const lch = Color.oklabToOklch(lab.L, lab.a, lab.b);
-      // A rectangular value carries no hue for a grey: keep the anchor there. The
-      // threshold matches the slices (1e-6): an RGB grey arrives with C ≈ 2e-8, so
-      // a 1e-9 gate never engaged and the hue read ~90° instead of the anchor.
+
       const named = opts && opts.hue != null;
       const H = named ? opts.hue : (lch.C > 1e-6 ? lch.H : this.hue);
       this.setLCH({ L: lab.L, C: lch.C, H }, opts);
     }
 
-    // --- observation ------------------------------------------------------
-
     subscribe(fn) {
-      // --perf-gaps: time each subscriber so a long task can be attributed to the
-      // module that owns it (the index is subscription order: wheel, slices, slider…).
+
       if (!(window.csp && window.csp.perfGaps)) {
         this._subs.add(fn);
         return () => this._subs.delete(fn);
@@ -163,16 +141,12 @@
       this._emit();
     }
 
-    // --- proof / gamut ----------------------------------------------------
-
     /** The active proof, and the model reference it implies. */
     get proof() { return this._proof || null; }
 
     set proof(next) {
       this._proof = next || null;
-      // OKHSV/OKHSL/OKHWB are shaped by an RGB cube: hand them the document's cube
-      // (matrix/TRC profile) so every colour the document holds is reachable, or keep
-      // Ottosson's sRGB reference when there is no RGB profile.
+
       const Models = window.IroColorModels;
       const Ref = window.IroModelReference;
       const reference = Ref ? Ref.create(this._proof) : null;
@@ -190,15 +164,12 @@
 
     plotKeyTag() {
       const scope = this.useWorkingGamut() ? `w:${(this.proofInfo && this.proofInfo.path) || ''}` : 's';
-      // The RGB-referenced models are built on the document's cube, so their axes depend
-      // on the profile even when the picker is *not* in working-gamut mode: a map drawn
-      // under one profile must not be reused under another.
+
       return `${scope}:${this._referenceKey || 'srgb'}`;
     }
 
     modelLimited(model) {
-      // True while the RGB-referenced spaces can only name sRGB colours (the notice).
-      // With proofing off the working gamut *is* sRGB, so there is nothing to warn about.
+
       if (!this.proofOn()) return false;
       return window.IroColorModels
         ? window.IroColorModels.referenceLimited(model)
@@ -297,10 +268,9 @@
     _recordHistory(rgb) {
       if (!rgb) return false;
       if (this.historyGate) {
-        // The drawing-only gate: tell main about the explicit pick (it becomes
-        // pending) but add nothing locally; a canvas contact adds it later.
+
         if (this.csp && this.csp.pushHistory) {
-          try { this.csp.pushHistory({ r: rgb.r, g: rgb.g, b: rgb.b }); } catch { /* ignore */ }
+          try { this.csp.pushHistory({ r: rgb.r, g: rgb.g, b: rgb.b }); } catch {  }
         }
         return false;
       }
@@ -308,10 +278,9 @@
       if (last && last.r === rgb.r && last.g === rgb.g && last.b === rgb.b) return false;
       this.history.unshift({ r: rgb.r, g: rgb.g, b: rgb.b });
       if (this.history.length > HISTORY_MAX) this.history.length = HISTORY_MAX;
-      // Main keeps the shared list, so a board floated into its own window (and
-      // the palette) always show the same history.
+
       if (this.csp && this.csp.pushHistory) {
-        try { this.csp.pushHistory({ r: rgb.r, g: rgb.g, b: rgb.b }); } catch { /* ignore */ }
+        try { this.csp.pushHistory({ r: rgb.r, g: rgb.g, b: rgb.b }); } catch {  }
       }
       return true;
     }
@@ -337,8 +306,6 @@
       return Color.rgbToHex(s.r, s.g, s.b);
     }
 
-    // --- changes ----------------------------------------------------------
-
     /**
      * Adopt an OKLCH value. Chroma is clamped to the axis, but may sit *outside*
      * the gamut — the C slider uses that to explore past the silhouette. When
@@ -362,16 +329,14 @@
     /** Set the colour and optionally push it to CSP. */
     setLCH(lch, { notify = 'none', snap = false, recorded = null } = {}) {
       this._applyLCH(lch, { snap });
-      // `recorded` is the lens's answer: what the band holds, while the axes stay the
-      // cursor's. Cleared on every ordinary set, so a lens can never leak into a pick.
+
       this._recorded = recorded ? { L: recorded.L, a: recorded.a, b: recorded.b } : null;
       let stored = null;
       if (notify !== 'none') {
         stored = this.contentRgb();
         this.lastStored = stored;
         this._markActiveSlot(stored);
-        // An explicit settled pick records immediately; main records host picks
-        // and broadcasts the shared list to every window.
+
         if (notify === 'commit') this._recordHistory(stored);
       }
       if (stored) this._rememberWrite(stored);
@@ -394,7 +359,7 @@
     /** Interpret a recorded sRGB value (hex field, paste) without sending. */
     applyRecordedRgb(rgb) {
       const { L, C, H } = this.readRecorded(rgb);
-      // A recorded value is in gamut by definition: snap for safety.
+
       this._applyLCH({ L, C, H }, { snap: true });
     }
 
@@ -429,15 +394,13 @@
         this.slots = { main: color.main || null, sub: color.sub || null, active: color.active || null };
       }
       if (color.rgb && this._isOwnWrite(color.rgb)) {
-        // Our own write coming back: the store already holds the picked colour,
-        // and re-deriving it from the 8-bit record would rotate the hue (up to a
-        // few degrees at low chroma) or adopt a clipped record. Keep the pick.
+
         this.lastStored = { r: color.rgb.r, g: color.rgb.g, b: color.rgb.b };
         this._emit();
         return;
       }
       if (color.rgb) {
-        this._ownWrites.length = 0; // a real host change ends our burst
+        this._ownWrites.length = 0;
         this.lastStored = { r: color.rgb.r, g: color.rgb.g, b: color.rgb.b };
         const { L, C, H } = this.readRecorded(color.rgb);
         this._applyLCH({ L, C, H }, { snap: true });
@@ -478,8 +441,7 @@
         return;
       }
       if (!immediate && !this.liveSync) return;
-      // E1: with the local-first protocol on, the write is an interaction update
-      // (and the commit closes it) so main can order, attribute and reject it.
+
       if (this.csp && this.csp.localFirst && typeof this.csp.interactionUpdate === 'function') {
         this._writeInteraction(immediate);
         return;
@@ -498,7 +460,7 @@
         }
         if (!this._interaction) return;
         this._interactionSeq += 1;
-        try { this.csp.interactionUpdate({ id: this._interaction, seq: this._interactionSeq, value }); } catch { /* dropped */ }
+        try { this.csp.interactionUpdate({ id: this._interaction, seq: this._interactionSeq, value }); } catch {  }
         return;
       }
       if (!this._interaction) { this.csp.writeColor(value, true); return; }
@@ -557,8 +519,7 @@
       if (lch.C > 1e-6) this.hue = lch.H;
       this.lastStored = this.contentRgb();
       this._markActiveSlot(this.lastStored);
-      // Mark the stream: the whole window renders like a gesture for the next few
-      // frames, and one trailing emit gives every module its full-quality rebuild.
+
       this._inPreviewUntil = Date.now() + PREVIEW_IDLE_MS;
       if (!this._inPreviewEmit) {
         const fire = () => { this._inPreviewEmit = 0; this._emit(); };

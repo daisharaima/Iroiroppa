@@ -54,8 +54,7 @@ test('a renamed module id inherits the settings file under the old id', () => {
   const { dir, store } = tempStore();
   try {
     store.writeModuleSettings('oklch-slider', { thickness: 42 }, 3);
-    // The instance has no file of its own and the new module id's file is missing,
-    // so the legacy id's file is inherited.
+
     assert.deepEqual(store.readModuleSettings('i1', 'color-slider'), { thickness: 42 });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

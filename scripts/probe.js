@@ -1,16 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 
-// Standalone probe for the CSP Companion Mode connection.
-//
-//   node scripts/probe.js                    scan the screen for the QR and connect
-//   node scripts/probe.js "<url-or-hex>"     use a QR payload you already have
-//   node scripts/probe.js --set "#4DF7F8"    set the current CSP color
-//   node scripts/probe.js --quick [index]    probe the Quick Access commands
-//   node scripts/probe.js --watch            poll CSP's color until Ctrl+C
-//
-// Open File > Connect to smartphone in Clip Studio Paint before scanning.
-
 const { CompanionClient } = require('../src/main/companion/client');
 const { decodeConfig, isShareUrl } = require('../src/main/companion/qr');
 const { findQr } = require('../src/main/capture');
@@ -18,7 +8,6 @@ const Color = require('../src/shared/color');
 
 const argv = process.argv.slice(2);
 
-// Parse `--flag value` and `--bool` separately from positional arguments.
 const opts = Object.create(null);
 const positional = [];
 const VALUE_FLAGS = new Set(['--set', '--timeout', '--quick']);
@@ -95,8 +84,7 @@ async function main() {
   await read();
 
   if (has('--quick')) {
-    // The protocol's Quick Access surface — the go/no-go for invoking a CSP
-    // command over the wire instead of a native sender.
+
     console.log('\nQuick Access experiment:');
     try {
       const data = await client.request('GetQuickAccessData', {}, { timeoutMs: 8000 });
@@ -126,7 +114,7 @@ async function main() {
   if (has('--watch')) {
     console.log('\nWatching (Ctrl+C to stop)...');
     setInterval(read, 500);
-    return; // keep the process alive
+    return;
   }
 
   client.close();

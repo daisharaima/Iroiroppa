@@ -1,10 +1,5 @@
 'use strict';
 
-// The canonical value is OKLab; OKLCH is a derived view (docs/COLOR.md).
-// These tests pin the one thing that must never drift: rendering from the
-// canonical OKLab is bit-for-bit the same as rendering from OKLCH, so swapping
-// the store's representation cannot move a single displayed channel.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
@@ -48,8 +43,6 @@ test('a zero-chroma colour carries no hue (the anchor lives outside the value)',
   const ab = Color.oklchToOklab(0.5, 0, 200);
   assert.ok(ab.a === 0, `a=${ab.a}`);
   assert.ok(ab.b === 0, `b=${ab.b}`);
-  // The polar view has no meaningful hue here (atan2 of signed zeros), which is
-  // exactly why the store keeps a hue anchor beside the canonical value —
-  // `lch()` returns that anchor, never a hue derived from the value.
+
   assert.ok(Color.oklabToOklch(0.5, ab.a, ab.b).C === 0);
 });

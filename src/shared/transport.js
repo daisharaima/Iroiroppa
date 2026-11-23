@@ -1,11 +1,4 @@
-/*
- * The transport contract (docs/STATE.md, §12.4).
- *
- * A transport moves session messages between main and a window. Phase 1 uses
- * `ipc-transport` (Electron IPC); Phase 3 adds a `MessagePort` transport. Both
- * implement this same surface, so the session layer never knows which is in use.
- * This module is only the contract plus a shared assertion for tests.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroTransport = factory();

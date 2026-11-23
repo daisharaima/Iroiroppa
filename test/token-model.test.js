@@ -15,7 +15,7 @@ test('inferType maps a value to a token type', () => {
 test('resolveToken honours an explicit known type over inference', () => {
   assert.deepEqual(Model.resolveToken('n', '#fff'), { name: 'n', type: 'color', value: '#fff' });
   assert.deepEqual(Model.resolveToken('n', '#fff', 'number'), { name: 'n', type: 'number', value: '#fff' });
-  // an unknown type falls back to inference
+
   assert.equal(Model.resolveToken('n', 1, 'nope').type, 'number');
 });
 

@@ -1,8 +1,5 @@
 'use strict';
 
-// The shared colour-history rule (): quantized-sRGB head
-// dedupe and a cap.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { addToHistory } = require('../src/shared/history');
@@ -44,6 +41,6 @@ test('a channel outside 0..255 is clamped before it is stored', () => {
   const list = [];
   assert.equal(addToHistory(list, { r: 255.6, g: -0.4, b: 128 }, 100), true);
   assert.deepEqual(list[0], { r: 255, g: 0, b: 128 });
-  // and the clamped head then dedupes against an honest 255
+
   assert.equal(addToHistory(list, { r: 255, g: 0, b: 128 }, 100), false);
 });

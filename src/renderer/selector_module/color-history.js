@@ -1,16 +1,12 @@
 'use strict';
 
-// Selector module: Colour History — the most recently stored colours, newest
-// first; clicking a chip re-selects it. The Companion protocol has no history
-// command, so this is the app's own log of the colours it has seen and picked.
+
 
 (function () {
   const reg = (window.Iro = window.Iro || {});
   reg.modules = reg.modules || {};
 
-  // The drawing-only gate is one global setting, not a per-instance one. Every
-  // History settings panel (popover and Settings window) edits the same value;
-  // one listener keeps all live panels in step.
+
   const gateBoxes = new Set();
   let gateListening = false;
   let gateSynced = false;
@@ -88,11 +84,11 @@
     version: 3,
     defaults: { tile: 24, maxHistory: 100 },
     migrate(stored) {
-      // v1 had a "columns" count instead of a tile size.
+
       if (stored && stored.columns !== undefined && stored.tile === undefined) {
         return { ...stored, tile: 24, columns: undefined };
       }
-      // The old per-instance gate is a global setting now; drop the stale key.
+
       if (stored && stored.drawingOnly !== undefined) {
         const next = { ...stored };
         delete next.drawingOnly;
@@ -114,9 +110,7 @@
       grid.className = 'history';
       ctx.el.append(grid);
 
-      // History changes rarely (a settled pick), but the store emits on every
-      // live drag. A signature guard skips the DOM rebuild unless the list or the
-      // proof changed, and a rAF coalesces the rest.
+
       let lastKey = null;
       let maxHistory = 100;
       const renderNow = () => {
@@ -147,10 +141,7 @@
         }
       };
 
-      // History changes are rare, but an rAF scheduled while the palette is
-      // hidden/occluded can stay paused: the data moves to the new head while the
-      // grid keeps painting the previous one. renderNow() already skips unchanged
-      // lists, so render synchronously instead of waiting for a frame.
+
       const render = () => renderNow();
 
       const applyTile = (value) => {

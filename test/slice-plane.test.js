@@ -1,14 +1,5 @@
 'use strict';
 
-// The analytic slice plane (src/shared/slice-plane.js) against the reference chain it
-// replaced: `Color#chromaIntervals` for the silhouette, `Color#fitToSrgb` per painted
-// pixel, `store.inGamut` per pixel for the hue strip.
-//
-// The fast path hoists the trigonometry and the matrix and gamma-encodes through the
-// raster plane's LUT, so the contract is "the same picture": the silhouette alpha is
-// the same wherever the colour is not exactly on the gamut edge, and no channel moves
-// by more than one 8-bit step.
-
 const test = require('node:test');
 const assert = require('node:assert');
 const Color = require('../src/shared/color');
@@ -123,10 +114,9 @@ for (const [kind, fixed, label] of CASES) {
     const stats = compare(got.data, want.data);
     const painted = want.data.filter((_, i) => i % 4 === 3 && want.data[i] > 0).length;
     assert.ok(painted > 0, `the reference plane paints something at ${label}`);
-    // No channel may move by more than one 8-bit step (the LUT gamma, nothing else).
+
     assert.ok(stats.worst <= 1, `channel drift ${stats.worst} at ${label}`);
-    // The silhouette edge may move a pixel only where the tolerance decides it: the
-    // whole rim is at most a few tenths of a percent of the plane.
+
     assert.ok(stats.alphaDiff <= Math.max(4, Math.ceil(painted * 0.01)),
       `silhouette differs on ${stats.alphaDiff} of ${painted} pixels at ${label}`);
   });
@@ -143,8 +133,7 @@ test('the lightness field is exactly the map\'s own light', () => {
           continue;
         }
         const want = kind === 'lc' ? x / (W - 1) : kind === 'hc' ? fixed[0] : 1 - y / (H - 1);
-        // The field is a Float32Array (the contour reads it), so compare in its own
-        // precision, not the double's.
+
         assert.ok(Math.abs(got.luma[i] - want) < 1e-6, `luma at ${kind} ${x},${y}`);
       }
     }
@@ -152,7 +141,7 @@ test('the lightness field is exactly the map\'s own light', () => {
 });
 
 test('a primary fin survives: a sub-row interval still gets its scanline', () => {
-  // Blue's hue has the thin fin out to the primary; a plain row fill cannot reach it.
+
   const fixed = [0.4, 0.3, 264.05];
   const plain = render('lc', fixed);
   const prep = plain.prep;
@@ -171,8 +160,7 @@ test('a primary fin survives: a sub-row interval still gets its scanline', () =>
 });
 
 test('a working gamut keeps the document gamut, not the screen gamut, as the mask', () => {
-  // A document wider than the screen: `inDocument` decides the shape, and the pixels
-  // past the sRGB window are painted with the fitted stand-in rather than dropped.
+
   const fixed = [0.55, 0.14, 120];
   const prep = Plane.prepare({
     kind: 'hue',
@@ -180,20 +168,19 @@ test('a working gamut keeps the document gamut, not the screen gamut, as the mas
     height: H,
     cmax: CMAX,
     fixed,
-    // A pretend document: anything with C <= 0.3 is inside it.
+
     inDocument: (L, C) => C <= 0.3,
   });
   const data = new Uint8ClampedArray(W * H * 4);
   const luma = new Float32Array(W * H).fill(NaN);
   Plane.fillRows(prep, data, luma, 0, H);
-  // Chroma 0.14 is inside this document, so every non-edge pixel is painted.
+
   for (let y = 1; y < H - 1; y += 1) {
     for (let x = 0; x < W; x += 1) {
       assert.ok(data[(y * W + x) * 4 + 3] > 0, `painted at ${x},${y}`);
     }
   }
-  // ...and the mask is the document's, not the screen's: a document that holds nothing
-  // at this chroma paints nothing.
+
   const narrow = Plane.prepare({
     kind: 'hue', width: W, height: H, cmax: CMAX, fixed,
     inDocument: (L, C) => C <= 0.05,

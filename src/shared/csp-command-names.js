@@ -1,21 +1,10 @@
-/*
- * Readable names for CSP's internal menucommand ids.
- *
- * CSP's shortcut files store only ids such as `filenewfromclipboard`; the
- * user-data label table (`workspacetoolbaritem`) covers only commands placed on a
- * toolbar. This resolver uses (1) the live CSP label when one is available,
- * (2) a curated map for common commands, and (3) a tokenising fallback so the
- * list never shows a raw lowercase id. The raw id stays in the row tooltip.
- *
- * Loads as CommonJS in Node and as a global `IroCspCommandNames` in the renderer.
- */
+
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.IroCspCommandNames = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  // Exact CSP names for common commands. Local toolbar labels take precedence.
   const EXACT = {
     applicationquit: 'Quit CLIP STUDIO PAINT',
     applicationtilingmenu: 'Display application menu',
@@ -120,7 +109,7 @@
         if (rest.startsWith(w, i) && w.length > found.length) found = w;
       }
       if (!found) {
-        // Unknown chunk: take up to the next known word, or the rest.
+
         let next = rest.length;
         for (const w of WORDS) {
           const at = rest.indexOf(w, i + 1);
@@ -145,7 +134,7 @@
     const labels = words.map((w, i) => {
       const label = WORD_LABEL[w] || w;
       if (/\s/.test(label)) return label;
-      // Keep small words lowercase unless they open the name.
+
       if (SMALL.has(lower(label)) && i > 0) return lower(label);
       return cap(label);
     });

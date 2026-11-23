@@ -1,17 +1,10 @@
 'use strict';
 
-// The drag overlay: one full-desktop, click-through, always-on-top surface that
-// carries both the chip that follows the pointer and the drop indicator, so the
-// indicator can never be clipped by a window or hidden behind another one
-// (docs/LAYOUT.md, V4). Main owns the state; this only draws it.
-
 (function () {
   const csp = window.csp;
   const chip = document.getElementById('overlay-chip');
   const themeRegistry = new window.Iro.ThemeRegistry();
 
-  // The overlay is the whole desktop, so a positioned child can land anywhere;
-  // make sure an inherited body height or `overflow: hidden` cannot clip it.
   document.documentElement.style.height = '100%';
   document.body.style.height = '100%';
   document.body.style.overflow = 'visible';
@@ -147,11 +140,9 @@
     });
     menu.classList.remove('hidden');
     menu.classList.remove('scrolling');
-    // A fresh menu starts at the top; the profile list can be long.
+
     menu.scrollTop = 0;
-    // `menuBox` sizes the window, but CSS borders/gaps can still leave a 1–2 px
-    // overflow. Only expose a scrollbar when the content really exceeds the box;
-    // an all-items-visible menu must not show one.
+
     requestAnimationFrame(() => {
       if (!menu || menu.classList.contains('hidden')) return;
       menu.classList.toggle('scrolling', menu.scrollHeight > menu.clientHeight + 2);
@@ -159,15 +150,14 @@
   }
 
   async function init() {
-    // Register first: main may push the state before the theme has loaded.
+
     csp.onOverlay(({ text, hint, chip: chipAt, line: lineSpec } = {}) => {
       chip.textContent = text || '';
       document.body.classList.toggle('float-hint', Boolean(hint));
       if (chipAt) {
         chip.style.position = 'absolute';
         chip.style.zIndex = '2';
-        // The chip hangs off the pointer's top-left (main sends the offset), so it never
-        // covers the cursor or the drop point.
+
         chip.style.transform = 'translate(-100%, -100%)';
         chip.style.left = `${Math.round(chipAt.x)}px`;
         chip.style.top = `${Math.round(chipAt.y)}px`;
@@ -183,8 +173,7 @@
       if (confirmEl && !confirmEl.classList.contains('hidden')) answerConfirm(false);
       else csp.overlayMenuClose();
     });
-    // A click on the little surface that is not an item closes the menu. Anything *outside* the menu
-    // is outside this window too (main sizes it to the menu), so it never takes those clicks.
+
     document.addEventListener('mousedown', (event) => {
       if (menu && !menu.classList.contains('hidden') && !event.target.closest('#overlay-menu')) {
         csp.overlayMenuClose();
@@ -196,7 +185,7 @@
     try {
       const snapshot = await csp.snapshot();
       themeRegistry.apply(snapshot.settings.theme, snapshot.settings.accents || {});
-    } catch { /* the default theme is fine */ }
+    } catch {  }
   }
 
   init();

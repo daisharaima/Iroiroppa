@@ -1,9 +1,5 @@
 'use strict';
 
-// Opens and samples a captured window in the renderer.
-// Main lists the sources; this turns a source id into a MediaStream, draws frames
-// to a canvas and reads a pixel back.
-
 (function () {
   const csp = window.csp;
 

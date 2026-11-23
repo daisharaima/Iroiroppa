@@ -1,9 +1,5 @@
 'use strict';
 
-// The manual "download and install" half of the update flow. It is deliberately
-// Electron-free so the URL check, the download and the portable replace script
-// can be tested with plain Node.
-
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -64,8 +60,8 @@ async function downloadTo(url, dest, { fetchImpl = globalThis.fetch, onProgress,
       }
     }
   } catch (err) {
-    try { fs.closeSync(fd); } catch { /* already closed */ }
-    try { fs.unlinkSync(dest); } catch { /* nothing to remove */ }
+    try { fs.closeSync(fd); } catch {  }
+    try { fs.unlinkSync(dest); } catch {  }
     throw err;
   }
   fs.closeSync(fd);

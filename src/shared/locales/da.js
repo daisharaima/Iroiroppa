@@ -1,4 +1,4 @@
-// Dansk.
+
 (function (root) {
   'use strict';
 

@@ -1,15 +1,5 @@
 'use strict';
 
-// The interaction IPC group (E1, colour only; docs/STATE.md "local-first").
-//
-// Registered only when `--local-first` is on, so a normal run has exactly the
-// channels it had before. The sender is resolved from the event, never from the
-// payload: a window can only drive its own interaction.
-//
-// An update is forwarded to the service as a coalesced write because that is
-// what the colour loop already does per pointermove; the hub adds the ordering,
-// the ownership and the reject path around it.
-
 const { BrowserWindow, ipcMain } = require('electron');
 const { sendTo } = require('../broadcast');
 
@@ -25,8 +15,6 @@ function register(ctx, trusted) {
     if (ctx.traceInteraction) console.log(`[interaction] reject ${interaction.interactionId} -> win ${interaction.windowId} (${interaction.reason})`);
   }
 
-  // `--trace-interaction` prints one line per protocol event, so a live run can be
-  // checked from the log (one begin, N updates, one end, zero rejects).
   const trace = (line) => { if (ctx.traceInteraction) console.log(`[interaction] ${line}`); };
 
   ipcMain.handle('interaction:begin', (event, spec = {}) => {

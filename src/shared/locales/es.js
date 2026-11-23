@@ -1,4 +1,4 @@
-// Español.
+
 (function (root) {
   'use strict';
 

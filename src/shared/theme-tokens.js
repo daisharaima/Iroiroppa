@@ -1,24 +1,5 @@
 'use strict';
 
-// The theming surface: one entry per CSS custom property a theme file may set.
-//
-// This is the single source of truth for docs/THEMES.md (the table between its
-// `tokens` markers is generated from here), for the theme-authoring skill and for
-// test/theme-tokens.test.js. Add a token here *first*, then declare it in
-// `style.css` (`:root`) and use it; the test fails if a documented token is unused
-// or a bundled theme is missing one.
-//
-// `kind` is the contract that keeps theming cheap and safe:
-//   - `paint`     never changes geometry (colour, shadow, radius) — free.
-//   - `structural` can change an element's measured size (font size, spacing) —
-//     the app re-measures and re-clamps the window when it changes. See
-//     docs/THEMES.md, "Two kinds of token".
-//
-// `default` is the value the renderer falls back to when a (usually user) theme
-// omits the token; it mirrors `style.css`'s light `:root`, and the test keeps the
-// two in step. Electron-free and dependency-free on purpose, and loadable both in
-// Node (require) and in the renderer (a plain <script>).
-
 /** @typedef {{ id: string, label: string, type: 'color'|'shadow'|'font'|'length', kind: 'paint'|'structural', default: string, applies: string, required: boolean, min?: number, max?: number }} ThemeToken */
 
 /** @type {ThemeToken[]} */
@@ -58,10 +39,6 @@ const TOKENS = [
   { id: '--space', label: 'Spacing unit', type: 'length', kind: 'structural', default: '3px', required: true, min: 2, max: 12, applies: 'card padding and the gaps between cards' },
 ];
 
-// Variables that are never part of a theme file: a value a module sets inline
-// (`--slider-pct`, `--history-tile`), a local the stylesheet owns (`--panel`) and
-// the accent ink the kernel derives (`--accent-text`). The docs and tests ignore
-// them when checking token coverage.
 const LOCAL_VARS = ['--panel', '--slider-pct', '--history-tile', '--accent-text'];
 
 const TOKEN_MARK_START = '<!-- tokens:start (generated from src/shared/theme-tokens.js) -->';

@@ -1,14 +1,5 @@
 'use strict';
 
-// One safe way to read and write a JSON file in the app-data directory.
-//
-// Writes go to a temp file and are renamed over the target, so a crash (or a
-// full disk) mid-save cannot leave a truncated document — the previous one
-// survives. Reading never throws: a missing file is `null`, and a file that is
-// not valid JSON is kept as a `.bak` before anything can overwrite it.
-//
-// Electron-free, so both are unit-tested headlessly.
-
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -34,7 +25,7 @@ function writeJsonAtomic(file, value) {
     try {
       fs.rmSync(tmp, { force: true });
     } catch {
-      /* the direct write below is the fallback */
+
     }
     fs.writeFileSync(file, text);
   }

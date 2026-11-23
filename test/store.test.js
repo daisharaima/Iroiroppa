@@ -1,8 +1,5 @@
 'use strict';
 
-// JsonStore persists atomically (temp + rename) so a crash mid-write cannot
-// truncate settings.json or history.json.
-
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
