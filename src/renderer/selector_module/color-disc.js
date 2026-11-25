@@ -1,29 +1,14 @@
 'use strict';
 
-// Color Disc — the hue x chroma plane at the current lightness, drawn on a circle.
-//
-// The disc's radius is the model's own saturation axis:
-//   * Okhsv / Okhsl: s, which is relative to the cusp, so every hue reaches the rim
-//     and the disc is a true circle (it is the sRGB gamut by definition).
-//   * OKLCH / OKLab: absolute chroma, so the rim is the widest hue at this lightness
-//     and the document's gamut is the lobed shape inside it — a round disc would
-//     have to lie about chroma magnitude, so it is not drawn round.
-// The third axis (L or V) is a slider under the disc; the disc stays a silhouette
-// (out of gamut is transparent), like Color Slices.
-
 (function () {
   const reg = (window.Iro = window.Iro || {});
   reg.modules = reg.modules || {};
   const Models = window.IroColorModels;
   const G = window.IroSliceGeometry;
 
-  // The disc draws hue by angle and chroma by radius, i.e. the *polar* form of a space.
-  // A rectangular model and its LCH twin therefore draw the same picture, so the list
-  // keeps one entry per space — the a/b forms, with the LCH twins resolved to them.
   const DISC_MODELS = ['oklab', 'okhsv', 'okhsl', 'cielab', 'helmgen'];
   const MODEL_TWIN = { oklch: 'oklab', cielch: 'cielab', helmgenlch: 'helmgen' };
 
-  /** The model this module can actually draw, given a saved id (LCH twins mapped). */
   const discModel = (saved, available) => {
     const twin = MODEL_TWIN[saved] || saved;
     if (available.some((m) => m.id === twin)) return twin;
@@ -33,12 +18,9 @@
   const clamp = (x, lo, hi) => (x < lo ? lo : x > hi ? hi : x);
   const CHEV_UP = '<svg viewBox="0 0 10 10"><path d="M2 6.5 5 3.5l3 3"/></svg>';
   const CHEV_DOWN = '<svg viewBox="0 0 10 10"><path d="M2 3.5 5 6.5l3-3"/></svg>';
-  // The Disc's held axis is a horizontal slider row, so its nudge arrows step left and
-  // right (the arrows follow the slider, not the reading direction of the number).
   const CHEV_LEFT = '<svg viewBox="0 0 10 10"><path d="M6.5 2 3.5 5l3 3"/></svg>';
   const CHEV_RIGHT = '<svg viewBox="0 0 10 10"><path d="M3.5 2 6.5 5l-3 3"/></svg>';
 
-  /** The index of the axis the disc holds: L for OKLCH/OKLab, V/L for Okhsv/Okhsl. */
   const lightAxis = (model) => Models.lightAxis(model);
 
   const settingsUI = (api, root, store) => {
@@ -78,9 +60,6 @@
     box.addEventListener('change', () => api.patch({ hideNumbers: box.checked }));
     root.append(numbers);
 
-    // The disc is painted whole, so the part of it the document cannot hold is drawn as a
-    // dimmed stand-in (the pale section over a light theme). This switches that off: the
-    // region is then painted clipped, part of the disc, with no pale band.
     const outRow = document.createElement('label');
     outRow.className = 'pop-row';
     const outBox = document.createElement('input');
@@ -102,8 +81,6 @@
     lens: true,
     name: 'Color Disc',
     version: 1,
-    // Content-sized: a circle plus one slider row, so a column share only leaves an
-    // empty band under the disc. The canvas width (the palette width) sets its size.
     autoHeight: true,
     defaults: { model: 'okhsv', hideNumbers: false, guideLines: true, showOutOfGamut: true },
     settingsUI,
@@ -128,10 +105,8 @@
       body.append(canvas);
       ctx.el.append(body);
 
-      // The held axis: a Slider-style row (gradient track, value, steppers).
       const sliders = document.createElement('section');
       sliders.className = 'sliders disc-sliders';
-      // Horizontal row: the steppers sit side by side (CSS) with left/right chevrons.
       sliders.dataset.orientation = 'horizontal';
       const row = document.createElement('div');
       row.className = 'slider-row';
@@ -196,7 +171,6 @@
       const Cadence = window.IroRenderCadence;
       const Pixel = window.IroRasterPlane;
 
-      /** The plane the disc draws (see src/shared/disc-map.js). */
       const discPlane = (model) => DiscMap.discPlane(model);
       let lockLight = null;
       const metricsOf = () => {
@@ -209,8 +183,6 @@
       };
 
       const sizeCanvas = (cap = 2, nativeOnly = false) => {
-        // A pixel budget instead of a fixed 2×: a disc stretched to the palette width
-        // renders far more pixels and stutters. Below 1× is never used (no blurry upscale).
         const base = window.devicePixelRatio || 1;
         const want = nativeOnly ? Math.max(1, Math.min(base, cap)) : Math.min(Math.max(base, 2), cap);
         const dpr = window.IroCanvasSize
@@ -228,31 +200,17 @@
         return { w, h };
       };
 
-      // --- the radius -----------------------------------------------------------
-      /** The disc's rim in model units (src/shared/disc-map.js#rimFor). */
       const scaleFor = (model) => DiscMap.rimFor(model, store);
 
-      /** Model axes for a disc point (hue degrees, radius 0..1). */
       const axesAt = (model, axes, hue, r, scale) => DiscMap.axesAt(model, axes, hue, r, scale);
 
-      /**
-       * The disc point of the current colour: the exact inverse of `axesAt`, so the
-       * pointer sits where the click goes. It is never re-derived from another
-       * lightness — that used to collapse to the centre on some hues.
-       */
       const pointOf = (model, axes, scale) => DiscMap.pointFromAxes(model, axes, scale, store);
 
-      // --- raster ---------------------------------------------------------------
       const discCache = new Map();
 
-      // The lens over this disc (a per-channel band grid, src/shared/lens.js). Rebuilt
-      // only when the instance's lens settings or the profile change; a change drops
-      // every cached map, because every pixel depends on it.
       const LensAccess = window.IroLensAccess;
       let lensKey = null;
       let lensNow = null;
-      // The raw cursor position (canvas px from the centre), so a lensed pointer follows
-      // the mouse instead of the band's canonical position.
       let lastCursor = null;
       const syncLens = () => {
         if (!LensAccess) return;
@@ -283,8 +241,6 @@
         const cy = h / 2;
         const radius = Math.min(w, h) / 2 - 0.5;
         const px = new Uint8ClampedArray(4);
-        // The document's gamut, independent of the display appearance model: this is
-        // the area the disc can pick, and the area the other maps draw as "solid".
         const inDocument = (lab) => {
           const l = Color.oklabToOklch(lab.L, lab.a, lab.b);
           return typeof store.inDocumentGamut === 'function'
@@ -296,16 +252,11 @@
           for (let x = 0; x < w; x += 1) {
             const nx = (x + 0.5 - cx) / radius;
             const r = Math.hypot(nx, ny);
-            if (r > 1) continue; // outside the disc stays clear
+            if (r > 1) continue;
             const hue = ((Math.atan2(ny, nx) * 180) / Math.PI + 360) % 360;
             const next = axesAt(model, axes, hue, r, scale);
             const lab = model.toLab(next);
             const inside = inDocument(lab);
-            // The disc is a shape: in the document but outside sRGB is clipped (dimmed
-            // only when the user marks it), and outside the document it is the pale
-            // stand-in — or blank when showOutOfGamut is off. One helper keeps this
-            // identical to the Slices/Wheel paint rule; the old per-pixel sRGB fade
-            // painted a wide-gamut document's disc almost entirely pale.
             Pixel.pixelFromLab(lab, px, inDocument, store.markOutOfDisplay ? 140 : 255, showOutOfGamut, lensNow);
             const i = (y * w + x) * 4;
             data[i] = px[0];
@@ -319,12 +270,10 @@
         if (discCache.size > 6) discCache.clear();
         discCache.set(key, off);
         off.__luma = luma;
-        // The lightness this map was built for, so the guide is traced from its own field.
         off.__target = nativeLight ? axes[lIdx] : G.lightnessOf(model, axes);
         return off;
       };
 
-      // --- render ---------------------------------------------------------------
       let rafId = 0;
       const schedule = () => {
         if (rafId) return;
@@ -347,26 +296,18 @@
         sliders.classList.toggle('hide-numbers', hideNumbers);
       };
 
-      // The guide currently drawn, in normalized disc coordinates ((-1,-1)..(1,1), the
-      // rim is radius 1) and the lightness it was drawn for. A locked drag projects the
-      // pointer onto this line: it is the only place the locked lightness really is.
       let lastDiscGuide = null;
 
-      /** The iso-lightness guide: the contour of the disc's own lightness field. */
       const drawDiscGuide = (c2d, w, h, model, axes, target, scale) => {
         lastDiscGuide = null;
         if (!guideLines || !Contour) return;
-        if (G.lightAxisIsCanonical(model)) return; // one lightness everywhere: no line
+        if (G.lightAxisIsCanonical(model)) return;
         const field = lastDiscOff && lastDiscOff.__luma;
         if (!field) return;
-        // The field belongs to the map, which may differ in size from the canvas
-        // (the interactive native-pixel build): index it with its own dimensions.
         const fw = lastDiscOff.width;
         const fh = lastDiscOff.height;
         const lines = Contour.isoLines(field, fw, fh, target, { stride: fw * fh > 120000 ? 2 : 1 });
         if (!lines.length) return;
-        // Map the field's pixels onto the canvas (same 1:1 orientation as drawImage),
-        // and keep the same line in disc coordinates for the locked pick.
         const sx = w / fw;
         const sy = h / fh;
         const cx = w / 2;
@@ -382,13 +323,6 @@
       };
 
       const render = () => {
-        // The disc module is content-sized (`autoHeight`), and its box is always square:
-        // the canvas takes the width and its height follows (`.disc-plot` has an
-        // aspect-ratio of 1), so the card ends under the footer with no dead band and
-        // the backing store can never be sized from a stale height.
-        // The map backing is a property of the module, not of the gesture. Using a
-        // 2× idle canvas and a native drag canvas made the Disc visibly change
-        // quality the moment a drag began; only the paced rebuild may differ now.
         const { w, h } = sizeCanvas(2, true);
         if (w < 12 || h < 12) return;
         const dpr = w / Math.max(1, canvas.clientWidth);
@@ -399,11 +333,6 @@
         const modelKey = `${store.plotKeyTag()}:${model.id}:${axes[lIdx].toFixed(4)}:${scale.toFixed(4)}:${w}x${h}`;
         const stale = !lastDiscOff || modelKey !== builtKey;
         const now = performance.now();
-        // The disc follows the light row live. While a gesture is in flight the build is
-        // paced by its own measured cost (never by the trailing full-quality one), so a
-        // slow model cannot stall the pointer. The old image stays on screen until the
-        // new one lands: clearing and returning here made the disc flash white on every
-        // lightness change anywhere.
         if (stale && (!store.interactive || now >= holdUntil)) {
           const started = performance.now();
           lastDiscOff = buildDisc(w, h, model, axes, scale);
@@ -423,18 +352,9 @@
         const radius = Math.min(w, h) / 2 - 0.5;
         drawDiscGuide(c2d, w, h, model, axes, lockLight != null
           ? lockLight
-          // Idle: trace the contour from the light the displayed map was built at — a
-          // paced rebuild traced at a newer target made the guide flash, jump, and miss
-          // the pointer. During a drag the light row is moving and the guide must follow
-          // the pointer, so use the live light over the current field instead of waiting
-          // for the next paced build (the "guide does not update live" report).
           : (store.interactive || !lastDiscOff || !Number.isFinite(lastDiscOff.__target)
             ? G.lightnessOf(model, axes)
             : lastDiscOff.__target), dpr);
-        // The ring shows the *picked* colour, not the cursor: with a locked lightness the
-        // stored colour is solved onto the iso-lightness line, so the ring belongs there.
-        // With a lens on, the stored colour is a *band* whose canonical position is not
-        // under the mouse, so the pointer follows the last cursor position instead.
         const p = pointOf(model, axes, scale);
         const a = (p.hue * Math.PI) / 180;
         Overlay.pointer(c2d, cx + Math.cos(a) * radius * p.r, cy + Math.sin(a) * radius * p.r, {
@@ -448,9 +368,6 @@
         syncRange(model, axes);
       };
 
-      // --- interaction ----------------------------------------------------------
-
-      /** Model axes for an event position: clamped to the rim, never null. */
       const axesFromEvent = (ev) => {
         if (!canvas.clientWidth || !canvas.clientHeight) return null;
         const model = modelNow();
@@ -468,11 +385,6 @@
         const ny = (y - cy) / radius;
         lastCursor = { x: nx * radius, y: ny * radius };
         const raw = Math.hypot(nx, ny);
-        // A locked drag projects the pointer onto the *drawn* guide: that line is the
-        // raster's own iso-lightness contour, so its nearest point is exactly the colour
-        // under the cursor with the locked lightness. The solver below brackets the axis
-        // from its low end, so on a non-monotone lightness curve (OKHSV at fixed V) it can
-        // land on a far branch — the "pointer is nowhere near the cursor" report.
         let px = nx;
         let py = ny;
         let projected = false;
@@ -499,11 +411,6 @@
 
       const applyPoint = (next, notify) => {
         const lab = next.model.toLab(next.axes);
-        // `snap` is the store's single gamut-snap path (`reduceChroma`, never raises
-        // chroma): every recorded disc value lands inside the document. The pointer is
-        // drawn from the stored axes, so it stays on the drawn boundary. A lens is only
-        // the *recorded* value: putting the band in the store moved the pointer and the
-        // lightness row (the "L channel shifts" report).
         const recorded = lensNow
           ? lensNow.applyLab(lab, Color.rgbToOklab, Color.oklabToRgb)
           : null;

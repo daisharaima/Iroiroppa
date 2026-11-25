@@ -1,26 +1,3 @@
-/*
- * Plane rasteriser — the per-pixel colour of one slice, in one place.
- *
- * Every non-OKLCH model's map used to convert each pixel through the whole chain
- * (axes -> OKLab -> OKLCH -> gamut test -> sRGB) with several object allocations
- * per pixel. On a panel-sized plane (~160k device pixels) that is 150 ms for
- * CIELAB and ~350 ms for HelmGen, which is what made those pickers lag while a
- * drag rebuilt a map per frame (docs/PERF.md).
- *
- * This module keeps the same predicate and the same picture but does it once:
- *
- *   axes -> OKLab            (one call, or one dot product for an affine model)
- *   OKLab -> linear sRGB     (one matrix)
- *   linear -> sRGB           (a 4096-entry LUT)
- *   inside the sRGB cube?    (the display test, on the values we already have)
- *
- * HelmGen's GenSpace is a *linear* space over XYZ, so its axis-to-OKLab map is a
- * 3x3 matrix plus an offset; we validate that numerically once and then skip the
- * vendored bundle's per-pixel path (1.31 us -> ~0.05 us). Any model that fails the
- * validation keeps its own `toLab`.
- *
- * Loads as CommonJS in Node and as a global `IroRasterPlane` in the renderer.
- */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
     module.exports = factory(require('./color'), require('./color-models'));
@@ -37,25 +14,16 @@
     return table;
   })();
 
-  // The magnitude-relative tolerance the rest of the app uses, applied in linear
-  // light: a linear channel in [0, 1] is exactly a displayable one, and the LUT
-  // below only quantises the value written, not the test.
   const GAMUT_REL_TOL = 1e-6;
 
-  /** Linear light -> gamma sRGB, exact at the ends, LUT in between. */
   function gamma(lin) {
-    // The linear toe (and anything negative) is exact and cheap: that is where a
-    // linear-indexed LUT would be least accurate, because the curve is steepest.
     if (!(lin > 0.0031308)) return 12.92 * lin;
     if (lin >= 1) return 1.055 * Math.pow(lin, 1 / 2.4) - 0.055;
     return LUT[(lin * LUT_N + 0.5) | 0];
   }
 
-  // --- affine models ---------------------------------------------------------
-
   const affineCache = new Map();
 
-  /** Compose `toLab` as base + M·axes when the model is linear in its axes. */
   function affineToLab(model) {
     if (!model || typeof model.toLab !== 'function' || !Array.isArray(model.axes)) return null;
     if (model.axes.length !== 3) return null;
@@ -97,27 +65,6 @@
     return result;
   }
 
-  // --- the plane -------------------------------------------------------------
-
-  /**
-   * Rasterise one model plane into an RGBA buffer.
-   *
-   * @param {object} spec
-   * @param {object} spec.model        a registered color model
-   * @param {number} spec.plane        plane index (see Models.planesFor)
-   * @param {number[]} spec.fixed      the three axes, with the fixed one filled in
-   * @param {{min:number,max:number}[]} spec.ranges  per free axis, in axis order
-   * @param {number} spec.width
-   * @param {number} spec.height
-   * @param {Uint8ClampedArray} [spec.out]  destination (length width*height*4)
-   * @param {Float32Array} [spec.luma]  optional per-pixel lightness field, in the
-   *        model's own light units (native axis for a `native` model — CIELAB L*,
-   *        HelmGen L — else OKLab L); NaN where the pixel is transparent. The
-   *        iso-lightness guides are extracted from this field (src/shared/contour.js).
-   * @param {Function|null} [spec.workingGamut]  (lab) => bool when a wide profile is
-   *        the working gamut; null means the working gamut is sRGB itself
-   * @returns {Uint8ClampedArray}
-   */
   function renderPlane(spec) {
     const { model, plane, fixed, ranges, width, height, out = null, workingGamut = null, luma = null, fill = false, outAlpha = 255, fillAlpha = 255, lens = null } = spec;
     const data = out || new Uint8ClampedArray(width * height * 4);
@@ -154,9 +101,6 @@
         lab.L = L; lab.a = a; lab.b = b;
 
         if (workingGamut && !workingGamut(lab)) {
-          // Out of the document gamut. Kept as a hole for perceptual models (the slice
-          // shows only what it can pick) but painted dimmed when `fill` is set — a dense
-          // model's map is a shape, not a silhouette with bites out of it.
           if (fill) {
             const lch = Color.oklabToOklch(L, a, b);
             const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
@@ -173,12 +117,8 @@
         const g = gamma(lin.g);
         const bl = gamma(lin.b);
 
-        // A lens changes the *colour*, never the shape: a pixel outside the document
-        // gamut stays a hole (a map shows only what it can pick), and only a pixel the
-        // document holds is painted as its band. Painting the outside too turned a Disc
-        // into a perfect circle (the "shape changed" report).
         if (lens && (!workingGamut || workingGamut(lab))) {
-          const c = lens.applySrgb(r, g, bl, LENSED);
+          const c = lens.applySrgb(r, g, bl, LENS_SCRATCH);
           data[i] = clamp255(c[0] * 255);
           data[i + 1] = clamp255(c[1] * 255);
           data[i + 2] = clamp255(c[2] * 255);
@@ -189,12 +129,6 @@
         if (r < -GAMUT_REL_TOL || r > 1 + GAMUT_REL_TOL
           || g < -GAMUT_REL_TOL || g > 1 + GAMUT_REL_TOL
           || bl < -GAMUT_REL_TOL || bl > 1 + GAMUT_REL_TOL) {
-          // Past the sRGB display window. Inside the document that is a real colour the
-          // screen cannot show: paint it clipped — the plain drawing-app look, no faded
-          // region — unless the user asked to mark it (`outAlpha` < 255), which uses the
-          // dimmed chroma fit so the region is visible. Outside the document it is not a
-          // colour the map can pick: a hole (perceptual models) or the dimmed fill (a
-          // dense model's map is a shape, not a silhouette with bites out of it).
           if (!workingGamut || !workingGamut(lab)) {
             if (!fill) { data[i + 3] = 0; continue; }
             paintFitted(data, i, L, a, b, fillAlpha);
@@ -224,14 +158,10 @@
 
   const clamp255 = (x) => (x <= 0 ? 0 : x >= 255 ? 255 : (x + 0.5) | 0);
 
-  /** Scratch for a lensed colour, so a band does not allocate per pixel. */
-  const LENSED = [0, 0, 0];
+  const LENS_SCRATCH = [0, 0, 0];
 
-  // Opacity of a filled out-of-gamut pixel: the panel background shows through, so it
-  // reads as a dimmed colour on any theme and the map keeps its shape.
-  const OUT_ALPHA = 140;
+  const FILLED_OUT_OF_GAMUT_ALPHA = 140;
 
-  /** Paint the sRGB stand-in of a colour at `alpha` (used by the fill mode). */
   function paintFitted(data, i, L, a, b, alpha) {
     const lch = Color.oklabToOklch(L, a, b);
     const f = Color.fitToSrgb(lch.L, lch.C, lch.H);
@@ -241,46 +171,34 @@
     data[i + 3] = alpha;
   }
 
-  // The magnitude-relative tolerance the gamut test uses, in gamma sRGB units.
-  const WIN_TOL = 1e-6;
+  const SRGB_WINDOW_TOL = 1e-6;
 
-  /**
-   * One OKLab pixel as gamma sRGB bytes, by the same chain as the plane raster.
-   * Alpha is 0 when the colour is outside the working gamut; `workingGamut` is null
-   * when the working gamut is sRGB itself (the common case, and the fast one).
-   */
   function pixelFromLab(lab, out, workingGamut = null, outAlpha = 255, fill = false, lens = null) {
     const lin = Color.oklabToLinearRgb(lab.L, lab.a, lab.b);
     const r = gamma(lin.r);
     const g = gamma(lin.g);
     const b = gamma(lin.b);
-    // The same rule as the plane: a lens recolours, it does not add area.
     if (lens) {
       if (workingGamut && !workingGamut(lab)) {
-        if (fill) paintFitted(out, 0, lab.L, lab.a, lab.b, OUT_ALPHA);
+        if (fill) paintFitted(out, 0, lab.L, lab.a, lab.b, FILLED_OUT_OF_GAMUT_ALPHA);
         else out[3] = 0;
         return out;
       }
-      const c = lens.applySrgb(r, g, b, LENSED);
+      const c = lens.applySrgb(r, g, b, LENS_SCRATCH);
       out[0] = clamp255(c[0] * 255);
       out[1] = clamp255(c[1] * 255);
       out[2] = clamp255(c[2] * 255);
       out[3] = 255;
       return out;
     }
-    if (r < -WIN_TOL || r > 1 + WIN_TOL
-      || g < -WIN_TOL || g > 1 + WIN_TOL
-      || b < -WIN_TOL || b > 1 + WIN_TOL) {
+    if (r < -SRGB_WINDOW_TOL || r > 1 + SRGB_WINDOW_TOL
+      || g < -SRGB_WINDOW_TOL || g > 1 + SRGB_WINDOW_TOL
+      || b < -SRGB_WINDOW_TOL || b > 1 + SRGB_WINDOW_TOL) {
       if (!workingGamut || !workingGamut(lab)) {
-        // Outside the document gamut. A slice keeps a hole (it shows only what it
-        // can pick); a map that is a shape (the Disc) fills it with the dimmed
-        // stand-in instead, so the shape never gains a bite.
-        if (fill) paintFitted(out, 0, lab.L, lab.a, lab.b, OUT_ALPHA);
+        if (fill) paintFitted(out, 0, lab.L, lab.a, lab.b, FILLED_OUT_OF_GAMUT_ALPHA);
         else out[3] = 0;
         return out;
       }
-      // Inside the working gamut but past sRGB: clipped at full opacity (the plain
-      // drawing-app look), or the dimmed chroma fit when the caller marks the region.
       if (outAlpha >= 255) {
         out[0] = clamp255(r * 255);
         out[1] = clamp255(g * 255);
