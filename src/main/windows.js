@@ -946,17 +946,21 @@ function trackInteraction(win) {
 /**
  * A text field needs real keyboard focus, which a WS_EX_NOACTIVATE window can never
  * take. Drop the native bit while the field is open (`on`) and restore it after, so
- * the palette is non-activating again as soon as editing ends.
+ * the window is non-activating again as soon as editing ends.
  */
-async function setPaletteEditable(on) {
-  if (!ctx.popup || ctx.popup.isDestroyed()) return;
+async function setWindowEditable(win, on) {
+  if (!win || win.isDestroyed()) return;
 
   ctx.focusGraceUntil = Date.now() + 900;
-  forgetBand(ctx.popup);
-  await ensureBand(ctx.popup, { noActivate: !on, topmost: true }).catch(() => {});
-  if (on && ctx.popup && !ctx.popup.isDestroyed()) {
-    try { ctx.popup.focus(); } catch {  }
+  forgetBand(win);
+  await ensureBand(win, { noActivate: !on, topmost: true }).catch(() => {});
+  if (on && win && !win.isDestroyed()) {
+    try { win.focus(); } catch {  }
   }
+}
+
+async function setPaletteEditable(on) {
+  return setWindowEditable(ctx.popup, on);
 }
 
 /** A non-F-key accelerator needs at least one modifier, or it would swallow typing. */
@@ -1846,7 +1850,7 @@ function refreshTray() {
 }
 
   return {
-    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, createWhatsNewWindow, openWhatsNew, closeWhatsNewWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, toggleAllWindows, showPaletteWindow, hidePaletteWindow, togglePaletteWindow, paletteIds, paletteExists, paletteVisible, isPaletteSuppressed, pruneSuppressed, anyBandVisible, positionWindowAtCursor, positionShortcutWindow, markShortcutPlacement, isShortcutPlacement, clearShortcutPlacement, captureShortcutVisibility, showShortcutTarget, restoreShortcutVisibility, isShortcutActive, resetInputState, reassertBand, reassertTopmost: raiseTopmost, repairTopmost, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayConfirm, closeOverlayConfirm, showOverlayMenu, closeOverlayMenu, showTooltip, hideTooltip, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, closeLensWindow, openLensWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
+    isCspForeground: () => Boolean(ctx.fgHealthy) && isCspProcess(ctx.fgName),    createPopup, createSettingsWindow, createWhatsNewWindow, openWhatsNew, closeWhatsNewWindow, showPopup, showPopupAuto, hidePopup, positionPopup, togglePopup, toggleAllWindows, showPaletteWindow, hidePaletteWindow, togglePaletteWindow, paletteIds, paletteExists, paletteVisible, isPaletteSuppressed, pruneSuppressed, anyBandVisible, positionWindowAtCursor, positionShortcutWindow, markShortcutPlacement, isShortcutPlacement, clearShortcutPlacement, captureShortcutVisibility, showShortcutTarget, restoreShortcutVisibility, isShortcutActive, resetInputState, reassertBand, reassertTopmost: raiseTopmost, repairTopmost, setWindowEditable, setPaletteEditable, applySummonHotkey, unregisterSummonHotkey, applyCommandHotkeys, unregisterCommandHotkeys, uiScaleValue, applyZoom, applyUiScale, applyWindowTheme, ensureOverlayWin, hideOverlay, showOverlay, showOverlayConfirm, closeOverlayConfirm, showOverlayMenu, closeOverlayMenu, showTooltip, hideTooltip, removeModuleFromFloats, closeModuleSettingsWindow, openModuleSettingsWindow, closeLensWindow, openLensWindow, AUTO_CONNECT_STATES, canAutoConnect, scheduleAutoConnect, startPairing, isCspProcess, isOwnProcess, startFollowFocus, stopFollowFocus, applyAutoHide, positionPopupForScan, makeTrayIcon, buildTray, refreshTray,
   };
 }
 

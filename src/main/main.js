@@ -1335,9 +1335,7 @@ const wantNativeHost = process.argv.includes('--native-host')
 const pushHelpers = () => {
   try {
     const payload = helperHealth.summary();
-    for (const win of require('electron').BrowserWindow.getAllWindows()) {
-      try { win.webContents.send('helpers:state', payload); } catch {  }
-    }
+    broadcastTo(require('electron').BrowserWindow.getAllWindows(), 'helpers:state', payload);
   } catch {  }
 };
 ctx.pushHelpers = pushHelpers;

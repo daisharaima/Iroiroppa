@@ -199,6 +199,11 @@ function register(ctx, h) {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (win && !win.isDestroyed()) win.setResizable(Boolean(resizable));
   });
+  ipcMain.on('window:editable-self', (event, on) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win || win.isDestroyed()) return;
+    if (typeof ctx.setWindowEditable === 'function') ctx.setWindowEditable(win, Boolean(on));
+  });
 
   ipcMain.on('float:collapsed', (_e, { floatId, collapsed } = {}) => ctx.setFloatCollapsed(floatId, collapsed));
   ipcMain.handle('moduleSettings:open', (_e, spec) => ctx.openModuleSettingsWindow(spec));

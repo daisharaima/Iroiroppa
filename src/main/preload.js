@@ -197,6 +197,7 @@ contextBridge.exposeInMainWorld('csp', {
   moveSelfBy: (dx, dy) => ipcRenderer.send('window:move-by-self', { dx, dy }),
   setCollapsed: (on, height) => ipcRenderer.send('window:collapsed', { on, height }),
   setEditable: (on) => ipcRenderer.send('window:editable', on),
+  setEditableSelf: (on) => ipcRenderer.send('window:editable-self', on),
   resize: (width, height) => ipcRenderer.send('window:resize', { width, height }),
   resizeSelf: (width, height) => ipcRenderer.send('window:resize-self', { width, height }),
   setMinSizeSelf: (width, height) => ipcRenderer.send('window:min-size-self', { width, height }),

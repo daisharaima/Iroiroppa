@@ -41,7 +41,8 @@
       this._subscribe = subscribe !== false;
       this._load = load || (() => csp.getLayout());
       this._persist = save || ((layout) => csp.saveLayout(layout));
-      this._resize = resize || ((width, height) => csp.resize(width, height));
+      if (typeof resize !== 'function') throw new TypeError('Board needs a resize callback');
+      this._resize = resize;
       this.layout = { version: 1, floats: [], columns: [] };
       this.columns = new Map();
       this.modules = new Map();

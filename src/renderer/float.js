@@ -143,7 +143,7 @@
       nameInput: document.getElementById('palette-name'),
     });
 
-    if (window.Iro.wireEditableFields) window.Iro.wireEditableFields(csp);
+    if (window.Iro.wireEditableFields) window.Iro.wireEditableFields({ setEditable: (on) => csp.setEditableSelf(on) });
 
     const grip = document.getElementById('float-grip');
     if (grip) {

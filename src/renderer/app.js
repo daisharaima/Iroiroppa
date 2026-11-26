@@ -63,6 +63,7 @@
 
     load: () => csp.getPaletteColumns(),
     save: (layout) => csp.setPaletteColumns(layout.columns),
+    resize: (width, height) => csp.resize(width, height),
   });
   window.__board = board;
 
@@ -217,7 +218,7 @@
 
   function wire() {
     attachResizeGrip();
-    if (window.Iro.wireEditableFields) window.Iro.wireEditableFields(csp);
+    if (window.Iro.wireEditableFields) window.Iro.wireEditableFields({ setEditable: (on) => csp.setEditable(on) });
     attachTitlebarDrag();
     board.bindPaletteName($('palette-name'));
     board.bindUnsnap($('btn-unsnap'));
@@ -307,7 +308,7 @@
     try {
       await host.load(MODULE_IDS);
       await board.init();
-      if (window.Iro.wireEditableFields) window.Iro.wireEditableFields(csp);
+      if (window.Iro.wireEditableFields) window.Iro.wireEditableFields({ setEditable: (on) => csp.setEditable(on) });
     } catch (err) {
       console.error('[kernel] could not load selector modules', err);
     }

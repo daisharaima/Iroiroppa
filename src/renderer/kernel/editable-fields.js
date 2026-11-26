@@ -6,10 +6,11 @@
   let blurTimer = null;
 
   /** Install the delegated focusability wiring. Safe to call more than once. */
-  function wireEditableFields(csp) {
+  function wireEditableFields({ setEditable } = {}) {
+    if (typeof setEditable !== 'function') throw new TypeError('wireEditableFields needs { setEditable }');
     if (installed || typeof document === 'undefined') return;
     installed = true;
-    const editable = (on) => { try { csp.setEditable(on); } catch {  } };
+    const editable = (on) => { try { setEditable(on); } catch {  } };
     const fieldIn = (event) => (event.target && event.target.closest ? event.target.closest(FIELDS) : null);
 
     document.addEventListener('pointerdown', (event) => {
