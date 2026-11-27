@@ -556,6 +556,18 @@ Why: a public commit is permanent, and a name is enough to link this project to 
 work. If a real value is genuinely needed to explain a bug, it belongs in the git-ignored
 `_private/` folder.
 
+**Nothing here may reach outside this repository.** The folder this repo sits in holds other
+work that is not public. So no committed file — code, doc, comment, test, fixture, script or
+config — may contain a relative path that climbs past this repository's root (`../` and up),
+an absolute path that starts at the containing folder rather than at this repository, a
+reference or link to a sibling folder or to an external local archive of notes or research,
+a symlink or junction whose target lies outside this repository, or an identifier that only
+exists because something outside defines it. If two projects genuinely need to share
+something, describe the mechanism here and keep the shared part where it lives; do not
+import a path across the boundary. The same rule runs the other way: nothing outside may be
+symlinked, junctioned or mounted into this tree, because that would quietly make private
+material public.
+
 Before pushing, `npm test` is not the gate for this one — check the tree and the unpushed
 commits:
 
